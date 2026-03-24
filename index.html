@@ -99,19 +99,18 @@
             return (pct >= 0 ? `+${val}` : `${val}`) + "%";
         }
 
-        // Improved CORS proxy using allorigins.win (more stable)
+        // --- CORS proxy using corsproxy.io (adds CORS headers) ---
         async function fetchWithProxy(url) {
-            const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
-            const response = await fetch(proxyUrl);
-            if (!response.ok) throw new Error(`Proxy HTTP ${response.status}`);
-            const data = await response.json();
-            // allorigins returns { contents: "..." } which is the raw response text
-            if (!data.contents) throw new Error("No contents from proxy");
-            // Parse the contents as JSON (the target API should return JSON)
-            return JSON.parse(data.contents);
+            const proxy = "https://corsproxy.io/?";
+            const response = await fetch(proxy + encodeURIComponent(url));
+            if (!response.ok) {
+                throw new Error(`Proxy HTTP ${response.status}`);
+            }
+            // corsproxy.io returns the raw response (JSON text)
+            return await response.json();
         }
 
-        // Top 10 crypto (CoinGecko works without proxy)
+        // --- Top 10 Crypto (CoinGecko works without proxy) ---
         async function fetchTop10Crypto() {
             try {
                 const url = "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=150&page=1&sparkline=false&price_change_percentage=24h";
@@ -158,7 +157,7 @@
             tickerTrack.style.animation = "scrollTicker 38s linear infinite";
         }
 
-        // Fear & Greed (direct, no proxy needed)
+        // --- Fear & Greed (direct, no proxy needed) ---
         async function fetchFearGreed() {
             try {
                 const res = await fetch("https://api.alternative.me/fng/?limit=1");
@@ -175,10 +174,11 @@
             }
         }
 
-        // CBBI via proxy
+        // --- CBBI via proxy ---
         async function fetchCBBI() {
             try {
                 const data = await fetchWithProxy("https://api.cbbi.io/current");
+                console.log("CBBI response:", data);
                 let cbbiVal = data?.cbbi || data?.value || data?.index;
                 if (cbbiVal !== undefined && cbbiVal !== null) {
                     cbbiSpan.innerText = parseFloat(cbbiVal).toFixed(2);
@@ -189,7 +189,7 @@
             }
         }
 
-        // Bitcoin indicators (all via proxy)
+        // --- Bitcoin indicators (all via proxy) ---
         async function fetchBitcoinIndicators() {
             try {
                 const [wma200, ma2y, ma2y5, piCycle] = await Promise.allSettled([
@@ -198,6 +198,12 @@
                     fetchWithProxy("https://bitcoin-data.com/api/v1/2yma5"),
                     fetchWithProxy("https://bitcoin-data.com/api/v1/pi-cycle-bottom")
                 ]);
+
+                // Log responses to console for debugging
+                console.log("200W MA response:", wma200);
+                console.log("2Y MA response:", ma2y);
+                console.log("2Y x5 MA response:", ma2y5);
+                console.log("Pi Cycle response:", piCycle);
 
                 if (wma200.status === "fulfilled") {
                     let val = wma200.value?.value || wma200.value?.["200wma"] || wma200.value?.moving_average;
@@ -224,7 +230,7 @@
                     piEMA150Span.innerText = "N/A";
                 }
             } catch (err) {
-                console.warn("Bitcoin indicators error:", err);
+                console.error("Bitcoin indicators error:", err);
                 btc200wmaSpan.innerText = "ERR";
                 twoYMASpan.innerText = "ERR";
                 twoYMAX5Span.innerText = "ERR";
