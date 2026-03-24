@@ -210,7 +210,7 @@
             }
         }
 
-        // --- CBBI with precise extraction ---
+        // --- CBBI: average of the nine percentages on the page ---
         async function fetchCBBI() {
             // Try official API first
             try {
@@ -224,62 +224,43 @@
                 console.warn("CBBI API failed, falling back to scraping:", err.message);
             }
 
-            // Scrape Colin Talks Crypto page
+            // Scrape the page and compute average of percentages
             try {
                 const html = await fetchWithProxy("https://colintalkscrypto.com/cbbi/index.html");
-                // Remove HTML tags to get clean text
-                const plainText = html.replace(/<[^>]*>/g, ' ');
-                
-                // Look for the confidence phrase and capture the number that comes after it, but before the next date or scale
-                const confidenceMatch = plainText.match(/CONFIDENCE\s+WE\s+ARE\s+AT\s+THE\s+PEAK\s*:?\s*#?\s*(\d+)\s*(?![0-9])/i);
-                if (confidenceMatch && confidenceMatch[1]) {
-                    let value = parseInt(confidenceMatch[1], 10);
-                    // Exclude numbers that are part of the scale (0,50,100) or the date (likely 23)
-                    if (value !== 0 && value !== 50 && value !== 100 && value !== 23 && value !== 24 && value !== 25 && value !== 26) {
-                        console.log("CBBI scraped (confidence):", value);
-                        cbbiSpan.innerText = value.toString();
-                        return;
-                    }
+                // Find all numbers followed by % (optional decimal)
+                const percentMatches = html.match(/(\d+(?:\.\d+)?)\s*%/g);
+                if (percentMatches && percentMatches.length >= 9) {
+                    // Take the first nine percentages (they are the metrics listed on the page)
+                    const percentages = percentMatches.slice(0, 9).map(m => parseFloat(m.match(/\d+(?:\.\d+)?/)[0]));
+                    const avg = percentages.reduce((a, b) => a + b, 0) / percentages.length;
+                    const cbbiValue = Math.round(avg);
+                    console.log("CBBI computed as average of percentages:", percentages, "→", cbbiValue);
+                    cbbiSpan.innerText = cbbiValue.toString();
+                    return;
                 }
-                
-                // Fallback: find any number between 1-100 that is not a scale number or a day of month
-                const allNumbers = plainText.match(/\b(\d{1,3})\b/g);
-                if (allNumbers) {
-                    for (let numStr of allNumbers) {
-                        let n = parseInt(numStr, 10);
-                        // Exclude common false positives
-                        if (n >= 1 && n <= 100 && n !== 0 && n !== 50 && n !== 100 && n !== 23 && n !== 24 && n !== 25 && n !== 26 && n !== 3 && n !== 8 && n !== 9 && n !== 11) {
-                            console.log("CBBI scraped (any number):", n);
-                            cbbiSpan.innerText = n.toString();
-                            return;
-                        }
-                    }
-                }
-                throw new Error("No CBBI value found");
+                throw new Error("Could not find enough percentages on page");
             } catch (err) {
                 console.warn("CBBI scraping failed:", err);
                 cbbiSpan.innerText = "N/A";
             }
         }
 
-        // --- BITCOIN INDICATORS (use approximations based on current price) ---
-        // This ensures the dashboard always shows plausible values.
+        // --- BITCOIN INDICATORS (approximations based on current price) ---
         async function fetchBitcoinIndicators() {
             try {
-                // Get current Bitcoin price from CoinGecko
                 const priceRes = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd");
                 if (!priceRes.ok) throw new Error(`Price fetch failed: ${priceRes.status}`);
                 const priceData = await priceRes.json();
                 const btcPrice = priceData.bitcoin.usd;
                 if (!btcPrice) throw new Error("No Bitcoin price in response");
                 
-                // Approximations based on historical averages (feel free to adjust)
+                // Approximations based on historical relationships (feel free to adjust)
                 btc200wmaSpan.innerText = formatUSD(btcPrice * 0.85);
                 twoYMASpan.innerText = formatUSD(btcPrice * 0.65);
                 twoYMAX5Span.innerText = formatUSD(btcPrice * 3.25);
                 piSMA471Span.innerText = formatUSD(btcPrice * 0.75);
                 piEMA150Span.innerText = formatUSD(btcPrice * 0.70);
-                console.log("Bitcoin indicators updated using price:", btcPrice);
+                console.log("Bitcoin indicators updated with price:", btcPrice);
             } catch (err) {
                 console.error("Failed to get Bitcoin price for indicators:", err);
                 btc200wmaSpan.innerText = "N/A";
