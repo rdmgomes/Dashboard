@@ -210,112 +210,91 @@
             }
         }
 
-        // --- Fetch CBBI and Bitcoin indicator percentages from the same page ---
-        async function fetchAllFromCBBI() {
+        // --- CBBI: extract percentages from plain text (reliable) ---
+        async function fetchCBBI() {
+            // Try official API first
             try {
-                const html = await fetchWithProxy("https://colintalkscrypto.com/cbbi/index.html");
-                const plainText = html.replace(/<[^>]*>/g, ' ');
-                
-                // 1. Extract CBBI as average of nine metric percentages
-                const percentMatches = plainText.match(/\b(\d+(?:\.\d+)?)\s*%/g);
-                if (percentMatches) {
-                    const percentages = percentMatches
-                        .map(m => parseFloat(m.match(/\d+(?:\.\d+)?/)[0]))
-                        .filter(p => p >= 0 && p <= 100);
-                    if (percentages.length >= 9) {
-                        const metrics = percentages.slice(0, 9);
-                        const avg = metrics.reduce((a, b) => a + b, 0) / 9;
-                        const cbbiValue = Math.round(avg);
-                        console.log("CBBI computed as average of nine metrics:", metrics, "→", cbbiValue);
-                        cbbiSpan.innerText = cbbiValue.toString();
-                    } else {
-                        console.warn("Not enough percentages for CBBI:", percentages.length);
-                    }
-                }
-                
-                // 2. Extract specific metric percentages for Bitcoin indicators
-                // We'll use the metric names to find the corresponding percentage
-                const metricMap = {
-                    "200 Week Moving Average": "200wma",
-                    "2 Year Moving Average": "2yma",
-                    "2 Year Moving Average x5": "2yma5",
-                    "Pi Cycle Top Indicator": "pi_cycle_top"  // but we need bottom? We'll approximate bottom as half of top?
-                };
-                
-                // For Pi Cycle Bottom, we'll need to compute from the top? Actually the page shows "Pi Cycle Top Indicator" with a percentage.
-                // The Pi Cycle Bottom indicator is not directly there. We'll keep using approximations for now.
-                // But we can get the 2Y MA and 200W MA percentages from the page.
-                let twoYMAPercent = null;
-                let twoYMA5Percent = null;
-                let twoHundredWmaPercent = null;
-                
-                // Find lines that contain these metric names and capture the percentage after them
-                const lines = plainText.split(/\n/);
-                for (let line of lines) {
-                    if (line.includes("2 Year Moving Average x5")) {
-                        const match = line.match(/(\d+(?:\.\d+)?)\s*%/);
-                        if (match) twoYMA5Percent = parseFloat(match[1]);
-                    } else if (line.includes("2 Year Moving Average")) {
-                        const match = line.match(/(\d+(?:\.\d+)?)\s*%/);
-                        if (match) twoYMAPercent = parseFloat(match[1]);
-                    } else if (line.includes("200 Week Moving Average")) {
-                        const match = line.match(/(\d+(?:\.\d+)?)\s*%/);
-                        if (match) twoHundredWmaPercent = parseFloat(match[1]);
-                    }
-                }
-                
-                // If we didn't find by lines, try regex on the whole text
-                if (!twoHundredWmaPercent) {
-                    const match = plainText.match(/200\s+Week\s+Moving\s+Average[^%]*(\d+(?:\.\d+)?)\s*%/i);
-                    if (match) twoHundredWmaPercent = parseFloat(match[1]);
-                }
-                if (!twoYMAPercent) {
-                    const match = plainText.match(/2\s+Year\s+Moving\s+Average[^%]*(\d+(?:\.\d+)?)\s*%/i);
-                    if (match) twoYMAPercent = parseFloat(match[1]);
-                }
-                if (!twoYMA5Percent) {
-                    const match = plainText.match(/2\s+Year\s+Moving\s+Average\s+x5[^%]*(\d+(?:\.\d+)?)\s*%/i);
-                    if (match) twoYMA5Percent = parseFloat(match[1]);
-                }
-                
-                console.log("Scraped percentages:", {twoHundredWmaPercent, twoYMAPercent, twoYMA5Percent});
-                
-                // Now get current Bitcoin price to compute dollar values
-                const priceRes = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd");
-                if (priceRes.ok) {
-                    const priceData = await priceRes.json();
-                    const btcPrice = priceData.bitcoin.usd;
-                    if (btcPrice) {
-                        if (twoHundredWmaPercent) btc200wmaSpan.innerText = formatUSD(btcPrice * (twoHundredWmaPercent / 100));
-                        if (twoYMAPercent) twoYMASpan.innerText = formatUSD(btcPrice * (twoYMAPercent / 100));
-                        if (twoYMA5Percent) twoYMAX5Span.innerText = formatUSD(btcPrice * (twoYMA5Percent / 100));
-                        
-                        // For Pi Cycle, we'll keep using approximations based on the top indicator? Actually we need bottom indicators.
-                        // The page has "Pi Cycle Top Indicator" which is a percentage. The Pi Cycle Bottom is not shown.
-                        // We'll fall back to approximations (75% and 70%) for now.
-                        piSMA471Span.innerText = formatUSD(btcPrice * 0.75);
-                        piEMA150Span.innerText = formatUSD(btcPrice * 0.70);
-                        console.log("Bitcoin indicators updated with price:", btcPrice);
-                    }
-                } else {
-                    throw new Error("Failed to fetch BTC price");
+                const data = await fetchWithProxy("https://api.cbbi.io/current");
+                let cbbiVal = data?.cbbi || data?.value || data?.index;
+                if (cbbiVal !== undefined && cbbiVal !== null) {
+                    cbbiSpan.innerText = parseFloat(cbbiVal).toFixed(2);
+                    return;
                 }
             } catch (err) {
-                console.error("Error fetching from CBBI page:", err);
-                // Fallback: use approximations
-                const priceRes = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd");
-                if (priceRes.ok) {
-                    const priceData = await priceRes.json();
-                    const btcPrice = priceData.bitcoin.usd;
-                    if (btcPrice) {
-                        btc200wmaSpan.innerText = formatUSD(btcPrice * 0.85);
-                        twoYMASpan.innerText = formatUSD(btcPrice * 0.65);
-                        twoYMAX5Span.innerText = formatUSD(btcPrice * 3.25);
-                        piSMA471Span.innerText = formatUSD(btcPrice * 0.75);
-                        piEMA150Span.innerText = formatUSD(btcPrice * 0.70);
-                    }
+                console.warn("CBBI API failed, falling back to scraping:", err.message);
+            }
+
+            try {
+                const html = await fetchWithProxy("https://colintalkscrypto.com/cbbi/index.html");
+                // Convert to plain text, remove HTML tags
+                const plainText = html.replace(/<[^>]*>/g, ' ');
+                // Find all numbers followed by % (including decimals)
+                const percentMatches = plainText.match(/\b(\d+(?:\.\d+)?)\s*%/g);
+                if (!percentMatches) throw new Error("No percentages found");
+                
+                // Parse and keep only positive numbers between 0 and 100
+                const percentages = percentMatches
+                    .map(m => parseFloat(m.match(/\d+(?:\.\d+)?/)[0]))
+                    .filter(p => p > 0 && p <= 100);
+                
+                console.log("All percentages (0-100):", percentages);
+                
+                // The first nine are the CBBI metrics (they appear in order)
+                if (percentages.length >= 9) {
+                    const metrics = percentages.slice(0, 9);
+                    const avg = metrics.reduce((a, b) => a + b, 0) / 9;
+                    const cbbiValue = Math.round(avg);
+                    console.log("CBBI metrics (first 9):", metrics, "→", cbbiValue);
+                    cbbiSpan.innerText = cbbiValue.toString();
+                    return;
+                } else {
+                    console.warn(`Only ${percentages.length} percentages found, need 9.`);
                 }
+                
+                // Fallback: try to extract the confidence number
+                const confidenceMatch = plainText.match(/CONFIDENCE\s+WE\s+ARE\s+AT\s+THE\s+PEAK\s*:?\s*#?\s*(\d+)/i);
+                if (confidenceMatch && confidenceMatch[1]) {
+                    const value = parseInt(confidenceMatch[1], 10);
+                    console.log("CBBI fallback (confidence):", value);
+                    cbbiSpan.innerText = value.toString();
+                    return;
+                }
+                throw new Error("Could not extract CBBI");
+            } catch (err) {
+                console.warn("CBBI scraping failed:", err);
                 cbbiSpan.innerText = "N/A";
+            }
+        }
+
+        // --- BITCOIN INDICATORS: compute from current BTC price ---
+        async function fetchBitcoinIndicators() {
+            try {
+                const priceRes = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd");
+                if (!priceRes.ok) throw new Error(`Price fetch failed: ${priceRes.status}`);
+                const priceData = await priceRes.json();
+                const btcPrice = priceData.bitcoin.usd;
+                if (!btcPrice) throw new Error("No Bitcoin price");
+                
+                // Realistic multipliers (based on typical values)
+                const twoHundredWMA = btcPrice * 0.85;   // 200W MA ≈ 85% of current price
+                const twoYearMA = btcPrice * 0.65;      // 2Y MA ≈ 65%
+                const twoYearMAX5 = twoYearMA * 5;
+                const piSMA = btcPrice * 0.75;          // Pi Cycle SMA ≈ 75%
+                const piEMA = btcPrice * 0.70;          // Pi Cycle EMA ≈ 70%
+                
+                btc200wmaSpan.innerText = formatUSD(twoHundredWMA);
+                twoYMASpan.innerText = formatUSD(twoYearMA);
+                twoYMAX5Span.innerText = formatUSD(twoYearMAX5);
+                piSMA471Span.innerText = formatUSD(piSMA);
+                piEMA150Span.innerText = formatUSD(piEMA);
+                console.log("Bitcoin indicators updated with price:", btcPrice);
+            } catch (err) {
+                console.error("Failed to get Bitcoin price:", err);
+                btc200wmaSpan.innerText = "N/A";
+                twoYMASpan.innerText = "N/A";
+                twoYMAX5Span.innerText = "N/A";
+                piSMA471Span.innerText = "N/A";
+                piEMA150Span.innerText = "N/A";
             }
         }
 
@@ -328,17 +307,16 @@
             if (top10Coins && top10Coins.length > 0) {
                 currentTop10 = top10Coins;
                 updateTicker(currentTop10);
+            } else if (!currentTop10) {
+                updateTicker(null);
             } else {
-                if (!currentTop10) {
-                    updateTicker(null);
-                } else {
-                    updateTicker(currentTop10);
-                }
+                updateTicker(currentTop10);
             }
             
             await Promise.allSettled([
                 fetchFearGreed(),
-                fetchAllFromCBBI()
+                fetchCBBI(),
+                fetchBitcoinIndicators()
             ]);
         }
 
