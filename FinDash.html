@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>RETRO CRYPTO TERMINAL • 1980s MONITOR</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
+        body { background: #000000; min-height: 100vh; display: flex; justify-content: center; align-items: center; padding: 24px; font-family: 'Courier New', 'VT323', 'IBM EGA', 'Fira Code', monospace; }
+        .crt { max-width: 1400px; width: 100%; background: #0a0f0a; border-radius: 28px 28px 32px 32px; padding: 24px 28px 32px 28px; box-shadow: 0 0 0 4px #2e3b2e, 0 0 0 8px #1e2a1a, 0 10px 30px rgba(0,255,0,0.2); border-bottom: 6px solid #1f3a1f; }
+        .screen { background: #030c03; border-radius: 16px; padding: 20px 18px 24px 18px; box-shadow: inset 0 0 40px rgba(0,30,0,0.8), 0 0 0 2px #3c6e3c; position: relative; overflow: hidden; }
+        .screen::before { content: ""; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: repeating-linear-gradient(0deg, rgba(0,255,0,0.03) 0px, rgba(0,255,0,0.03) 2px, transparent 2px, transparent 6px); pointer-events: none; z-index: 2; }
+        .screen::after { content: ""; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: radial-gradient(circle at 30% 20%, rgba(0,20,0,0.2), #00000088); pointer-events: none; z-index: 1; }
+        h1, h2, h3, .ticker-item, .indicator-card span, .indicator-card label, .timestamp, .status { color: #2eff7a; text-shadow: 0 0 3px #1eff6e, 0 0 1px #0fdd5a; letter-spacing: 0.5px; }
+        h1 { font-size: 2rem; margin-bottom: 8px; border-left: 5px solid #2eff7a; padding-left: 18px; font-weight: normal; text-transform: uppercase; letter-spacing: 3px; }
+        .sub { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 1px dashed #2e7a3e; margin-bottom: 24px; padding-bottom: 8px; flex-wrap: wrap; }
+        .timestamp { font-size: 0.75rem; background: #071007; padding: 4px 10px; border-radius: 20px; font-family: monospace; }
+        .ticker-zone { margin: 18px 0 28px 0; background: #021002; border: 1px solid #1f6e2f; border-radius: 12px; padding: 12px 0; box-shadow: inset 0 0 10px #0a2f0a; }
+        .ticker-container { width: 100%; overflow: hidden; white-space: nowrap; position: relative; }
+        .ticker-track { display: inline-block; white-space: nowrap; animation: scrollTicker 38s linear infinite; will-change: transform; }
+        .ticker-content { display: inline-block; white-space: nowrap; }
+        .ticker-item { display: inline-block; font-size: 1.35rem; font-weight: bold; font-family: 'Courier New', monospace; margin-right: 48px; letter-spacing: 1px; background: #051005; padding: 4px 14px; border-radius: 40px; box-shadow: inset 0 0 4px #1e551e, 0 0 2px #2eff7a; }
+        .positive { color: #46ff8c; text-shadow: 0 0 2px #1eff6e; }
+        .negative { color: #ff5a6e; text-shadow: 0 0 2px #ff3366; }
+        @keyframes scrollTicker { 0% { transform: translateX(0%); } 100% { transform: translateX(-50%); } }
+        .indicators-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-top: 28px; }
+        .indicator-card { background: #051005; border: 1px solid #2d7542; border-radius: 14px; padding: 12px 18px; transition: all 0.1s ease; box-shadow: 2px 2px 0px #0a2a0a; }
+        .indicator-card label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 2px; display: block; margin-bottom: 8px; color: #5bc96b; }
+        .indicator-card span { font-size: 1.65rem; font-weight: bold; word-break: break-word; line-height: 1.2; }
+        .small-note { font-size: 0.7rem; color: #3a984a; margin-top: 8px; border-top: 1px dotted #1f4a2a; padding-top: 6px; }
+        .footer-note { text-align: right; font-size: 0.6rem; margin-top: 24px; color: #3a864a; }
+        @keyframes subtle-flicker { 0% { opacity: 0.99; } 100% { opacity: 1; } }
+        .screen { animation: subtle-flicker 0.2s infinite; }
+    </style>
+</head>
+<body>
+<div class="crt">
+    <div class="screen">
+        <h1>⚡ CRYPTO•SCOPE ][</h1>
+        <div class="sub">
+            <div>⟁ LIVE MARKET STREAM  |  TOP 10 (EXCL. STABLES) </div>
+            <div class="timestamp" id="updateTimestamp">--:--:-- UTC</div>
+        </div>
+
+        <div class="ticker-zone">
+            <div class="ticker-container">
+                <div class="ticker-track" id="tickerTrack">
+                    <div class="ticker-content" id="tickerContentPrimary"></div>
+                    <div class="ticker-content" id="tickerContentDuplicate"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="indicators-grid">
+            <div class="indicator-card"><label>😨 FEAR & GREED INDEX</label><span id="fngValue">--</span><div class="small-note" id="fngClassification">—</div></div>
+            <div class="indicator-card"><label>📊 CBBI INDEX</label><span id="cbbiValue">--.--</span><div class="small-note">Crypto Bitcoin Bull Run Index</div></div>
+            <div class="indicator-card"><label>⛓️ BTC 200W MA</label><span id="btc200wma">--</span><div class="small-note">200 Week Moving Average</div></div>
+            <div class="indicator-card"><label>📈 2Y MA MULTIPLIER</label><span id="twoYMA">--</span><span style="font-size:1rem;"> / </span><span id="twoYMAX5">--</span><div class="small-note">2Y MA  |  2Y MA x5</div></div>
+            <div class="indicator-card"><label>🌀 PI CYCLE BOTTOM</label><span id="piSMA471">--</span><span style="font-size:1rem;"> (471d SMA) </span><br/><span id="piEMA150">--</span><span style="font-size:1rem;"> (150d EMA) </span><div class="small-note">Bitcoin bottom indicators</div></div>
+        </div>
+        <div class="footer-note">⟳ AUTO-REFRESH EVERY 15 MIN  |  DATA: COINGECKO • BITCOIN-DATA • ALTERNATIVE.ME</div>
+    </div>
+</div>
+
+<script>
+    (function() {
+        const REFRESH_INTERVAL_MS = 15 * 60 * 1000;
+        const STABLE_COINS = new Set([
+            "usdt", "usdc", "dai", "busd", "tusd", "ust", "usdd", "frax", "eurs", 
+            "paxg", "gusd", "usdp", "pyusd", "cdai", "lusd", "sUSD", "mim", "alUSD",
+            "usds"
+        ]);
+
+        // DOM elements
+        const updateTimestampSpan = document.getElementById("updateTimestamp");
+        const tickerPrimaryDiv = document.getElementById("tickerContentPrimary");
+        const tickerDuplicateDiv = document.getElementById("tickerContentDuplicate");
+        const tickerTrack = document.getElementById("tickerTrack");
+
+        const fngSpan = document.getElementById("fngValue");
+        const fngClassSpan = document.getElementById("fngClassification");
+        const cbbiSpan = document.getElementById("cbbiValue");
+        const btc200wmaSpan = document.getElementById("btc200wma");
+        const twoYMASpan = document.getElementById("twoYMA");
+        const twoYMAX5Span = document.getElementById("twoYMAX5");
+        const piSMA471Span = document.getElementById("piSMA471");
+        const piEMA150Span = document.getElementById("piEMA150");
+
+        // Helper functions
+        function formatUSD(value) {
+            if (value === undefined || value === null) return "$---";
+            if (value >= 1) return "$" + value.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+            return "$" + value.toLocaleString(undefined, {minimumFractionDigits: 4, maximumFractionDigits: 6});
+        }
+
+        function formatPercent(pct) {
+            if (pct === undefined || pct === null) return "--%";
+            let val = parseFloat(pct).toFixed(2);
+            return (pct >= 0 ? `+${val}` : `${val}`) + "%";
+        }
+
+        // Improved CORS proxy using allorigins.win (more stable)
+        async function fetchWithProxy(url) {
+            const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
+            const response = await fetch(proxyUrl);
+            if (!response.ok) throw new Error(`Proxy HTTP ${response.status}`);
+            const data = await response.json();
+            // allorigins returns { contents: "..." } which is the raw response text
+            if (!data.contents) throw new Error("No contents from proxy");
+            // Parse the contents as JSON (the target API should return JSON)
+            return JSON.parse(data.contents);
+        }
+
+        // Top 10 crypto (CoinGecko works without proxy)
+        async function fetchTop10Crypto() {
+            try {
+                const url = "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=150&page=1&sparkline=false&price_change_percentage=24h";
+                const response = await fetch(url);
+                if (!response.ok) throw new Error(`CoinGecko status ${response.status}`);
+                let data = await response.json();
+                let filtered = data.filter(coin => !STABLE_COINS.has(coin.symbol.toLowerCase()));
+                const top10 = filtered.slice(0, 10);
+                return top10.map(coin => ({
+                    symbol: coin.symbol.toUpperCase(),
+                    price: coin.current_price,
+                    change24h: coin.price_change_percentage_24h,
+                }));
+            } catch (err) {
+                console.error("Error fetching top10:", err);
+                return null;
+            }
+        }
+
+        function buildTickerItemsHTML(coinsList) {
+            if (!coinsList || coinsList.length === 0) return `<span class="ticker-item">⚠️ NO DATA ⚠️</span>`;
+            let html = "";
+            for (let coin of coinsList) {
+                let priceFormatted = formatUSD(coin.price);
+                let changeFormatted = formatPercent(coin.change24h);
+                let changeClass = (coin.change24h >= 0) ? "positive" : "negative";
+                html += `<div class="ticker-item"><span>${coin.symbol}</span> ${priceFormatted} <span class="${changeClass}">${changeFormatted}</span></div>`;
+            }
+            return html;
+        }
+
+        function updateTicker(top10Coins) {
+            if (!top10Coins || top10Coins.length === 0) {
+                const fallbackHtml = `<div class="ticker-item">⚠️ RETRY FETCH ⚠️</div>`;
+                tickerPrimaryDiv.innerHTML = fallbackHtml;
+                tickerDuplicateDiv.innerHTML = fallbackHtml;
+                return;
+            }
+            const itemsHtml = buildTickerItemsHTML(top10Coins);
+            tickerPrimaryDiv.innerHTML = itemsHtml;
+            tickerDuplicateDiv.innerHTML = itemsHtml;
+            tickerTrack.style.animation = "none";
+            tickerTrack.offsetHeight;
+            tickerTrack.style.animation = "scrollTicker 38s linear infinite";
+        }
+
+        // Fear & Greed (direct, no proxy needed)
+        async function fetchFearGreed() {
+            try {
+                const res = await fetch("https://api.alternative.me/fng/?limit=1");
+                if (!res.ok) throw new Error("FNG fetch failed");
+                const data = await res.json();
+                if (data && data.data && data.data[0]) {
+                    fngSpan.innerText = data.data[0].value;
+                    fngClassSpan.innerText = data.data[0].value_classification || "neutral";
+                } else throw new Error("Invalid FNG response");
+            } catch (err) {
+                console.warn("Fear&Greed error:", err);
+                fngSpan.innerText = "ERR";
+                fngClassSpan.innerText = "offline";
+            }
+        }
+
+        // CBBI via proxy
+        async function fetchCBBI() {
+            try {
+                const data = await fetchWithProxy("https://api.cbbi.io/current");
+                let cbbiVal = data?.cbbi || data?.value || data?.index;
+                if (cbbiVal !== undefined && cbbiVal !== null) {
+                    cbbiSpan.innerText = parseFloat(cbbiVal).toFixed(2);
+                } else throw new Error("CBBI format unknown");
+            } catch (err) {
+                console.warn("CBBI error:", err);
+                cbbiSpan.innerText = "N/A";
+            }
+        }
+
+        // Bitcoin indicators (all via proxy)
+        async function fetchBitcoinIndicators() {
+            try {
+                const [wma200, ma2y, ma2y5, piCycle] = await Promise.allSettled([
+                    fetchWithProxy("https://bitcoin-data.com/api/v1/200wma"),
+                    fetchWithProxy("https://bitcoin-data.com/api/v1/2yma"),
+                    fetchWithProxy("https://bitcoin-data.com/api/v1/2yma5"),
+                    fetchWithProxy("https://bitcoin-data.com/api/v1/pi-cycle-bottom")
+                ]);
+
+                if (wma200.status === "fulfilled") {
+                    let val = wma200.value?.value || wma200.value?.["200wma"] || wma200.value?.moving_average;
+                    btc200wmaSpan.innerText = val ? formatUSD(val) : "N/A";
+                } else { btc200wmaSpan.innerText = "N/A"; }
+
+                if (ma2y.status === "fulfilled") {
+                    let val = ma2y.value?.value || ma2y.value?.ma || ma2y.value?.["2yma"];
+                    twoYMASpan.innerText = val ? formatUSD(val) : "N/A";
+                } else { twoYMASpan.innerText = "N/A"; }
+
+                if (ma2y5.status === "fulfilled") {
+                    let val = ma2y5.value?.value || ma2y5.value?.ma_x5 || ma2y5.value?.["2yma5"];
+                    twoYMAX5Span.innerText = val ? formatUSD(val) : "N/A";
+                } else { twoYMAX5Span.innerText = "N/A"; }
+
+                if (piCycle.status === "fulfilled") {
+                    let sma = piCycle.value?.sma471 || piCycle.value?.sma_471 || piCycle.value?.piCycleBottom?.sma471;
+                    let ema = piCycle.value?.ema150 || piCycle.value?.ema_150 || piCycle.value?.piCycleBottom?.ema150;
+                    piSMA471Span.innerText = sma ? formatUSD(sma) : "N/A";
+                    piEMA150Span.innerText = ema ? formatUSD(ema) : "N/A";
+                } else {
+                    piSMA471Span.innerText = "N/A";
+                    piEMA150Span.innerText = "N/A";
+                }
+            } catch (err) {
+                console.warn("Bitcoin indicators error:", err);
+                btc200wmaSpan.innerText = "ERR";
+                twoYMASpan.innerText = "ERR";
+                twoYMAX5Span.innerText = "ERR";
+                piSMA471Span.innerText = "ERR";
+                piEMA150Span.innerText = "ERR";
+            }
+        }
+
+        let currentTop10 = [];
+        async function refreshAllData() {
+            const now = new Date();
+            updateTimestampSpan.innerText = now.toUTCString().slice(0, -4) + " UTC";
+            
+            const top10Coins = await fetchTop10Crypto();
+            if (top10Coins && top10Coins.length > 0) {
+                currentTop10 = top10Coins;
+                updateTicker(currentTop10);
+            } else if (currentTop10.length === 0) {
+                const errHtml = `<div class="ticker-item">⚠️ API ERROR / NO DATA ⚠️</div>`;
+                tickerPrimaryDiv.innerHTML = errHtml;
+                tickerDuplicateDiv.innerHTML = errHtml;
+            }
+            
+            await Promise.allSettled([
+                fetchFearGreed(),
+                fetchCBBI(),
+                fetchBitcoinIndicators()
+            ]);
+        }
+
+        let refreshIntervalId = null;
+        async function init() {
+            await refreshAllData();
+            if (refreshIntervalId) clearInterval(refreshIntervalId);
+            refreshIntervalId = setInterval(refreshAllData, REFRESH_INTERVAL_MS);
+        }
+
+        document.addEventListener("visibilitychange", () => {
+            if (!document.hidden && tickerTrack) {
+                tickerTrack.style.animation = "none";
+                tickerTrack.offsetHeight;
+                tickerTrack.style.animation = "scrollTicker 38s linear infinite";
+            }
+        });
+
+        init().catch(e => console.error("Init error:", e));
+    })();
+</script>
+</body>
+</html>
