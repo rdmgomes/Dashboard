@@ -105,21 +105,33 @@
             return (pct >= 0 ? `+${val}` : `${val}`) + "%";
         }
 
-        // --- Simple CORS proxy (works well) ---
-        const PROXY = "https://thingproxy.freeboard.io/fetch/";
+        // --- PROXY WITH FALLBACK ---
+        const PROXIES = [
+            url => fetch(`https://corsproxy.io/?${encodeURIComponent(url)}`),
+            url => fetch(`https://thingproxy.freeboard.io/fetch/${url}`)
+        ];
 
         async function fetchWithProxy(url, retries = 2) {
-            for (let i = 0; i <= retries; i++) {
-                try {
-                    const response = await fetch(PROXY + url);
-                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-                    return await response.json();
-                } catch (err) {
-                    if (i === retries) throw err;
-                    console.warn(`Retry ${i+1} for ${url} failed:`, err.message);
-                    await new Promise(r => setTimeout(r, 1000 * (i+1))); // wait 1s, 2s, ...
+            for (let attempt = 0; attempt <= retries; attempt++) {
+                for (let proxyIdx = 0; proxyIdx < PROXIES.length; proxyIdx++) {
+                    try {
+                        const response = await PROXIES[proxyIdx](url);
+                        if (!response.ok) continue;
+                        const text = await response.text();
+                        // Try to parse as JSON first
+                        try {
+                            return JSON.parse(text);
+                        } catch (e) {
+                            // If not JSON, return the text (for HTML scraping)
+                            return text;
+                        }
+                    } catch (err) {
+                        console.warn(`Proxy ${proxyIdx+1} attempt ${attempt+1} failed:`, err.message);
+                    }
                 }
+                if (attempt < retries) await new Promise(r => setTimeout(r, 1000 * (attempt+1)));
             }
+            throw new Error(`All proxies failed after ${retries+1} attempts for ${url}`);
         }
 
         // --- Top 10 Crypto (CoinGecko works without proxy) ---
@@ -186,17 +198,36 @@
             }
         }
 
-        // --- CBBI via proxy ---
+        // --- CBBI: first try API, then scrape Colin Talks Crypto page ---
         async function fetchCBBI() {
+            // Try original API first
             try {
                 const data = await fetchWithProxy("https://api.cbbi.io/current");
-                console.log("CBBI response:", data);
+                console.log("CBBI API response:", data);
                 let cbbiVal = data?.cbbi || data?.value || data?.index;
                 if (cbbiVal !== undefined && cbbiVal !== null) {
                     cbbiSpan.innerText = parseFloat(cbbiVal).toFixed(2);
-                } else throw new Error("CBBI format unknown");
+                    return;
+                }
             } catch (err) {
-                console.warn("CBBI error:", err);
+                console.warn("CBBI API failed, falling back to scraping:", err.message);
+            }
+
+            // Fallback: scrape Colin Talks Crypto page
+            try {
+                const html = await fetchWithProxy("https://colintalkscrypto.com/cbbi/index.html");
+                // Extract the CBBI value from the HTML
+                // Look for <span class="value">34</span> or similar patterns
+                const match = html.match(/<span\s+class="value"[^>]*>(\d+)<\/span>/i);
+                if (match && match[1]) {
+                    const value = parseInt(match[1], 10);
+                    cbbiSpan.innerText = value.toString();
+                    console.log("CBBI scraped from page:", value);
+                } else {
+                    throw new Error("Could not find CBBI value in page");
+                }
+            } catch (err) {
+                console.warn("CBBI scraping failed:", err);
                 cbbiSpan.innerText = "N/A";
             }
         }
