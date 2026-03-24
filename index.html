@@ -99,15 +99,49 @@
             return (pct >= 0 ? `+${val}` : `${val}`) + "%";
         }
 
-        // --- CORS proxy using corsproxy.io (adds CORS headers) ---
-        async function fetchWithProxy(url) {
-            const proxy = "https://corsproxy.io/?";
-            const response = await fetch(proxy + encodeURIComponent(url));
-            if (!response.ok) {
-                throw new Error(`Proxy HTTP ${response.status}`);
+        // ---- PROXY FALLBACK MECHANISM ----
+        // List of proxies to try, in order of preference.
+        // Each proxy function returns a promise that resolves to the JSON response.
+        const PROXY_LIST = [
+            // Proxy 1: corsproxy.io (raw JSON)
+            async (url) => {
+                const proxy = "https://corsproxy.io/?";
+                const response = await fetch(proxy + encodeURIComponent(url));
+                if (!response.ok) throw new Error(`corsproxy.io HTTP ${response.status}`);
+                return await response.json();
+            },
+            // Proxy 2: api.allorigins.win (returns wrapped JSON)
+            async (url) => {
+                const proxy = "https://api.allorigins.win/get?url=";
+                const response = await fetch(proxy + encodeURIComponent(url));
+                if (!response.ok) throw new Error(`allorigins HTTP ${response.status}`);
+                const data = await response.json();
+                if (!data.contents) throw new Error("No contents from allorigins");
+                return JSON.parse(data.contents);
+            },
+            // Proxy 3: cors-anywhere (may require temporary demo access)
+            async (url) => {
+                const proxy = "https://cors-anywhere.herokuapp.com/";
+                const response = await fetch(proxy + url);
+                if (!response.ok) throw new Error(`cors-anywhere HTTP ${response.status}`);
+                return await response.json();
             }
-            // corsproxy.io returns the raw response (JSON text)
-            return await response.json();
+        ];
+
+        // Try each proxy in order until one succeeds
+        async function fetchWithProxy(url) {
+            let lastError = null;
+            for (let i = 0; i < PROXY_LIST.length; i++) {
+                try {
+                    const result = await PROXY_LIST[i](url);
+                    console.log(`✅ Proxy ${i+1} succeeded for ${url}`);
+                    return result;
+                } catch (err) {
+                    console.warn(`⚠️ Proxy ${i+1} failed for ${url}:`, err.message);
+                    lastError = err;
+                }
+            }
+            throw new Error(`All proxies failed for ${url}. Last error: ${lastError?.message}`);
         }
 
         // --- Top 10 Crypto (CoinGecko works without proxy) ---
@@ -157,7 +191,7 @@
             tickerTrack.style.animation = "scrollTicker 38s linear infinite";
         }
 
-        // --- Fear & Greed (direct, no proxy needed) ---
+        // --- Fear & Greed (direct) ---
         async function fetchFearGreed() {
             try {
                 const res = await fetch("https://api.alternative.me/fng/?limit=1");
@@ -174,7 +208,7 @@
             }
         }
 
-        // --- CBBI via proxy ---
+        // --- CBBI via proxy fallback ---
         async function fetchCBBI() {
             try {
                 const data = await fetchWithProxy("https://api.cbbi.io/current");
@@ -189,7 +223,7 @@
             }
         }
 
-        // --- Bitcoin indicators (all via proxy) ---
+        // --- Bitcoin indicators via proxy fallback ---
         async function fetchBitcoinIndicators() {
             try {
                 const [wma200, ma2y, ma2y5, piCycle] = await Promise.allSettled([
@@ -199,11 +233,10 @@
                     fetchWithProxy("https://bitcoin-data.com/api/v1/pi-cycle-bottom")
                 ]);
 
-                // Log responses to console for debugging
-                console.log("200W MA response:", wma200);
-                console.log("2Y MA response:", ma2y);
-                console.log("2Y x5 MA response:", ma2y5);
-                console.log("Pi Cycle response:", piCycle);
+                console.log("200W MA result:", wma200);
+                console.log("2Y MA result:", ma2y);
+                console.log("2Y x5 MA result:", ma2y5);
+                console.log("Pi Cycle result:", piCycle);
 
                 if (wma200.status === "fulfilled") {
                     let val = wma200.value?.value || wma200.value?.["200wma"] || wma200.value?.moving_average;
