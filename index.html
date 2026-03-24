@@ -198,7 +198,7 @@
             }
         }
 
-        // --- CBBI: first try API, then scrape Colin Talks Crypto page ---
+        // --- CBBI with enhanced scraping ---
         async function fetchCBBI() {
             // Try original API first
             try {
@@ -216,31 +216,53 @@
             // Fallback: scrape Colin Talks Crypto page
             try {
                 const html = await fetchWithProxy("https://colintalkscrypto.com/cbbi/index.html");
-                // Debug: log first 500 chars to see the structure
-                console.log("HTML snippet:", html.substring(0, 500));
+                // Log the first 1000 characters for debugging
+                console.log("HTML snippet (first 1000 chars):", html.substring(0, 1000));
                 
                 // Try multiple patterns to extract the number
-                let match = null;
+                let value = null;
                 const patterns = [
                     /#\s*(\d+)/,                      // "# 34" or "#34"
                     /<span\s+class="value"[^>]*>(\d+)<\/span>/i,
                     /<h[1-3][^>]*>\s*#?\s*(\d+)\s*<\/h[1-3]>/i,
                     /<div[^>]*class="[^"]*value[^"]*"[^>]*>\s*#?\s*(\d+)\s*<\/div>/i,
                     /CONFIDENCE[^>]*>\s*#?\s*(\d+)/i,
-                    /(\d+)\s*<\/[^>]+>\s*<[^>]+>March\s+\d+,\s+\d{4}/i   // number before a date
+                    /(\d+)\s*<\/[^>]+>\s*<[^>]+>March\s+\d+,\s+\d{4}/i,
+                    /<p[^>]*>\s*#?\s*(\d+)\s*<\/p>/i,
+                    /<div[^>]*id="cbbi"[^>]*>\s*(\d+)/i,
+                    /<meta[^>]*content="(\d+)"[^>]*>/i
                 ];
                 
                 for (const pattern of patterns) {
-                    match = html.match(pattern);
+                    const match = html.match(pattern);
                     if (match && match[1]) {
-                        const value = parseInt(match[1], 10);
+                        value = parseInt(match[1], 10);
                         console.log(`CBBI scraped using pattern ${pattern}:`, value);
-                        cbbiSpan.innerText = value.toString();
-                        return;
+                        break;
                     }
                 }
                 
-                throw new Error("Could not find CBBI value in page");
+                // If still not found, try a more aggressive search: find any number between 0 and 100 that appears near the word "confidence"
+                if (!value) {
+                    const confidenceIndex = html.search(/confidence/i);
+                    if (confidenceIndex !== -1) {
+                        const context = html.substring(confidenceIndex, confidenceIndex + 500);
+                        const numberMatch = context.match(/(\d+)/);
+                        if (numberMatch) {
+                            const candidate = parseInt(numberMatch[1], 10);
+                            if (candidate >= 0 && candidate <= 100) {
+                                value = candidate;
+                                console.log("CBBI extracted from confidence context:", value);
+                            }
+                        }
+                    }
+                }
+                
+                if (value && value >= 0 && value <= 100) {
+                    cbbiSpan.innerText = value.toString();
+                } else {
+                    throw new Error("Could not find a valid CBBI value (0-100) in page");
+                }
             } catch (err) {
                 console.warn("CBBI scraping failed:", err);
                 cbbiSpan.innerText = "N/A";
