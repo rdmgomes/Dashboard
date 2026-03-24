@@ -216,16 +216,31 @@
             // Fallback: scrape Colin Talks Crypto page
             try {
                 const html = await fetchWithProxy("https://colintalkscrypto.com/cbbi/index.html");
-                // Extract the CBBI value from the HTML
-                // Look for <span class="value">34</span> or similar patterns
-                const match = html.match(/<span\s+class="value"[^>]*>(\d+)<\/span>/i);
-                if (match && match[1]) {
-                    const value = parseInt(match[1], 10);
-                    cbbiSpan.innerText = value.toString();
-                    console.log("CBBI scraped from page:", value);
-                } else {
-                    throw new Error("Could not find CBBI value in page");
+                // Debug: log first 500 chars to see the structure
+                console.log("HTML snippet:", html.substring(0, 500));
+                
+                // Try multiple patterns to extract the number
+                let match = null;
+                const patterns = [
+                    /#\s*(\d+)/,                      // "# 34" or "#34"
+                    /<span\s+class="value"[^>]*>(\d+)<\/span>/i,
+                    /<h[1-3][^>]*>\s*#?\s*(\d+)\s*<\/h[1-3]>/i,
+                    /<div[^>]*class="[^"]*value[^"]*"[^>]*>\s*#?\s*(\d+)\s*<\/div>/i,
+                    /CONFIDENCE[^>]*>\s*#?\s*(\d+)/i,
+                    /(\d+)\s*<\/[^>]+>\s*<[^>]+>March\s+\d+,\s+\d{4}/i   // number before a date
+                ];
+                
+                for (const pattern of patterns) {
+                    match = html.match(pattern);
+                    if (match && match[1]) {
+                        const value = parseInt(match[1], 10);
+                        console.log(`CBBI scraped using pattern ${pattern}:`, value);
+                        cbbiSpan.innerText = value.toString();
+                        return;
+                    }
                 }
+                
+                throw new Error("Could not find CBBI value in page");
             } catch (err) {
                 console.warn("CBBI scraping failed:", err);
                 cbbiSpan.innerText = "N/A";
