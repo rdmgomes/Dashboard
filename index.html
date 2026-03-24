@@ -227,28 +227,32 @@
             // Scrape the page and compute average of the nine metric percentages
             try {
                 const html = await fetchWithProxy("https://colintalkscrypto.com/cbbi/index.html");
-                // Extract all numbers followed by % (including decimals), ignoring negative signs
-                const percentMatches = html.match(/\b(\d+(?:\.\d+)?)\s*%/g);
-                if (percentMatches && percentMatches.length) {
-                    // Parse and filter to numbers between 0 and 100 (excluding price change percentages)
-                    const percentages = percentMatches
-                        .map(m => parseFloat(m.match(/\d+(?:\.\d+)?/)[0]))
-                        .filter(p => p >= 0 && p <= 100);
-                    
-                    console.log("All percentages found:", percentages);
-                    
-                    // The first nine positive percentages (0-100) are the metrics
-                    if (percentages.length >= 9) {
-                        const metrics = percentages.slice(0, 9);
-                        const avg = metrics.reduce((a, b) => a + b, 0) / 9;
-                        const cbbiValue = Math.round(avg);
-                        console.log("CBBI computed as average of nine metrics:", metrics, "→", cbbiValue);
-                        cbbiSpan.innerText = cbbiValue.toString();
-                        return;
-                    }
-                }
-                // Fallback: try to extract the confidence number
+                // Convert to plain text, preserving whitespace
                 const plainText = html.replace(/<[^>]*>/g, ' ');
+                console.log("Plain text snippet (first 500 chars):", plainText.substring(0, 500));
+                
+                // Find all numbers followed by % (including decimals)
+                const percentMatches = plainText.match(/\b(\d+(?:\.\d+)?)\s*%/g);
+                if (!percentMatches) throw new Error("No percentages found");
+                
+                // Parse and filter to numbers between 0 and 100 (exclude price change %)
+                const percentages = percentMatches
+                    .map(m => parseFloat(m.match(/\d+(?:\.\d+)?/)[0]))
+                    .filter(p => p >= 0 && p <= 100);
+                
+                console.log("All percentages found (0-100):", percentages);
+                
+                // The first nine positive percentages (0-100) are the metrics
+                if (percentages.length >= 9) {
+                    const metrics = percentages.slice(0, 9);
+                    const avg = metrics.reduce((a, b) => a + b, 0) / 9;
+                    const cbbiValue = Math.round(avg);
+                    console.log("CBBI computed as average of nine metrics:", metrics, "→", cbbiValue);
+                    cbbiSpan.innerText = cbbiValue.toString();
+                    return;
+                }
+                
+                // Fallback: try to extract the confidence number
                 const confidenceMatch = plainText.match(/CONFIDENCE\s+WE\s+ARE\s+AT\s+THE\s+PEAK\s*:?\s*#?\s*(\d+)/i);
                 if (confidenceMatch && confidenceMatch[1]) {
                     const value = parseInt(confidenceMatch[1], 10);
@@ -256,6 +260,7 @@
                     cbbiSpan.innerText = value.toString();
                     return;
                 }
+                
                 throw new Error("Could not find enough percentages or confidence number");
             } catch (err) {
                 console.warn("CBBI scraping failed:", err);
@@ -272,7 +277,7 @@
                 const btcPrice = priceData.bitcoin.usd;
                 if (!btcPrice) throw new Error("No Bitcoin price in response");
                 
-                // Approximations based on historical relationships (feel free to adjust)
+                // Approximations based on historical relationships
                 btc200wmaSpan.innerText = formatUSD(btcPrice * 0.85);
                 twoYMASpan.innerText = formatUSD(btcPrice * 0.65);
                 twoYMAX5Span.innerText = formatUSD(btcPrice * 3.25);
