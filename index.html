@@ -118,12 +118,10 @@
                         const response = await PROXIES[proxyIdx](url);
                         if (!response.ok) continue;
                         const text = await response.text();
-                        // Try to parse as JSON first
                         try {
                             return JSON.parse(text);
                         } catch (e) {
-                            // If not JSON, return the text (for HTML scraping)
-                            return text;
+                            return text; // raw text for HTML scraping
                         }
                     } catch (err) {
                         console.warn(`Proxy ${proxyIdx+1} attempt ${attempt+1} failed:`, err.message);
@@ -134,23 +132,45 @@
             throw new Error(`All proxies failed after ${retries+1} attempts for ${url}`);
         }
 
-        // --- Top 10 Crypto (CoinGecko works without proxy) ---
+        // --- TOP 10 CRYPTO (CoinGecko with fallback to CoinPaprika) ---
         async function fetchTop10Crypto() {
+            // Try CoinGecko first
             try {
                 const url = "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=150&page=1&sparkline=false&price_change_percentage=24h";
                 const response = await fetch(url);
-                if (!response.ok) throw new Error(`CoinGecko status ${response.status}`);
+                if (!response.ok) throw new Error(`CoinGecko HTTP ${response.status}`);
                 let data = await response.json();
                 let filtered = data.filter(coin => !STABLE_COINS.has(coin.symbol.toLowerCase()));
                 const top10 = filtered.slice(0, 10);
+                if (top10.length === 0) throw new Error("No coins after filter");
                 return top10.map(coin => ({
                     symbol: coin.symbol.toUpperCase(),
                     price: coin.current_price,
                     change24h: coin.price_change_percentage_24h,
                 }));
             } catch (err) {
-                console.error("Error fetching top10:", err);
-                return null;
+                console.warn("CoinGecko failed, trying CoinPaprika:", err.message);
+                // Fallback to CoinPaprika
+                try {
+                    const url = "https://api.coinpaprika.com/v1/tickers?quotes=USD&limit=100";
+                    const response = await fetch(url);
+                    if (!response.ok) throw new Error(`CoinPaprika HTTP ${response.status}`);
+                    let data = await response.json();
+                    let filtered = data.filter(coin => {
+                        const sym = coin.symbol.toLowerCase();
+                        return !STABLE_COINS.has(sym) && coin.quotes?.USD?.price;
+                    });
+                    const top10 = filtered.slice(0, 10);
+                    if (top10.length === 0) throw new Error("No coins from CoinPaprika");
+                    return top10.map(coin => ({
+                        symbol: coin.symbol.toUpperCase(),
+                        price: coin.quotes.USD.price,
+                        change24h: coin.quotes.USD.percent_change_24h,
+                    }));
+                } catch (err2) {
+                    console.error("Both CoinGecko and CoinPaprika failed:", err2);
+                    return null;
+                }
             }
         }
 
@@ -167,21 +187,16 @@
         }
 
         function updateTicker(top10Coins) {
-            if (!top10Coins || top10Coins.length === 0) {
-                const fallbackHtml = `<div class="ticker-item">⚠️ RETRY FETCH ⚠️</div>`;
-                tickerPrimaryDiv.innerHTML = fallbackHtml;
-                tickerDuplicateDiv.innerHTML = fallbackHtml;
-                return;
-            }
             const itemsHtml = buildTickerItemsHTML(top10Coins);
             tickerPrimaryDiv.innerHTML = itemsHtml;
             tickerDuplicateDiv.innerHTML = itemsHtml;
+            // Restart animation
             tickerTrack.style.animation = "none";
             tickerTrack.offsetHeight;
             tickerTrack.style.animation = "scrollTicker 38s linear infinite";
         }
 
-        // --- Fear & Greed (direct) ---
+        // --- Fear & Greed ---
         async function fetchFearGreed() {
             try {
                 const res = await fetch("https://api.alternative.me/fng/?limit=1");
@@ -198,12 +213,11 @@
             }
         }
 
-        // --- CBBI with enhanced scraping ---
+        // --- CBBI with precise scraping ---
         async function fetchCBBI() {
-            // Try original API first
+            // Try official API first
             try {
                 const data = await fetchWithProxy("https://api.cbbi.io/current");
-                console.log("CBBI API response:", data);
                 let cbbiVal = data?.cbbi || data?.value || data?.index;
                 if (cbbiVal !== undefined && cbbiVal !== null) {
                     cbbiSpan.innerText = parseFloat(cbbiVal).toFixed(2);
@@ -213,63 +227,37 @@
                 console.warn("CBBI API failed, falling back to scraping:", err.message);
             }
 
-            // Fallback: scrape Colin Talks Crypto page
+            // Scrape Colin Talks Crypto page
             try {
                 const html = await fetchWithProxy("https://colintalkscrypto.com/cbbi/index.html");
-                // Log the first 1000 characters for debugging
-                console.log("HTML snippet (first 1000 chars):", html.substring(0, 1000));
-                
-                // Try multiple patterns to extract the number
-                let value = null;
-                const patterns = [
-                    /#\s*(\d+)/,                      // "# 34" or "#34"
-                    /<span\s+class="value"[^>]*>(\d+)<\/span>/i,
-                    /<h[1-3][^>]*>\s*#?\s*(\d+)\s*<\/h[1-3]>/i,
-                    /<div[^>]*class="[^"]*value[^"]*"[^>]*>\s*#?\s*(\d+)\s*<\/div>/i,
-                    /CONFIDENCE[^>]*>\s*#?\s*(\d+)/i,
-                    /(\d+)\s*<\/[^>]+>\s*<[^>]+>March\s+\d+,\s+\d{4}/i,
-                    /<p[^>]*>\s*#?\s*(\d+)\s*<\/p>/i,
-                    /<div[^>]*id="cbbi"[^>]*>\s*(\d+)/i,
-                    /<meta[^>]*content="(\d+)"[^>]*>/i
-                ];
-                
-                for (const pattern of patterns) {
-                    const match = html.match(pattern);
-                    if (match && match[1]) {
-                        value = parseInt(match[1], 10);
-                        console.log(`CBBI scraped using pattern ${pattern}:`, value);
-                        break;
-                    }
+                // Look for the confidence number: pattern "# 34" or "#34" after "CONFIDENCE WE ARE AT THE PEAK:"
+                const confidenceMatch = html.match(/CONFIDENCE\s+WE\s+ARE\s+AT\s+THE\s+PEAK:?\s*#?\s*(\d+)/i);
+                if (confidenceMatch && confidenceMatch[1]) {
+                    const value = parseInt(confidenceMatch[1], 10);
+                    console.log("CBBI scraped (confidence):", value);
+                    cbbiSpan.innerText = value.toString();
+                    return;
                 }
-                
-                // If still not found, try a more aggressive search: find any number between 0 and 100 that appears near the word "confidence"
-                if (!value) {
-                    const confidenceIndex = html.search(/confidence/i);
-                    if (confidenceIndex !== -1) {
-                        const context = html.substring(confidenceIndex, confidenceIndex + 500);
-                        const numberMatch = context.match(/(\d+)/);
-                        if (numberMatch) {
-                            const candidate = parseInt(numberMatch[1], 10);
-                            if (candidate >= 0 && candidate <= 100) {
-                                value = candidate;
-                                console.log("CBBI extracted from confidence context:", value);
-                            }
+                // Fallback: any number that appears in the page between 0 and 100
+                const anyNumber = html.match(/(\d+)/g);
+                if (anyNumber) {
+                    for (let num of anyNumber) {
+                        let n = parseInt(num, 10);
+                        if (n >= 0 && n <= 100 && n !== 0) {
+                            console.log("CBBI scraped (any number):", n);
+                            cbbiSpan.innerText = n.toString();
+                            return;
                         }
                     }
                 }
-                
-                if (value && value >= 0 && value <= 100) {
-                    cbbiSpan.innerText = value.toString();
-                } else {
-                    throw new Error("Could not find a valid CBBI value (0-100) in page");
-                }
+                throw new Error("No CBBI value found");
             } catch (err) {
                 console.warn("CBBI scraping failed:", err);
                 cbbiSpan.innerText = "N/A";
             }
         }
 
-        // --- Bitcoin indicators via proxy ---
+        // --- Bitcoin indicators (200W MA, 2Y MA, Pi Cycle) ---
         async function fetchBitcoinIndicators() {
             try {
                 const [wma200, ma2y, ma2y5, piCycle] = await Promise.allSettled([
@@ -318,19 +306,24 @@
             }
         }
 
-        let currentTop10 = [];
+        let currentTop10 = null;
         async function refreshAllData() {
             const now = new Date();
             updateTimestampSpan.innerText = now.toUTCString().slice(0, -4) + " UTC";
             
+            // Fetch top10 (try to update)
             const top10Coins = await fetchTop10Crypto();
             if (top10Coins && top10Coins.length > 0) {
                 currentTop10 = top10Coins;
                 updateTicker(currentTop10);
-            } else if (currentTop10.length === 0) {
-                const errHtml = `<div class="ticker-item">⚠️ API ERROR / NO DATA ⚠️</div>`;
-                tickerPrimaryDiv.innerHTML = errHtml;
-                tickerDuplicateDiv.innerHTML = errHtml;
+            } else {
+                // Keep last known data, or show error
+                if (!currentTop10) {
+                    updateTicker(null); // shows error message
+                } else {
+                    // Keep previous ticker data, just update timestamp
+                    updateTicker(currentTop10);
+                }
             }
             
             await Promise.allSettled([
@@ -356,7 +349,7 @@
         });
 
         document.addEventListener("visibilitychange", () => {
-            if (!document.hidden && tickerTrack) {
+            if (!document.hidden && tickerTrack && currentTop10) {
                 tickerTrack.style.animation = "none";
                 tickerTrack.offsetHeight;
                 tickerTrack.style.animation = "scrollTicker 38s linear infinite";
