@@ -230,20 +230,34 @@
             // Scrape Colin Talks Crypto page
             try {
                 const html = await fetchWithProxy("https://colintalkscrypto.com/cbbi/index.html");
-                // Look for the confidence number: pattern "# 34" or "#34" after "CONFIDENCE WE ARE AT THE PEAK:"
-                const confidenceMatch = html.match(/CONFIDENCE\s+WE\s+ARE\s+AT\s+THE\s+PEAK:?\s*#?\s*(\d+)/i);
+                // More flexible regex: allow any characters (including HTML tags) between the key words
+                const confidenceMatch = html.match(/CONFIDENCE.*?WE.*?ARE.*?AT.*?THE.*?PEAK:?\s*#?\s*(\d+)/i);
                 if (confidenceMatch && confidenceMatch[1]) {
                     const value = parseInt(confidenceMatch[1], 10);
                     console.log("CBBI scraped (confidence):", value);
+                    console.log("Matched text:", confidenceMatch[0]);
                     cbbiSpan.innerText = value.toString();
                     return;
                 }
-                // Fallback: any number that appears in the page between 0 and 100
-                const anyNumber = html.match(/(\d+)/g);
-                if (anyNumber) {
-                    for (let num of anyNumber) {
-                        let n = parseInt(num, 10);
-                        if (n >= 0 && n <= 100 && n !== 0) {
+
+                // Fallback: look for a number near the date
+                const datePattern = /(\d+)\s*<\/[^>]+>\s*<[^>]+>(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d+,\s+\d{4}/i;
+                const dateMatch = html.match(datePattern);
+                if (dateMatch && dateMatch[1]) {
+                    const value = parseInt(dateMatch[1], 10);
+                    if (value >= 0 && value <= 100) {
+                        console.log("CBBI scraped (near date):", value);
+                        cbbiSpan.innerText = value.toString();
+                        return;
+                    }
+                }
+
+                // Ultimate fallback: find any number 0-100 that's not a year (like 2026) and not 0
+                const allNumbers = html.match(/\b(\d{1,3})\b/g);
+                if (allNumbers) {
+                    for (let numStr of allNumbers) {
+                        let n = parseInt(numStr, 10);
+                        if (n >= 1 && n <= 100 && n !== 2026 && n !== 2025 && n !== 2024) {
                             console.log("CBBI scraped (any number):", n);
                             cbbiSpan.innerText = n.toString();
                             return;
