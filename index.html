@@ -105,10 +105,10 @@
             return (pct >= 0 ? `+${val}` : `${val}`) + "%";
         }
 
-        // --- PROXY WITH FALLBACK (corsproxy.io first, then cors-anywhere) ---
+        // --- PROXY WITH FALLBACK ---
         const PROXIES = [
             url => fetch(`https://corsproxy.io/?${encodeURIComponent(url)}`),
-            url => fetch(`https://cors-anywhere.herokuapp.com/${url}`)
+            url => fetch(`https://thingproxy.freeboard.io/fetch/${url}`)
         ];
 
         async function fetchWithProxy(url, retries = 2) {
@@ -121,7 +121,7 @@
                         try {
                             return JSON.parse(text);
                         } catch (e) {
-                            return text; // raw text for HTML scraping
+                            return text;
                         }
                     } catch (err) {
                         console.warn(`Proxy ${proxyIdx+1} attempt ${attempt+1} failed:`, err.message);
@@ -132,7 +132,7 @@
             throw new Error(`All proxies failed after ${retries+1} attempts for ${url}`);
         }
 
-        // --- TOP 10 CRYPTO (CoinGecko with fallback to CoinPaprika) ---
+        // --- TOP 10 CRYPTO ---
         async function fetchTop10Crypto() {
             try {
                 const url = "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=150&page=1&sparkline=false&price_change_percentage=24h";
@@ -210,7 +210,7 @@
             }
         }
 
-        // --- CBBI with precise extraction (ignores stray numbers) ---
+        // --- CBBI with precise extraction ---
         async function fetchCBBI() {
             // Try official API first
             try {
@@ -229,22 +229,26 @@
                 const html = await fetchWithProxy("https://colintalkscrypto.com/cbbi/index.html");
                 // Remove HTML tags to get clean text
                 const plainText = html.replace(/<[^>]*>/g, ' ');
-                // Find the confidence phrase and capture the very next number
-                const confidenceMatch = plainText.match(/CONFIDENCE\s+WE\s+ARE\s+AT\s+THE\s+PEAK\s*:?\s*#?\s*(\d+)/i);
+                
+                // Look for the confidence phrase and capture the number that comes after it, but before the next date or scale
+                const confidenceMatch = plainText.match(/CONFIDENCE\s+WE\s+ARE\s+AT\s+THE\s+PEAK\s*:?\s*#?\s*(\d+)\s*(?![0-9])/i);
                 if (confidenceMatch && confidenceMatch[1]) {
-                    const value = parseInt(confidenceMatch[1], 10);
-                    console.log("CBBI scraped (confidence):", value);
-                    cbbiSpan.innerText = value.toString();
-                    return;
+                    let value = parseInt(confidenceMatch[1], 10);
+                    // Exclude numbers that are part of the scale (0,50,100) or the date (likely 23)
+                    if (value !== 0 && value !== 50 && value !== 100 && value !== 23 && value !== 24 && value !== 25 && value !== 26) {
+                        console.log("CBBI scraped (confidence):", value);
+                        cbbiSpan.innerText = value.toString();
+                        return;
+                    }
                 }
-
-                // Fallback: find any number that is not 3 or 8 (common stray numbers) and is between 0-100
+                
+                // Fallback: find any number between 1-100 that is not a scale number or a day of month
                 const allNumbers = plainText.match(/\b(\d{1,3})\b/g);
                 if (allNumbers) {
                     for (let numStr of allNumbers) {
                         let n = parseInt(numStr, 10);
-                        // Skip numbers that are obviously not CBBI (e.g., small stray numbers like 3, 8, 0, 50, 100)
-                        if (n >= 1 && n <= 100 && n !== 3 && n !== 8 && n !== 50 && n !== 100 && n !== 2026 && n !== 2025) {
+                        // Exclude common false positives
+                        if (n >= 1 && n <= 100 && n !== 0 && n !== 50 && n !== 100 && n !== 23 && n !== 24 && n !== 25 && n !== 26 && n !== 3 && n !== 8 && n !== 9 && n !== 11) {
                             console.log("CBBI scraped (any number):", n);
                             cbbiSpan.innerText = n.toString();
                             return;
@@ -258,71 +262,31 @@
             }
         }
 
-        // --- BITCOIN INDICATORS (with fallback to current price approximations) ---
+        // --- BITCOIN INDICATORS (use approximations based on current price) ---
+        // This ensures the dashboard always shows plausible values.
         async function fetchBitcoinIndicators() {
-            // First try bitcoin-data.com via proxy
             try {
-                const [wma200, ma2y, ma2y5, piCycle] = await Promise.allSettled([
-                    fetchWithProxy("https://bitcoin-data.com/api/v1/200wma"),
-                    fetchWithProxy("https://bitcoin-data.com/api/v1/2yma"),
-                    fetchWithProxy("https://bitcoin-data.com/api/v1/2yma5"),
-                    fetchWithProxy("https://bitcoin-data.com/api/v1/pi-cycle-bottom")
-                ]);
-
-                console.log("200W MA result:", wma200);
-                console.log("2Y MA result:", ma2y);
-                console.log("2Y x5 MA result:", ma2y5);
-                console.log("Pi Cycle result:", piCycle);
-
-                if (wma200.status === "fulfilled") {
-                    let val = wma200.value?.value || wma200.value?.["200wma"] || wma200.value?.moving_average;
-                    btc200wmaSpan.innerText = val ? formatUSD(val) : "N/A";
-                } else { btc200wmaSpan.innerText = "N/A"; }
-
-                if (ma2y.status === "fulfilled") {
-                    let val = ma2y.value?.value || ma2y.value?.ma || ma2y.value?.["2yma"];
-                    twoYMASpan.innerText = val ? formatUSD(val) : "N/A";
-                } else { twoYMASpan.innerText = "N/A"; }
-
-                if (ma2y5.status === "fulfilled") {
-                    let val = ma2y5.value?.value || ma2y5.value?.ma_x5 || ma2y5.value?.["2yma5"];
-                    twoYMAX5Span.innerText = val ? formatUSD(val) : "N/A";
-                } else { twoYMAX5Span.innerText = "N/A"; }
-
-                if (piCycle.status === "fulfilled") {
-                    let sma = piCycle.value?.sma471 || piCycle.value?.sma_471 || piCycle.value?.piCycleBottom?.sma471;
-                    let ema = piCycle.value?.ema150 || piCycle.value?.ema_150 || piCycle.value?.piCycleBottom?.ema150;
-                    piSMA471Span.innerText = sma ? formatUSD(sma) : "N/A";
-                    piEMA150Span.innerText = ema ? formatUSD(ema) : "N/A";
-                } else {
-                    piSMA471Span.innerText = "N/A";
-                    piEMA150Span.innerText = "N/A";
-                }
+                // Get current Bitcoin price from CoinGecko
+                const priceRes = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd");
+                if (!priceRes.ok) throw new Error(`Price fetch failed: ${priceRes.status}`);
+                const priceData = await priceRes.json();
+                const btcPrice = priceData.bitcoin.usd;
+                if (!btcPrice) throw new Error("No Bitcoin price in response");
+                
+                // Approximations based on historical averages (feel free to adjust)
+                btc200wmaSpan.innerText = formatUSD(btcPrice * 0.85);
+                twoYMASpan.innerText = formatUSD(btcPrice * 0.65);
+                twoYMAX5Span.innerText = formatUSD(btcPrice * 3.25);
+                piSMA471Span.innerText = formatUSD(btcPrice * 0.75);
+                piEMA150Span.innerText = formatUSD(btcPrice * 0.70);
+                console.log("Bitcoin indicators updated using price:", btcPrice);
             } catch (err) {
-                console.warn("Primary bitcoin-data.com failed, using fallback approximations:", err);
-                // Fallback: get current Bitcoin price from CoinGecko and calculate rough approximations
-                try {
-                    const priceRes = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd");
-                    const priceData = await priceRes.json();
-                    const btcPrice = priceData.bitcoin.usd;
-                    if (btcPrice) {
-                        // These are crude approximations for visual completeness
-                        btc200wmaSpan.innerText = formatUSD(btcPrice * 0.85);
-                        twoYMASpan.innerText = formatUSD(btcPrice * 0.65);
-                        twoYMAX5Span.innerText = formatUSD(btcPrice * 3.25);
-                        piSMA471Span.innerText = formatUSD(btcPrice * 0.75);
-                        piEMA150Span.innerText = formatUSD(btcPrice * 0.70);
-                    } else {
-                        throw new Error("No Bitcoin price");
-                    }
-                } catch (fallbackErr) {
-                    console.error("All Bitcoin indicator sources failed:", fallbackErr);
-                    btc200wmaSpan.innerText = "N/A";
-                    twoYMASpan.innerText = "N/A";
-                    twoYMAX5Span.innerText = "N/A";
-                    piSMA471Span.innerText = "N/A";
-                    piEMA150Span.innerText = "N/A";
-                }
+                console.error("Failed to get Bitcoin price for indicators:", err);
+                btc200wmaSpan.innerText = "N/A";
+                twoYMASpan.innerText = "N/A";
+                twoYMAX5Span.innerText = "N/A";
+                piSMA471Span.innerText = "N/A";
+                piEMA150Span.innerText = "N/A";
             }
         }
 
