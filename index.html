@@ -29,6 +29,8 @@
         .indicator-card span { font-size: 1.65rem; font-weight: bold; word-break: break-word; line-height: 1.2; }
         .small-note { font-size: 0.7rem; color: #3a984a; margin-top: 8px; border-top: 1px dotted #1f4a2a; padding-top: 6px; }
         .footer-note { text-align: right; font-size: 0.6rem; margin-top: 24px; color: #3a864a; }
+        .refresh-btn { background: #0a1a0a; border: 1px solid #2eff7a; color: #2eff7a; font-family: monospace; font-size: 0.7rem; padding: 4px 12px; border-radius: 20px; cursor: pointer; transition: all 0.2s; }
+        .refresh-btn:hover { background: #1e3a1e; text-shadow: 0 0 4px #2eff7a; }
         @keyframes subtle-flicker { 0% { opacity: 0.99; } 100% { opacity: 1; } }
         .screen { animation: subtle-flicker 0.2s infinite; }
     </style>
@@ -38,8 +40,11 @@
     <div class="screen">
         <h1>⚡ CRYPTO•SCOPE ][</h1>
         <div class="sub">
-            <div>⟁ LIVE MARKET STREAM  |  TOP 10 (EXCL. STABLES) </div>
-            <div class="timestamp" id="updateTimestamp">--:--:-- UTC</div>
+            <div>⟁ LIVE MARKET STREAM  |  TOP 10 (EXCL. STABLES)</div>
+            <div style="display: flex; gap: 12px; align-items: center;">
+                <div class="timestamp" id="updateTimestamp">--:--:-- UTC</div>
+                <button class="refresh-btn" id="manualRefresh">⟳ REFRESH</button>
+            </div>
         </div>
 
         <div class="ticker-zone">
@@ -76,6 +81,7 @@
         const tickerPrimaryDiv = document.getElementById("tickerContentPrimary");
         const tickerDuplicateDiv = document.getElementById("tickerContentDuplicate");
         const tickerTrack = document.getElementById("tickerTrack");
+        const manualRefreshBtn = document.getElementById("manualRefresh");
 
         const fngSpan = document.getElementById("fngValue");
         const fngClassSpan = document.getElementById("fngClassification");
@@ -99,49 +105,21 @@
             return (pct >= 0 ? `+${val}` : `${val}`) + "%";
         }
 
-        // ---- PROXY FALLBACK MECHANISM ----
-        // List of proxies to try, in order of preference.
-        // Each proxy function returns a promise that resolves to the JSON response.
-        const PROXY_LIST = [
-            // Proxy 1: corsproxy.io (raw JSON)
-            async (url) => {
-                const proxy = "https://corsproxy.io/?";
-                const response = await fetch(proxy + encodeURIComponent(url));
-                if (!response.ok) throw new Error(`corsproxy.io HTTP ${response.status}`);
-                return await response.json();
-            },
-            // Proxy 2: api.allorigins.win (returns wrapped JSON)
-            async (url) => {
-                const proxy = "https://api.allorigins.win/get?url=";
-                const response = await fetch(proxy + encodeURIComponent(url));
-                if (!response.ok) throw new Error(`allorigins HTTP ${response.status}`);
-                const data = await response.json();
-                if (!data.contents) throw new Error("No contents from allorigins");
-                return JSON.parse(data.contents);
-            },
-            // Proxy 3: cors-anywhere (may require temporary demo access)
-            async (url) => {
-                const proxy = "https://cors-anywhere.herokuapp.com/";
-                const response = await fetch(proxy + url);
-                if (!response.ok) throw new Error(`cors-anywhere HTTP ${response.status}`);
-                return await response.json();
-            }
-        ];
+        // --- Simple CORS proxy (works well) ---
+        const PROXY = "https://thingproxy.freeboard.io/fetch/";
 
-        // Try each proxy in order until one succeeds
-        async function fetchWithProxy(url) {
-            let lastError = null;
-            for (let i = 0; i < PROXY_LIST.length; i++) {
+        async function fetchWithProxy(url, retries = 2) {
+            for (let i = 0; i <= retries; i++) {
                 try {
-                    const result = await PROXY_LIST[i](url);
-                    console.log(`✅ Proxy ${i+1} succeeded for ${url}`);
-                    return result;
+                    const response = await fetch(PROXY + url);
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                    return await response.json();
                 } catch (err) {
-                    console.warn(`⚠️ Proxy ${i+1} failed for ${url}:`, err.message);
-                    lastError = err;
+                    if (i === retries) throw err;
+                    console.warn(`Retry ${i+1} for ${url} failed:`, err.message);
+                    await new Promise(r => setTimeout(r, 1000 * (i+1))); // wait 1s, 2s, ...
                 }
             }
-            throw new Error(`All proxies failed for ${url}. Last error: ${lastError?.message}`);
         }
 
         // --- Top 10 Crypto (CoinGecko works without proxy) ---
@@ -208,7 +186,7 @@
             }
         }
 
-        // --- CBBI via proxy fallback ---
+        // --- CBBI via proxy ---
         async function fetchCBBI() {
             try {
                 const data = await fetchWithProxy("https://api.cbbi.io/current");
@@ -223,7 +201,7 @@
             }
         }
 
-        // --- Bitcoin indicators via proxy fallback ---
+        // --- Bitcoin indicators via proxy ---
         async function fetchBitcoinIndicators() {
             try {
                 const [wma200, ma2y, ma2y5, piCycle] = await Promise.allSettled([
@@ -295,11 +273,19 @@
         }
 
         let refreshIntervalId = null;
-        async function init() {
-            await refreshAllData();
+        async function startAutoRefresh() {
             if (refreshIntervalId) clearInterval(refreshIntervalId);
+            await refreshAllData();
             refreshIntervalId = setInterval(refreshAllData, REFRESH_INTERVAL_MS);
         }
+
+        manualRefreshBtn.addEventListener("click", async () => {
+            manualRefreshBtn.disabled = true;
+            manualRefreshBtn.textContent = "⟳ REFRESHING...";
+            await refreshAllData();
+            manualRefreshBtn.textContent = "⟳ REFRESH";
+            manualRefreshBtn.disabled = false;
+        });
 
         document.addEventListener("visibilitychange", () => {
             if (!document.hidden && tickerTrack) {
@@ -309,7 +295,7 @@
             }
         });
 
-        init().catch(e => console.error("Init error:", e));
+        startAutoRefresh().catch(e => console.error("Init error:", e));
     })();
 </script>
 </body>
