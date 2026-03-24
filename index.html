@@ -224,21 +224,39 @@
                 console.warn("CBBI API failed, falling back to scraping:", err.message);
             }
 
-            // Scrape the page and compute average of percentages
+            // Scrape the page and compute average of the nine metric percentages
             try {
                 const html = await fetchWithProxy("https://colintalkscrypto.com/cbbi/index.html");
-                // Find all numbers followed by % (optional decimal)
-                const percentMatches = html.match(/(\d+(?:\.\d+)?)\s*%/g);
-                if (percentMatches && percentMatches.length >= 9) {
-                    // Take the first nine percentages (they are the metrics listed on the page)
-                    const percentages = percentMatches.slice(0, 9).map(m => parseFloat(m.match(/\d+(?:\.\d+)?/)[0]));
-                    const avg = percentages.reduce((a, b) => a + b, 0) / percentages.length;
-                    const cbbiValue = Math.round(avg);
-                    console.log("CBBI computed as average of percentages:", percentages, "→", cbbiValue);
-                    cbbiSpan.innerText = cbbiValue.toString();
+                // Extract all numbers followed by % (including decimals), ignoring negative signs
+                const percentMatches = html.match(/\b(\d+(?:\.\d+)?)\s*%/g);
+                if (percentMatches && percentMatches.length) {
+                    // Parse and filter to numbers between 0 and 100 (excluding price change percentages)
+                    const percentages = percentMatches
+                        .map(m => parseFloat(m.match(/\d+(?:\.\d+)?/)[0]))
+                        .filter(p => p >= 0 && p <= 100);
+                    
+                    console.log("All percentages found:", percentages);
+                    
+                    // The first nine positive percentages (0-100) are the metrics
+                    if (percentages.length >= 9) {
+                        const metrics = percentages.slice(0, 9);
+                        const avg = metrics.reduce((a, b) => a + b, 0) / 9;
+                        const cbbiValue = Math.round(avg);
+                        console.log("CBBI computed as average of nine metrics:", metrics, "→", cbbiValue);
+                        cbbiSpan.innerText = cbbiValue.toString();
+                        return;
+                    }
+                }
+                // Fallback: try to extract the confidence number
+                const plainText = html.replace(/<[^>]*>/g, ' ');
+                const confidenceMatch = plainText.match(/CONFIDENCE\s+WE\s+ARE\s+AT\s+THE\s+PEAK\s*:?\s*#?\s*(\d+)/i);
+                if (confidenceMatch && confidenceMatch[1]) {
+                    const value = parseInt(confidenceMatch[1], 10);
+                    console.log("CBBI scraped (confidence):", value);
+                    cbbiSpan.innerText = value.toString();
                     return;
                 }
-                throw new Error("Could not find enough percentages on page");
+                throw new Error("Could not find enough percentages or confidence number");
             } catch (err) {
                 console.warn("CBBI scraping failed:", err);
                 cbbiSpan.innerText = "N/A";
