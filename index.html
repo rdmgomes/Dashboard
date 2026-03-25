@@ -229,10 +229,9 @@
         // --- Coinbase App Rank (fetch from multiple Nitter instances, cache) ---
         async function fetchCoinbaseRank() {
             const nitterInstances = [
-                "https://nitter.net",
-                "https://nitter.poast.org",
-                "https://nitter.lqdo.eu",
-                "https://nitter.unixfox.eu",
+                "https://nitter.privacydev.net",
+                "https://nitter.woodlands.no",
+                "https://nitter.dark.fail",
                 "https://nitter.kavin.rocks"
             ];
             let success = false;
@@ -282,14 +281,14 @@
                     coinbaseAllRankSpan.innerText = "N/A";
                     coinbaseFinanceRankSpan.innerText = "N/A";
                     coinbaseRankTimeSpan.innerText = "offline";
-                    console.warn("No Coinbase rank data available");
+                    console.warn("No Coinbase rank data available. To update manually, use: localStorage.setItem('coinbaseAllRank', '123'); localStorage.setItem('coinbaseFinanceRank', '45'); localStorage.setItem('coinbaseRankTime', 'Mar 25 8PM');");
                 }
             }
         }
 
         // --- Load CSV file and extract prices ---
         async function loadPricesFromCSV() {
-            const csvUrl = "btc_prices.csv";  // ensure this file is in the same folder
+            const csvUrl = "btc_data.csv";  // updated filename
             try {
                 const response = await fetch(csvUrl);
                 if (!response.ok) throw new Error(`HTTP ${response.status}`);
