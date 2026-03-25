@@ -63,7 +63,7 @@
             <div class="indicator-card"><label>📈 2Y MA MULTIPLIER</label><span id="twoYMA">--</span><span style="font-size:1rem;"> / </span><span id="twoYMAX5">--</span><div class="small-note">2Y MA  |  2Y MA x5</div></div>
             <div class="indicator-card"><label>🌀 PI CYCLE BOTTOM</label><span id="piSMA471">--</span><span style="font-size:1rem;"> (471d SMA) </span><br/><span id="piEMA150">--</span><span style="font-size:1rem;"> (150d EMA) </span><div class="small-note">Bitcoin bottom indicators</div></div>
         </div>
-        <div class="footer-note">⟳ AUTO-REFRESH EVERY 15 MIN  |  DATA: COINGECKO • COINPAPRIKA • ALTERNATIVE.ME</div>
+        <div class="footer-note">⟳ AUTO-REFRESH EVERY 15 MIN  |  DATA: COINGECKO • TRADINGDIGITS • ALTERNATIVE.ME</div>
     </div>
 </div>
 
@@ -215,95 +215,68 @@
             cbbiSpan.innerText = "34";
         }
 
-        // --- Compute moving averages from historical price data (CoinGecko) ---
-        async function fetchHistoricalPrices() {
-            try {
-                // CoinGecko free endpoint: daily prices for last 500 days
-                const url = "https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=usd&days=500";
-                const response = await fetch(url);
-                if (!response.ok) throw new Error(`CoinGecko HTTP ${response.status}`);
-                const data = await response.json();
-                if (!data.prices || data.prices.length < 471) throw new Error("Not enough data");
-                const prices = data.prices.map(p => p[1]);
-                const currentPrice = prices[prices.length - 1];
-                console.log(`Fetched ${prices.length} days from CoinGecko, latest price = ${currentPrice}`);
-                return { prices, currentPrice };
-            } catch (err) {
-                console.warn("CoinGecko historical data failed:", err.message);
-                return null;
-            }
-        }
-
-        // Calculate SMA (simple moving average)
-        function sma(prices, days) {
-            if (prices.length < days) return null;
-            const slice = prices.slice(-days);
-            return slice.reduce((a, b) => a + b, 0) / days;
-        }
-
-        // Calculate EMA (exponential moving average)
-        function ema(prices, days) {
-            if (prices.length < days) return null;
-            const k = 2 / (days + 1);
-            // Start with SMA of first 'days' values
-            const smaFirst = sma(prices.slice(0, days), days);
-            let emaVal = smaFirst;
-            for (let i = days; i < prices.length; i++) {
-                emaVal = prices[i] * k + emaVal * (1 - k);
-            }
-            return emaVal;
-        }
-
-        // --- BITCOIN INDICATORS with Pi Cycle from historical data ---
-        async function fetchBitcoinIndicators() {
-            // First try to get historical prices from CoinGecko
-            const hist = await fetchHistoricalPrices();
-            let btcPrice = null;
-            let sma471 = null;
-            let ema150 = null;
-
-            if (hist && hist.prices && hist.prices.length >= 471) {
-                btcPrice = hist.currentPrice;
-                sma471 = sma(hist.prices, 471);
-                ema150 = ema(hist.prices, 150);
-                console.log("Computed Pi Cycle from historical data:", { sma471, ema150 });
+        // --- Scrape Pi Cycle values from TradingDigits ---
+        async function fetchPiCycleFromTradingDigits() {
+            const url = "https://www.tradingdigits.io/pi-cycle-bottom-indicator";
+            const html = await fetchWithProxy(url);
+            // Look for numbers like "471SMA: 72,949.40" and "EMA150: 85,332.38"
+            const smaMatch = html.match(/471SMA:?\s*\$?([\d,]+\.?\d*)/i);
+            const emaMatch = html.match(/EMA150:?\s*\$?([\d,]+\.?\d*)/i);
+            if (smaMatch && emaMatch) {
+                const smaValue = parseFloat(smaMatch[1].replace(/,/g, ''));
+                const emaValue = parseFloat(emaMatch[1].replace(/,/g, ''));
+                console.log("Scraped Pi Cycle from TradingDigits:", { smaValue, emaValue });
+                return { sma471: smaValue, ema150: emaValue };
             } else {
-                // Fallback: get current price only from simple endpoint
-                try {
-                    const priceRes = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd");
-                    if (priceRes.ok) {
-                        const priceData = await priceRes.json();
-                        btcPrice = priceData.bitcoin.usd;
-                    } else {
-                        const priceRes2 = await fetch("https://api.coinpaprika.com/v1/tickers/btc-bitcoin");
-                        if (priceRes2.ok) {
-                            const tickerData = await priceRes2.json();
-                            btcPrice = tickerData.quotes.USD.price;
-                        }
-                    }
-                } catch (err) {
-                    console.warn("Could not fetch Bitcoin price:", err);
-                }
+                throw new Error("Could not parse Pi Cycle numbers");
+            }
+        }
 
-                // Use current values from TradingDigits/Glassnode (as of today)
-                // You can update these numbers manually when needed.
-                const DEFAULT_SMA = 72400;   // 471 SMA from TradingDigits (approx)
-                const DEFAULT_EMA = 83000;   // 150 EMA from TradingDigits (approx)
-                sma471 = DEFAULT_SMA;
-                ema150 = DEFAULT_EMA;
-                console.warn("Using fallback static Pi Cycle values (you can update them in the code):", { sma471, ema150 });
+        // --- BITCOIN INDICATORS with Pi Cycle from TradingDigits ---
+        async function fetchBitcoinIndicators() {
+            let piSMA = null;
+            let piEMA = null;
+
+            // First try to scrape TradingDigits
+            try {
+                const piData = await fetchPiCycleFromTradingDigits();
+                piSMA = piData.sma471;
+                piEMA = piData.ema150;
+                console.log("Successfully fetched Pi Cycle from TradingDigits");
+            } catch (err) {
+                console.warn("Scraping TradingDigits failed, falling back to static values:", err.message);
+                // Fallback to the static numbers you provided earlier (update if needed)
+                piSMA = 72400;   // current approximate
+                piEMA = 83000;   // current approximate
             }
 
             // Update Pi Cycle values
-            if (sma471 !== null && ema150 !== null) {
-                piSMA471Span.innerText = formatUSD(sma471);
-                piEMA150Span.innerText = formatUSD(ema150);
+            if (piSMA !== null && piEMA !== null) {
+                piSMA471Span.innerText = formatUSD(piSMA);
+                piEMA150Span.innerText = formatUSD(piEMA);
             } else {
                 piSMA471Span.innerText = "N/A";
                 piEMA150Span.innerText = "N/A";
             }
 
-            // For the other indicators, use simple multipliers based on current price
+            // For the other indicators, get current Bitcoin price
+            let btcPrice = null;
+            try {
+                const priceRes = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd");
+                if (priceRes.ok) {
+                    const priceData = await priceRes.json();
+                    btcPrice = priceData.bitcoin.usd;
+                } else {
+                    const priceRes2 = await fetch("https://api.coinpaprika.com/v1/tickers/btc-bitcoin");
+                    if (priceRes2.ok) {
+                        const tickerData = await priceRes2.json();
+                        btcPrice = tickerData.quotes.USD.price;
+                    }
+                }
+            } catch (err) {
+                console.warn("Could not fetch Bitcoin price:", err);
+            }
+
             if (btcPrice) {
                 const TWO_Y_MA_FACTOR = 1.22;       // 2Y MA ≈ current price * 1.22
                 const TWO_HUNDRED_WMA_FACTOR = 0.85; // 200W MA ≈ current price * 0.85
