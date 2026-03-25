@@ -63,7 +63,7 @@
             <div class="indicator-card"><label>📈 2Y MA MULTIPLIER</label><span id="twoYMA">--</span><span style="font-size:1rem;"> / </span><span id="twoYMAX5">--</span><div class="small-note">2Y MA  |  2Y MA x5</div></div>
             <div class="indicator-card"><label>🌀 PI CYCLE BOTTOM</label><span id="piSMA471">--</span><span style="font-size:1rem;"> (471d SMA) </span><br/><span id="piEMA150">--</span><span style="font-size:1rem;"> (150d EMA) </span><div class="small-note">Bitcoin bottom indicators</div></div>
         </div>
-        <div class="footer-note">⟳ AUTO-REFRESH EVERY 15 MIN  |  DATA: COINGECKO • TRADINGDIGITS • ALTERNATIVE.ME</div>
+        <div class="footer-note">⟳ AUTO-REFRESH EVERY 15 MIN  |  DATA: COINGECKO • CRYPTOCOMPARE • ALTERNATIVE.ME</div>
     </div>
 </div>
 
@@ -215,88 +215,80 @@
             cbbiSpan.innerText = "34";
         }
 
-        // --- Scrape Pi Cycle values from TradingDigits with refined patterns ---
-        async function fetchPiCycleFromTradingDigits() {
-            const url = "https://www.tradingdigits.io/pi-cycle-bottom-indicator";
-            const html = await fetchWithProxy(url);
-            // Log a snippet for debugging
-            console.log("HTML snippet (first 2000 chars):", html.substring(0, 2000));
-            
-            let smaValue = null;
-            let emaValue = null;
-            
-            // 1. Look for a dollar amount that appears after "471SMA" or "471d SMA"
-            //    Example: "471SMA: $72,400.00"
-            const smaDollarPattern = /471\s*SMA[^\$]*\$([\d,]+\.?\d*)/i;
-            let match = html.match(smaDollarPattern);
-            if (match) {
-                smaValue = parseFloat(match[1].replace(/,/g, ''));
-            }
-            
-            // 2. Look for a dollar amount that appears after "150EMA" or "150d EMA"
-            const emaDollarPattern = /150\s*EMA[^\$]*\$([\d,]+\.?\d*)/i;
-            match = html.match(emaDollarPattern);
-            if (match) {
-                emaValue = parseFloat(match[1].replace(/,/g, ''));
-            }
-            
-            // If still missing, try broader patterns that capture a number near the labels
-            if (!smaValue) {
-                const broadSMAPattern = /471\s*SMA.*?(\d{4,6}(?:,\d{3})*(?:\.\d+)?)/i;
-                match = html.match(broadSMAPattern);
-                if (match) {
-                    smaValue = parseFloat(match[1].replace(/,/g, ''));
-                }
-            }
-            if (!emaValue) {
-                const broadEMAPattern = /150\s*EMA.*?(\d{4,6}(?:,\d{3})*(?:\.\d+)?)/i;
-                match = html.match(broadEMAPattern);
-                if (match) {
-                    emaValue = parseFloat(match[1].replace(/,/g, ''));
-                }
-            }
-            
-            // 3. Fallback: search for any numbers in the typical range ($50k–$100k) near the labels
-            if (!smaValue || !emaValue) {
-                const text = html.replace(/<[^>]*>/g, ' ');
-                // Find all numbers that look like USD amounts (5-6 digits, possibly with commas)
-                const usdNumbers = text.match(/\$?(\d{1,3}(?:,\d{3})*(?:\.\d+)?)/g);
-                if (usdNumbers && usdNumbers.length >= 2) {
-                    const parsed = usdNumbers.map(s => parseFloat(s.replace(/,/g, ''))).filter(n => n > 50000 && n < 150000);
-                    if (parsed.length >= 2) {
-                        // Sort ascending; typically SMA is lower, EMA is higher
-                        parsed.sort((a,b)=>a-b);
-                        smaValue = parsed[0];
-                        emaValue = parsed[1];
-                        console.log("Fallback USD numbers:", parsed);
-                    }
-                }
-            }
-            
-            if (smaValue && emaValue) {
-                console.log("Scraped Pi Cycle from TradingDigits:", { smaValue, emaValue });
-                return { sma471: smaValue, ema150: emaValue };
+        // --- Fetch historical prices from CryptoCompare (free, no key) ---
+        async function fetchHistoricalPrices() {
+            const url = "https://min-api.cryptocompare.com/data/v2/histoday?fsym=BTC&tsym=USD&limit=500";
+            const response = await fetch(url);
+            if (!response.ok) throw new Error(`CryptoCompare HTTP ${response.status}`);
+            const data = await response.json();
+            if (data.Data && data.Data.Data) {
+                const prices = data.Data.Data.map(d => d.close);
+                console.log(`Fetched ${prices.length} days from CryptoCompare, latest price = ${prices[prices.length-1]}`);
+                return prices;
             } else {
-                throw new Error(`Could not parse Pi Cycle numbers. SMA: ${smaValue}, EMA: ${emaValue}`);
+                throw new Error("Invalid CryptoCompare response structure");
             }
         }
 
-        // --- BITCOIN INDICATORS with Pi Cycle from TradingDigits ---
+        // --- Calculate SMA (simple moving average) ---
+        function sma(prices, days) {
+            if (prices.length < days) return null;
+            const slice = prices.slice(-days);
+            return slice.reduce((a, b) => a + b, 0) / days;
+        }
+
+        // --- Calculate EMA (exponential moving average) ---
+        function ema(prices, days) {
+            if (prices.length < days) return null;
+            const k = 2 / (days + 1);
+            // Start with SMA of first 'days' values
+            const smaFirst = sma(prices.slice(0, days), days);
+            let emaVal = smaFirst;
+            for (let i = days; i < prices.length; i++) {
+                emaVal = prices[i] * k + emaVal * (1 - k);
+            }
+            return emaVal;
+        }
+
+        // --- BITCOIN INDICATORS with Pi Cycle from CryptoCompare historical data ---
         async function fetchBitcoinIndicators() {
             let piSMA = null;
             let piEMA = null;
+            let btcPrice = null;
 
-            // Try to scrape TradingDigits
+            // Try to get historical prices
             try {
-                const piData = await fetchPiCycleFromTradingDigits();
-                piSMA = piData.sma471;
-                piEMA = piData.ema150;
-                console.log("Successfully fetched Pi Cycle from TradingDigits");
+                const prices = await fetchHistoricalPrices();
+                if (prices && prices.length >= 471) {
+                    piSMA = sma(prices, 471);
+                    piEMA = ema(prices, 150);
+                    btcPrice = prices[prices.length - 1];
+                    console.log("Pi Cycle from historical data:", { piSMA, piEMA, btcPrice });
+                } else {
+                    throw new Error("Not enough historical data");
+                }
             } catch (err) {
-                console.warn("Scraping TradingDigits failed, falling back to static values:", err.message);
-                // Fallback static numbers (you can update these manually if needed)
+                console.warn("Historical data fetch failed, falling back to current price only:", err.message);
+                // Try to get just current price
+                try {
+                    const priceRes = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd");
+                    if (priceRes.ok) {
+                        const priceData = await priceRes.json();
+                        btcPrice = priceData.bitcoin.usd;
+                    } else {
+                        const priceRes2 = await fetch("https://api.coinpaprika.com/v1/tickers/btc-bitcoin");
+                        if (priceRes2.ok) {
+                            const tickerData = await priceRes2.json();
+                            btcPrice = tickerData.quotes.USD.price;
+                        }
+                    }
+                } catch (priceErr) {
+                    console.warn("Could not fetch Bitcoin price:", priceErr);
+                }
+                // Use static fallback values (you can update these if needed)
                 piSMA = 72400;
                 piEMA = 83000;
+                console.warn("Using fallback static Pi Cycle values");
             }
 
             // Update Pi Cycle values
@@ -308,24 +300,7 @@
                 piEMA150Span.innerText = "N/A";
             }
 
-            // For the other indicators, get current Bitcoin price
-            let btcPrice = null;
-            try {
-                const priceRes = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd");
-                if (priceRes.ok) {
-                    const priceData = await priceRes.json();
-                    btcPrice = priceData.bitcoin.usd;
-                } else {
-                    const priceRes2 = await fetch("https://api.coinpaprika.com/v1/tickers/btc-bitcoin");
-                    if (priceRes2.ok) {
-                        const tickerData = await priceRes2.json();
-                        btcPrice = tickerData.quotes.USD.price;
-                    }
-                }
-            } catch (err) {
-                console.warn("Could not fetch Bitcoin price:", err);
-            }
-
+            // For the other indicators, use current price if available
             if (btcPrice) {
                 const TWO_Y_MA_FACTOR = 1.22;       // 2Y MA ≈ current price * 1.22
                 const TWO_HUNDRED_WMA_FACTOR = 0.85; // 200W MA ≈ current price * 0.85
