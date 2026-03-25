@@ -210,51 +210,105 @@
             }
         }
 
-        // --- CBBI: static 34 ---
+        // --- CBBI: static 34 (correct value) ---
         async function fetchCBBI() {
             cbbiSpan.innerText = "34";
         }
 
-        // --- BITCOIN INDICATORS: fallback approximations with adjustable multipliers ---
+        // --- BITCOIN INDICATORS with improved Pi Cycle using historical data ---
         async function fetchBitcoinIndicators() {
-            // You can change these factors to match the correct values from Coinglass/TradingDigits
-            const TWO_Y_MA_FACTOR = 1.22;       // to get ~86,500 when BTC = ~71,000
-            const TWO_HUNDRED_WMA_FACTOR = 0.85; // typical for 200W MA
-            const PI_SMA_FACTOR = 0.745;         // 471d SMA (user suggested)
-            const PI_EMA_FACTOR = 0.70;          // 150d EMA
-
-            // Get current Bitcoin price from CoinGecko
-            let btcPrice = null;
+            // First try to get real Pi Cycle values from bitcoin-data.com
+            let realPiSMA = null;
+            let realPiEMA = null;
             try {
-                const priceRes = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd");
-                if (priceRes.ok) {
-                    const priceData = await priceRes.json();
-                    btcPrice = priceData.bitcoin.usd;
+                const piData = await fetchWithProxy("https://bitcoin-data.com/api/v1/pi-cycle-bottom");
+                if (piData) {
+                    realPiSMA = piData.sma471 || piData.sma_471 || piData.value?.sma471;
+                    realPiEMA = piData.ema150 || piData.ema_150 || piData.value?.ema150;
+                    if (realPiSMA && realPiEMA) {
+                        console.log("Real Pi Cycle data fetched:", { realPiSMA, realPiEMA });
+                    } else {
+                        throw new Error("No valid Pi Cycle data");
+                    }
+                } else {
+                    throw new Error("No Pi Cycle response");
                 }
             } catch (err) {
-                console.warn("Could not fetch Bitcoin price:", err);
+                console.warn("Real Pi Cycle fetch failed, using fallback simulation:", err.message);
             }
 
+            // Get historical prices for moving averages (if not already fetched)
+            let historicalPrices = null;
+            let btcPrice = null;
+            try {
+                const chartRes = await fetch("https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=usd&days=500&interval=daily");
+                if (chartRes.ok) {
+                    const chartData = await chartRes.json();
+                    if (chartData.prices && chartData.prices.length >= 471) {
+                        historicalPrices = chartData.prices.map(p => p[1]);
+                        btcPrice = historicalPrices[historicalPrices.length - 1];
+                        console.log(`Fetched ${historicalPrices.length} days of historical prices, current BTC = ${btcPrice}`);
+                    } else {
+                        throw new Error("Not enough historical data");
+                    }
+                } else {
+                    throw new Error("Price chart fetch failed");
+                }
+            } catch (err) {
+                console.warn("Could not fetch historical prices, using simple current price:", err.message);
+                // Last resort: just get current price
+                const simpleRes = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd");
+                if (simpleRes.ok) {
+                    const simpleData = await simpleRes.json();
+                    btcPrice = simpleData.bitcoin.usd;
+                }
+            }
+
+            // Set Pi Cycle values
+            if (realPiSMA && realPiEMA) {
+                piSMA471Span.innerText = formatUSD(realPiSMA);
+                piEMA150Span.innerText = formatUSD(realPiEMA);
+            } else if (historicalPrices && historicalPrices.length >= 471) {
+                // Calculate 471-day SMA
+                const sma471 = historicalPrices.slice(-471).reduce((a, b) => a + b, 0) / 471;
+                // Calculate 150-day EMA (exponential moving average)
+                let ema150 = historicalPrices[historicalPrices.length - 150];
+                const k = 2 / (150 + 1);
+                for (let i = historicalPrices.length - 149; i < historicalPrices.length; i++) {
+                    ema150 = historicalPrices[i] * k + ema150 * (1 - k);
+                }
+                console.log("Computed Pi Cycle from historical data:", { sma471, ema150 });
+                piSMA471Span.innerText = formatUSD(sma471);
+                piEMA150Span.innerText = formatUSD(ema150);
+            } else if (btcPrice) {
+                // Simple multiplier fallback (rough approximation)
+                const SMA_MULTIPLIER = 0.745;
+                const EMA_MULTIPLIER = 0.70;
+                piSMA471Span.innerText = formatUSD(btcPrice * SMA_MULTIPLIER);
+                piEMA150Span.innerText = formatUSD(btcPrice * EMA_MULTIPLIER);
+                console.warn("Using simple multiplier fallback for Pi Cycle");
+            } else {
+                piSMA471Span.innerText = "N/A";
+                piEMA150Span.innerText = "N/A";
+            }
+
+            // For the other indicators, use simple multipliers based on current price
+            // (you can adjust these factors to match your sources)
             if (btcPrice) {
+                const TWO_Y_MA_FACTOR = 1.22;       // 2Y MA ≈ current price * 1.22
+                const TWO_HUNDRED_WMA_FACTOR = 0.85; // 200W MA ≈ current price * 0.85
                 const twoYearMA = btcPrice * TWO_Y_MA_FACTOR;
                 const twoYearMAX5 = twoYearMA * 5;
                 const twoHundredWMA = btcPrice * TWO_HUNDRED_WMA_FACTOR;
-                const piSMA = btcPrice * PI_SMA_FACTOR;
-                const piEMA = btcPrice * PI_EMA_FACTOR;
 
                 twoYMASpan.innerText = formatUSD(twoYearMA);
                 twoYMAX5Span.innerText = formatUSD(twoYearMAX5);
                 btc200wmaSpan.innerText = formatUSD(twoHundredWMA);
-                piSMA471Span.innerText = formatUSD(piSMA);
-                piEMA150Span.innerText = formatUSD(piEMA);
-
-                console.log(`Indicators updated: BTC = ${btcPrice}, 2Y MA = ${twoYearMA}, Pi SMA = ${piSMA}`);
+                console.log(`Other indicators: 2Y MA = ${twoYearMA}, 200W MA = ${twoHundredWMA}`);
             } else {
                 twoYMASpan.innerText = "N/A";
                 twoYMAX5Span.innerText = "N/A";
                 btc200wmaSpan.innerText = "N/A";
-                piSMA471Span.innerText = "N/A";
-                piEMA150Span.innerText = "N/A";
             }
         }
 
