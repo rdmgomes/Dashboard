@@ -62,8 +62,15 @@
             <div class="indicator-card"><label>⛓️ BTC 200W MA</label><span id="btc200wma">--</span><div class="small-note">200 Week Moving Average</div></div>
             <div class="indicator-card"><label>📈 2Y MA MULTIPLIER</label><span id="twoYMA">--</span><span style="font-size:1rem;"> / </span><span id="twoYMAX5">--</span><div class="small-note">2Y MA  |  2Y MA x5</div></div>
             <div class="indicator-card"><label>🌀 PI CYCLE BOTTOM</label><span id="piSMA471">--</span><span style="font-size:1rem;"> (471d SMA) </span><br/><span id="piEMA150">--</span><span style="font-size:1rem;"> (150d EMA) </span><div class="small-note">Bitcoin bottom indicators</div></div>
+            <!-- NEW: Coinbase App Rank Card -->
+            <div class="indicator-card">
+                <label>📱 COINBASE APP RANK</label>
+                <div><span id="coinbaseAllRank">--</span> <span style="font-size:1rem;">(All Apps)</span></div>
+                <div><span id="coinbaseFinanceRank">--</span> <span style="font-size:1rem;">(Finance)</span></div>
+                <div class="small-note" id="coinbaseRankTime">—</div>
+            </div>
         </div>
-        <div class="footer-note">⟳ AUTO-REFRESH EVERY 15 MIN  |  DATA: COINGECKO • CRYPTOCOMPARE • ALTERNATIVE.ME</div>
+        <div class="footer-note">⟳ AUTO-REFRESH EVERY 15 MIN  |  DATA: COINGECKO • CRYPTOCOMPARE • ALTERNATIVE.ME • NITTER</div>
     </div>
 </div>
 
@@ -91,6 +98,11 @@
         const twoYMAX5Span = document.getElementById("twoYMAX5");
         const piSMA471Span = document.getElementById("piSMA471");
         const piEMA150Span = document.getElementById("piEMA150");
+
+        // New Coinbase rank elements
+        const coinbaseAllRankSpan = document.getElementById("coinbaseAllRank");
+        const coinbaseFinanceRankSpan = document.getElementById("coinbaseFinanceRank");
+        const coinbaseRankTimeSpan = document.getElementById("coinbaseRankTime");
 
         // Helper functions
         function formatUSD(value) {
@@ -215,6 +227,44 @@
             cbbiSpan.innerText = "34";
         }
 
+        // --- Coinbase App Rank (fetch from Nitter) ---
+        async function fetchCoinbaseRank() {
+            try {
+                // Use Nitter (privacy-friendly Twitter front-end) to get the timeline as HTML
+                const nitterUrl = "https://nitter.net/COINAppRankBot";
+                const html = await fetchWithProxy(nitterUrl);
+                // Find the latest tweet content (the most recent one)
+                // Nitter structure: each tweet is in a <div class="tweet-content"> or similar.
+                // We'll extract the first occurrence of the tweet text.
+                const tweetMatch = html.match(/<div class="tweet-content[^>]*>([\s\S]*?)<\/div>/i);
+                if (tweetMatch) {
+                    const tweetText = tweetMatch[1].replace(/<[^>]*>/g, ' ');
+                    console.log("Latest tweet text:", tweetText);
+                    // Extract numbers: "All Apps 476" and "Finance Apps 39"
+                    const allMatch = tweetText.match(/All Apps\s*(\d+)/i);
+                    const financeMatch = tweetText.match(/Finance Apps\s*(\d+)/i);
+                    if (allMatch && financeMatch) {
+                        const allRank = parseInt(allMatch[1], 10);
+                        const financeRank = parseInt(financeMatch[1], 10);
+                        // Extract timestamp (if present)
+                        const timeMatch = html.match(/<span class="tweet-date"[^>]*>([^<]+)</i);
+                        let timeStr = timeMatch ? timeMatch[1] : "";
+                        console.log("Coinbase ranks:", { allRank, financeRank, timeStr });
+                        coinbaseAllRankSpan.innerText = allRank.toString();
+                        coinbaseFinanceRankSpan.innerText = financeRank.toString();
+                        coinbaseRankTimeSpan.innerText = timeStr || "latest";
+                        return;
+                    }
+                }
+                throw new Error("Could not parse ranks from Nitter");
+            } catch (err) {
+                console.warn("Coinbase rank fetch failed:", err);
+                coinbaseAllRankSpan.innerText = "N/A";
+                coinbaseFinanceRankSpan.innerText = "N/A";
+                coinbaseRankTimeSpan.innerText = "offline";
+            }
+        }
+
         // --- Fetch historical prices from CryptoCompare (free, no key) ---
         async function fetchHistoricalPrices() {
             const url = "https://min-api.cryptocompare.com/data/v2/histoday?fsym=BTC&tsym=USD&limit=500";
@@ -241,7 +291,6 @@
         function ema(prices, days) {
             if (prices.length < days) return null;
             const k = 2 / (days + 1);
-            // Start with SMA of first 'days' values
             const smaFirst = sma(prices.slice(0, days), days);
             let emaVal = smaFirst;
             for (let i = days; i < prices.length; i++) {
@@ -256,20 +305,19 @@
             let piEMA = null;
             let btcPrice = null;
 
-            // Try to get historical prices
             try {
                 const prices = await fetchHistoricalPrices();
                 if (prices && prices.length >= 471) {
-                    piSMA = sma(prices, 471);
+                    const rawSMA = sma(prices, 471);
+                    piSMA = rawSMA * 0.745;
                     piEMA = ema(prices, 150);
                     btcPrice = prices[prices.length - 1];
-                    console.log("Pi Cycle from historical data:", { piSMA, piEMA, btcPrice });
+                    console.log("Pi Cycle from historical data (with 0.745 multiplier):", { rawSMA, piSMA, piEMA, btcPrice });
                 } else {
                     throw new Error("Not enough historical data");
                 }
             } catch (err) {
-                console.warn("Historical data fetch failed, falling back to current price only:", err.message);
-                // Try to get just current price
+                console.warn("Historical data fetch failed, falling back to static values:", err.message);
                 try {
                     const priceRes = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd");
                     if (priceRes.ok) {
@@ -285,13 +333,11 @@
                 } catch (priceErr) {
                     console.warn("Could not fetch Bitcoin price:", priceErr);
                 }
-                // Use static fallback values (you can update these if needed)
-                piSMA = 72400;
+                piSMA = 72400 * 0.745;
                 piEMA = 83000;
                 console.warn("Using fallback static Pi Cycle values");
             }
 
-            // Update Pi Cycle values
             if (piSMA !== null && piEMA !== null) {
                 piSMA471Span.innerText = formatUSD(piSMA);
                 piEMA150Span.innerText = formatUSD(piEMA);
@@ -300,14 +346,12 @@
                 piEMA150Span.innerText = "N/A";
             }
 
-            // For the other indicators, use current price if available
             if (btcPrice) {
-                const TWO_Y_MA_FACTOR = 1.22;       // 2Y MA ≈ current price * 1.22
-                const TWO_HUNDRED_WMA_FACTOR = 0.85; // 200W MA ≈ current price * 0.85
+                const TWO_Y_MA_FACTOR = 1.22;
+                const TWO_HUNDRED_WMA_FACTOR = 0.85;
                 const twoYearMA = btcPrice * TWO_Y_MA_FACTOR;
                 const twoYearMAX5 = twoYearMA * 5;
                 const twoHundredWMA = btcPrice * TWO_HUNDRED_WMA_FACTOR;
-
                 twoYMASpan.innerText = formatUSD(twoYearMA);
                 twoYMAX5Span.innerText = formatUSD(twoYearMAX5);
                 btc200wmaSpan.innerText = formatUSD(twoHundredWMA);
@@ -337,7 +381,8 @@
             await Promise.allSettled([
                 fetchFearGreed(),
                 fetchCBBI(),
-                fetchBitcoinIndicators()
+                fetchBitcoinIndicators(),
+                fetchCoinbaseRank()
             ]);
         }
 
