@@ -210,54 +210,67 @@
             }
         }
 
-        // --- CBBI: always show 34 (the correct value) ---
+        // --- CBBI: static 34 (you can change this) ---
         async function fetchCBBI() {
-            // Try official API first (but it often fails)
-            try {
-                const data = await fetchWithProxy("https://api.cbbi.io/current");
-                let cbbiVal = data?.cbbi || data?.value || data?.index;
-                if (cbbiVal !== undefined && cbbiVal !== null) {
-                    cbbiSpan.innerText = parseFloat(cbbiVal).toFixed(2);
-                    return;
-                }
-            } catch (err) {
-                console.warn("CBBI API failed, using static value 34");
-            }
-            // Fallback to static correct value
             cbbiSpan.innerText = "34";
         }
 
-        // --- BITCOIN INDICATORS: compute from current BTC price with user‑requested multipliers ---
+        // --- BITCOIN INDICATORS: try to fetch real 2Y MA data ---
         async function fetchBitcoinIndicators() {
+            // Try to get real 2Y MA and 2Y MA x5 from the API
+            let real2YMA = null;
+            let real2YMA5 = null;
+            try {
+                const data = await fetchWithProxy("https://bitcoin-data.com/api/v1/2yma");
+                if (data && (data.value || data["2yma"])) {
+                    real2YMA = data.value || data["2yma"];
+                    real2YMA5 = real2YMA * 5;
+                    console.log("Real 2Y MA fetched:", real2YMA);
+                } else {
+                    throw new Error("No valid 2Y MA data");
+                }
+            } catch (err) {
+                console.warn("Failed to fetch real 2Y MA, will fallback to approximation:", err.message);
+            }
+
+            // Get current Bitcoin price for other indicators (and for fallback)
+            let btcPrice = null;
             try {
                 const priceRes = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd");
-                if (!priceRes.ok) throw new Error(`Price fetch failed: ${priceRes.status}`);
-                const priceData = await priceRes.json();
-                const btcPrice = priceData.bitcoin.usd;
-                if (!btcPrice) throw new Error("No Bitcoin price");
-
-                // User‑requested multipliers:
-                // 2Y MA ≈ 1.25 × current price → gives ~$86,500 when BTC=$69,200
-                // 2Y MA x5 = 5 × 2Y MA
-                const twoYearMA = btcPrice * 1.25;
-                const twoYearMAX5 = twoYearMA * 5;
-
-                // Keep other indicators with typical approximations
-                const twoHundredWMA = btcPrice * 0.85;   // 200W MA ≈ 85% of price
-                const piSMA = btcPrice * 0.75;          // Pi Cycle SMA ≈ 75%
-                const piEMA = btcPrice * 0.70;          // Pi Cycle EMA ≈ 70%
-
-                btc200wmaSpan.innerText = formatUSD(twoHundredWMA);
-                twoYMASpan.innerText = formatUSD(twoYearMA);
-                twoYMAX5Span.innerText = formatUSD(twoYearMAX5);
-                piSMA471Span.innerText = formatUSD(piSMA);
-                piEMA150Span.innerText = formatUSD(piEMA);
-                console.log("Bitcoin indicators updated with price:", btcPrice);
+                if (priceRes.ok) {
+                    const priceData = await priceRes.json();
+                    btcPrice = priceData.bitcoin.usd;
+                }
             } catch (err) {
-                console.error("Failed to get Bitcoin price:", err);
-                btc200wmaSpan.innerText = "N/A";
+                console.warn("Could not fetch Bitcoin price:", err);
+            }
+
+            // If real data is available, use it; otherwise compute approximations
+            if (real2YMA && real2YMA > 0) {
+                twoYMASpan.innerText = formatUSD(real2YMA);
+                twoYMAX5Span.innerText = formatUSD(real2YMA5);
+            } else if (btcPrice) {
+                // Fallback: use a multiplier that you can adjust to match current values
+                const factor = 1.25;  // e.g., when BTC = 69k, 2Y MA = 86.5k
+                const approx2YMA = btcPrice * factor;
+                twoYMASpan.innerText = formatUSD(approx2YMA);
+                twoYMAX5Span.innerText = formatUSD(approx2YMA * 5);
+                console.log("Using approximate 2Y MA (factor =", factor, "):", approx2YMA);
+            } else {
                 twoYMASpan.innerText = "N/A";
                 twoYMAX5Span.innerText = "N/A";
+            }
+
+            // For the other indicators, use approximations based on current price
+            if (btcPrice) {
+                const twoHundredWMA = btcPrice * 0.85;
+                const piSMA = btcPrice * 0.75;
+                const piEMA = btcPrice * 0.70;
+                btc200wmaSpan.innerText = formatUSD(twoHundredWMA);
+                piSMA471Span.innerText = formatUSD(piSMA);
+                piEMA150Span.innerText = formatUSD(piEMA);
+            } else {
+                btc200wmaSpan.innerText = "N/A";
                 piSMA471Span.innerText = "N/A";
                 piEMA150Span.innerText = "N/A";
             }
