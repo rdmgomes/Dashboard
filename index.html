@@ -30,6 +30,7 @@
         .indicator-card span { font-size: 1.65rem; font-weight: bold; word-break: break-word; line-height: 1.2; }
         .small-note { font-size: 0.7rem; color: #3a984a; margin-top: 8px; border-top: 1px dotted #1f4a2a; padding-top: 6px; }
         .footer-note { text-align: right; font-size: 0.6rem; margin-top: 24px; color: #3a864a; }
+        .footer-note span { color: #5bc96b; }
         .refresh-btn { background: #0a1a0a; border: 1px solid #2eff7a; color: #2eff7a; font-family: monospace; font-size: 0.7rem; padding: 4px 12px; border-radius: 20px; cursor: pointer; transition: all 0.2s; }
         .refresh-btn:hover { background: #1e3a1e; text-shadow: 0 0 4px #2eff7a; }
         @keyframes subtle-flicker { 0% { opacity: 0.99; } 100% { opacity: 1; } }
@@ -70,7 +71,9 @@
                 <div class="small-note" id="coinbaseRankTime">—</div>
             </div>
         </div>
-        <div class="footer-note">⟳ AUTO-REFRESH EVERY 15 MIN  |  DATA: CSV • COINGECKO • ALTERNATIVE.ME • NITTER</div>
+        <div class="footer-note" id="dataSourceFooter">
+            ⟳ AUTO-REFRESH EVERY 15 MIN  |  DATA: <span id="dataSourceText">—</span>
+        </div>
     </div>
 </div>
 
@@ -102,6 +105,8 @@
         const coinbaseAllRankSpan = document.getElementById("coinbaseAllRank");
         const coinbaseFinanceRankSpan = document.getElementById("coinbaseFinanceRank");
         const coinbaseRankTimeSpan = document.getElementById("coinbaseRankTime");
+
+        const dataSourceTextSpan = document.getElementById("dataSourceText");
 
         // Helper functions
         function formatUSD(value) {
@@ -286,9 +291,9 @@
             }
         }
 
-        // --- Load CSV file and extract prices ---
+        // --- Load CSV file and extract prices and latest date ---
         async function loadPricesFromCSV() {
-            const csvUrl = "btc_data.csv";  // updated filename
+            const csvUrl = "btc_data.csv";
             try {
                 const response = await fetch(csvUrl);
                 if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -304,10 +309,11 @@
                             // Sort by date ascending
                             rows.sort((a,b) => new Date(a.date) - new Date(b.date));
                             const prices = rows.map(row => row.price);
+                            const lastDate = rows[rows.length-1]?.date;
                             if (prices.length < 1400) {
                                 reject(new Error(`Only ${prices.length} rows, need at least 1400`));
                             } else {
-                                resolve(prices);
+                                resolve({ prices, lastDate });
                             }
                         },
                         error: (err) => reject(err)
@@ -341,17 +347,17 @@
         // --- BITCOIN INDICATORS using CSV first, then fallbacks ---
         async function fetchBitcoinIndicators() {
             let prices = null;
+            let dataSource = "";
+            let lastDate = "";
 
             // Primary: load from CSV
-            try {
-                prices = await loadPricesFromCSV();
-                if (prices && prices.length >= 1400) {
-                    console.log(`Using CSV: ${prices.length} days`);
-                } else {
-                    throw new Error("CSV insufficient");
-                }
-            } catch (err) {
-                console.warn("CSV not available, falling back to CryptoCompare:", err.message);
+            const csvData = await loadPricesFromCSV();
+            if (csvData && csvData.prices && csvData.prices.length >= 1400) {
+                prices = csvData.prices;
+                lastDate = csvData.lastDate;
+                dataSource = `CSV (${lastDate})`;
+                console.log(`Using CSV: ${prices.length} days, last date ${lastDate}`);
+            } else {
                 // Secondary: CryptoCompare
                 try {
                     const url = "https://min-api.cryptocompare.com/data/v2/histoday?fsym=BTC&tsym=USD&limit=1400";
@@ -360,13 +366,14 @@
                     const data = await response.json();
                     if (data.Data && data.Data.Data) {
                         prices = data.Data.Data.map(d => d.close);
+                        dataSource = "CryptoCompare (live)";
                         console.log(`Using CryptoCompare: ${prices.length} days`);
                     } else {
                         throw new Error("Invalid CryptoCompare response");
                     }
-                } catch (err2) {
-                    console.warn("CryptoCompare failed, using static approximations:", err2);
-                    prices = null;
+                } catch (err) {
+                    console.warn("CryptoCompare failed, using static approximations:", err);
+                    dataSource = "static approximations";
                 }
             }
 
@@ -386,40 +393,42 @@
                 twoYMASpan.innerText = formatUSD(sma2Y);
                 twoYMAX5Span.innerText = formatUSD(sma2Yx5);
                 console.log("Indicators from historical data:", { piSMA, piEMA, sma200W, sma2Y, sma2Yx5, btcPrice });
-                return;
-            }
-
-            // Fallback: use static approximations
-            console.warn("Using static fallback approximations");
-            // Get current price if possible
-            let btcPrice = null;
-            try {
-                const priceRes = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd");
-                if (priceRes.ok) {
-                    const priceData = await priceRes.json();
-                    btcPrice = priceData.bitcoin.usd;
-                } else {
-                    const priceRes2 = await fetch("https://api.coinpaprika.com/v1/tickers/btc-bitcoin");
-                    if (priceRes2.ok) {
-                        const tickerData = await priceRes2.json();
-                        btcPrice = tickerData.quotes.USD.price;
+            } else {
+                // Fallback: use static approximations
+                console.warn("Using static fallback approximations");
+                let btcPrice = null;
+                try {
+                    const priceRes = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd");
+                    if (priceRes.ok) {
+                        const priceData = await priceRes.json();
+                        btcPrice = priceData.bitcoin.usd;
+                    } else {
+                        const priceRes2 = await fetch("https://api.coinpaprika.com/v1/tickers/btc-bitcoin");
+                        if (priceRes2.ok) {
+                            const tickerData = await priceRes2.json();
+                            btcPrice = tickerData.quotes.USD.price;
+                        }
                     }
+                } catch (err) {
+                    console.warn("Could not fetch Bitcoin price:", err);
                 }
-            } catch (err) {
-                console.warn("Could not fetch Bitcoin price:", err);
+
+                const DEFAULT_PI_SMA = 72400 * 0.745;
+                const DEFAULT_PI_EMA = 83000;
+                const DEFAULT_200W_MA = btcPrice ? btcPrice * 0.85 : 60700;
+                const DEFAULT_2Y_MA = btcPrice ? btcPrice * 1.22 : 87000;
+                const DEFAULT_2Y_MA_X5 = DEFAULT_2Y_MA * 5;
+
+                piSMA471Span.innerText = formatUSD(DEFAULT_PI_SMA);
+                piEMA150Span.innerText = formatUSD(DEFAULT_PI_EMA);
+                btc200wmaSpan.innerText = formatUSD(DEFAULT_200W_MA);
+                twoYMASpan.innerText = formatUSD(DEFAULT_2Y_MA);
+                twoYMAX5Span.innerText = formatUSD(DEFAULT_2Y_MA_X5);
+                dataSource = "static approximations";
             }
 
-            const DEFAULT_PI_SMA = 72400 * 0.745;
-            const DEFAULT_PI_EMA = 83000;
-            const DEFAULT_200W_MA = btcPrice ? btcPrice * 0.85 : 60700;
-            const DEFAULT_2Y_MA = btcPrice ? btcPrice * 1.22 : 87000;
-            const DEFAULT_2Y_MA_X5 = DEFAULT_2Y_MA * 5;
-
-            piSMA471Span.innerText = formatUSD(DEFAULT_PI_SMA);
-            piEMA150Span.innerText = formatUSD(DEFAULT_PI_EMA);
-            btc200wmaSpan.innerText = formatUSD(DEFAULT_200W_MA);
-            twoYMASpan.innerText = formatUSD(DEFAULT_2Y_MA);
-            twoYMAX5Span.innerText = formatUSD(DEFAULT_2Y_MA_X5);
+            // Update footer with data source
+            dataSourceTextSpan.innerText = dataSource;
         }
 
         let currentTop10 = null;
