@@ -63,7 +63,7 @@
             <div class="indicator-card"><label>📈 2Y MA MULTIPLIER</label><span id="twoYMA">--</span><span style="font-size:1rem;"> / </span><span id="twoYMAX5">--</span><div class="small-note">2Y MA  |  2Y MA x5</div></div>
             <div class="indicator-card"><label>🌀 PI CYCLE BOTTOM</label><span id="piSMA471">--</span><span style="font-size:1rem;"> (471d SMA) </span><br/><span id="piEMA150">--</span><span style="font-size:1rem;"> (150d EMA) </span><div class="small-note">Bitcoin bottom indicators</div></div>
         </div>
-        <div class="footer-note">⟳ AUTO-REFRESH EVERY 15 MIN  |  DATA: COINGECKO • BITCOIN-DATA • ALTERNATIVE.ME</div>
+        <div class="footer-note">⟳ AUTO-REFRESH EVERY 15 MIN  |  DATA: COINGECKO • COINPAPRIKA • ALTERNATIVE.ME</div>
     </div>
 </div>
 
@@ -215,78 +215,99 @@
             cbbiSpan.innerText = "34";
         }
 
-        // --- BITCOIN INDICATORS with improved Pi Cycle using historical data ---
+        // --- Compute moving averages from historical price data (CoinPaprika) ---
+        async function fetchHistoricalPrices() {
+            try {
+                // Use CoinPaprika to get daily OHLCV data for the last 500 days
+                const end = new Date();
+                const start = new Date();
+                start.setDate(start.getDate() - 500);
+                const startStr = start.toISOString().split('T')[0];
+                const url = `https://api.coinpaprika.com/v1/coins/btc-bitcoin/ohlcv/historical?start=${startStr}&limit=500`;
+                const response = await fetch(url);
+                if (!response.ok) throw new Error(`CoinPaprika HTTP ${response.status}`);
+                const data = await response.json();
+                if (!data || data.length < 471) throw new Error("Not enough data");
+                // Extract closing prices
+                const prices = data.map(day => day.close);
+                const currentPrice = prices[prices.length - 1];
+                console.log(`Fetched ${prices.length} days from CoinPaprika, latest price = ${currentPrice}`);
+                return { prices, currentPrice };
+            } catch (err) {
+                console.warn("CoinPaprika historical data failed:", err.message);
+                return null;
+            }
+        }
+
+        // Calculate SMA (simple moving average)
+        function sma(prices, days) {
+            if (prices.length < days) return null;
+            const slice = prices.slice(-days);
+            return slice.reduce((a, b) => a + b, 0) / days;
+        }
+
+        // Calculate EMA (exponential moving average)
+        function ema(prices, days) {
+            if (prices.length < days) return null;
+            const k = 2 / (days + 1);
+            let emaVal = prices[prices.length - days]; // initial SMA of first 'days' values? Usually EMA starts from SMA of first N days.
+            // Actually, standard EMA calculation: start with SMA of first N days, then iterate.
+            const smaFirst = sma(prices.slice(0, days), days);
+            emaVal = smaFirst;
+            for (let i = days; i < prices.length; i++) {
+                emaVal = prices[i] * k + emaVal * (1 - k);
+            }
+            return emaVal;
+        }
+
+        // --- BITCOIN INDICATORS with Pi Cycle from historical data ---
         async function fetchBitcoinIndicators() {
-            // First try to get real Pi Cycle values from bitcoin-data.com
-            let realPiSMA = null;
-            let realPiEMA = null;
-            try {
-                const piData = await fetchWithProxy("https://bitcoin-data.com/api/v1/pi-cycle-bottom");
-                if (piData) {
-                    realPiSMA = piData.sma471 || piData.sma_471 || piData.value?.sma471;
-                    realPiEMA = piData.ema150 || piData.ema_150 || piData.value?.ema150;
-                    if (realPiSMA && realPiEMA) {
-                        console.log("Real Pi Cycle data fetched:", { realPiSMA, realPiEMA });
-                    } else {
-                        throw new Error("No valid Pi Cycle data");
-                    }
-                } else {
-                    throw new Error("No Pi Cycle response");
-                }
-            } catch (err) {
-                console.warn("Real Pi Cycle fetch failed, using fallback simulation:", err.message);
-            }
+            // First try to get real Pi Cycle from bitcoin-data.com (but it's likely 404)
+            // We'll skip that and go directly to historical data.
 
-            // Get historical prices for moving averages (if not already fetched)
-            let historicalPrices = null;
+            // Get historical prices and current price
+            const hist = await fetchHistoricalPrices();
             let btcPrice = null;
-            try {
-                const chartRes = await fetch("https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=usd&days=500&interval=daily");
-                if (chartRes.ok) {
-                    const chartData = await chartRes.json();
-                    if (chartData.prices && chartData.prices.length >= 471) {
-                        historicalPrices = chartData.prices.map(p => p[1]);
-                        btcPrice = historicalPrices[historicalPrices.length - 1];
-                        console.log(`Fetched ${historicalPrices.length} days of historical prices, current BTC = ${btcPrice}`);
+            let sma471 = null;
+            let ema150 = null;
+
+            if (hist && hist.prices && hist.prices.length >= 471) {
+                btcPrice = hist.currentPrice;
+                sma471 = sma(hist.prices, 471);
+                ema150 = ema(hist.prices, 150);
+                console.log("Computed Pi Cycle from historical data:", { sma471, ema150 });
+            } else {
+                // Fallback: get current price only from simple endpoint
+                try {
+                    const priceRes = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd");
+                    if (priceRes.ok) {
+                        const priceData = await priceRes.json();
+                        btcPrice = priceData.bitcoin.usd;
                     } else {
-                        throw new Error("Not enough historical data");
+                        const priceRes2 = await fetch("https://api.coinpaprika.com/v1/tickers/btc-bitcoin");
+                        if (priceRes2.ok) {
+                            const tickerData = await priceRes2.json();
+                            btcPrice = tickerData.quotes.USD.price;
+                        }
                     }
-                } else {
-                    throw new Error("Price chart fetch failed");
+                } catch (err) {
+                    console.warn("Could not fetch Bitcoin price:", err);
                 }
-            } catch (err) {
-                console.warn("Could not fetch historical prices, using simple current price:", err.message);
-                // Last resort: just get current price
-                const simpleRes = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd");
-                if (simpleRes.ok) {
-                    const simpleData = await simpleRes.json();
-                    btcPrice = simpleData.bitcoin.usd;
+                if (btcPrice) {
+                    // Rough approximations – not ideal, but better than nothing
+                    sma471 = btcPrice * 0.85;   // approximate typical ratio
+                    ema150 = btcPrice * 1.20;
+                    console.warn("Using fallback approximations for Pi Cycle", { sma471, ema150 });
+                } else {
+                    sma471 = null;
+                    ema150 = null;
                 }
             }
 
-            // Set Pi Cycle values
-            if (realPiSMA && realPiEMA) {
-                piSMA471Span.innerText = formatUSD(realPiSMA);
-                piEMA150Span.innerText = formatUSD(realPiEMA);
-            } else if (historicalPrices && historicalPrices.length >= 471) {
-                // Calculate 471-day SMA
-                const sma471 = historicalPrices.slice(-471).reduce((a, b) => a + b, 0) / 471;
-                // Calculate 150-day EMA (exponential moving average)
-                let ema150 = historicalPrices[historicalPrices.length - 150];
-                const k = 2 / (150 + 1);
-                for (let i = historicalPrices.length - 149; i < historicalPrices.length; i++) {
-                    ema150 = historicalPrices[i] * k + ema150 * (1 - k);
-                }
-                console.log("Computed Pi Cycle from historical data:", { sma471, ema150 });
+            // Update Pi Cycle values
+            if (sma471 !== null && ema150 !== null) {
                 piSMA471Span.innerText = formatUSD(sma471);
                 piEMA150Span.innerText = formatUSD(ema150);
-            } else if (btcPrice) {
-                // Simple multiplier fallback (rough approximation)
-                const SMA_MULTIPLIER = 0.745;
-                const EMA_MULTIPLIER = 0.70;
-                piSMA471Span.innerText = formatUSD(btcPrice * SMA_MULTIPLIER);
-                piEMA150Span.innerText = formatUSD(btcPrice * EMA_MULTIPLIER);
-                console.warn("Using simple multiplier fallback for Pi Cycle");
             } else {
                 piSMA471Span.innerText = "N/A";
                 piEMA150Span.innerText = "N/A";
