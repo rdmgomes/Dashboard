@@ -210,30 +210,20 @@
             }
         }
 
-        // --- CBBI: static 34 (you can change this) ---
+        // --- CBBI: static 34 ---
         async function fetchCBBI() {
             cbbiSpan.innerText = "34";
         }
 
-        // --- BITCOIN INDICATORS: try to fetch real 2Y MA data ---
+        // --- BITCOIN INDICATORS: fallback approximations with adjustable multipliers ---
         async function fetchBitcoinIndicators() {
-            // Try to get real 2Y MA and 2Y MA x5 from the API
-            let real2YMA = null;
-            let real2YMA5 = null;
-            try {
-                const data = await fetchWithProxy("https://bitcoin-data.com/api/v1/2yma");
-                if (data && (data.value || data["2yma"])) {
-                    real2YMA = data.value || data["2yma"];
-                    real2YMA5 = real2YMA * 5;
-                    console.log("Real 2Y MA fetched:", real2YMA);
-                } else {
-                    throw new Error("No valid 2Y MA data");
-                }
-            } catch (err) {
-                console.warn("Failed to fetch real 2Y MA, will fallback to approximation:", err.message);
-            }
+            // You can change these factors to match the correct values from Coinglass/TradingDigits
+            const TWO_Y_MA_FACTOR = 1.22;       // to get ~86,500 when BTC = ~71,000
+            const TWO_HUNDRED_WMA_FACTOR = 0.85; // typical for 200W MA
+            const PI_SMA_FACTOR = 0.745;         // 471d SMA (user suggested)
+            const PI_EMA_FACTOR = 0.70;          // 150d EMA
 
-            // Get current Bitcoin price for other indicators (and for fallback)
+            // Get current Bitcoin price from CoinGecko
             let btcPrice = null;
             try {
                 const priceRes = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd");
@@ -245,31 +235,23 @@
                 console.warn("Could not fetch Bitcoin price:", err);
             }
 
-            // If real data is available, use it; otherwise compute approximations
-            if (real2YMA && real2YMA > 0) {
-                twoYMASpan.innerText = formatUSD(real2YMA);
-                twoYMAX5Span.innerText = formatUSD(real2YMA5);
-            } else if (btcPrice) {
-                // Fallback: use a multiplier that you can adjust to match current values
-                const factor = 1.25;  // e.g., when BTC = 69k, 2Y MA = 86.5k
-                const approx2YMA = btcPrice * factor;
-                twoYMASpan.innerText = formatUSD(approx2YMA);
-                twoYMAX5Span.innerText = formatUSD(approx2YMA * 5);
-                console.log("Using approximate 2Y MA (factor =", factor, "):", approx2YMA);
-            } else {
-                twoYMASpan.innerText = "N/A";
-                twoYMAX5Span.innerText = "N/A";
-            }
-
-            // For the other indicators, use approximations based on current price
             if (btcPrice) {
-                const twoHundredWMA = btcPrice * 0.85;
-                const piSMA = btcPrice * 0.75;
-                const piEMA = btcPrice * 0.70;
+                const twoYearMA = btcPrice * TWO_Y_MA_FACTOR;
+                const twoYearMAX5 = twoYearMA * 5;
+                const twoHundredWMA = btcPrice * TWO_HUNDRED_WMA_FACTOR;
+                const piSMA = btcPrice * PI_SMA_FACTOR;
+                const piEMA = btcPrice * PI_EMA_FACTOR;
+
+                twoYMASpan.innerText = formatUSD(twoYearMA);
+                twoYMAX5Span.innerText = formatUSD(twoYearMAX5);
                 btc200wmaSpan.innerText = formatUSD(twoHundredWMA);
                 piSMA471Span.innerText = formatUSD(piSMA);
                 piEMA150Span.innerText = formatUSD(piEMA);
+
+                console.log(`Indicators updated: BTC = ${btcPrice}, 2Y MA = ${twoYearMA}, Pi SMA = ${piSMA}`);
             } else {
+                twoYMASpan.innerText = "N/A";
+                twoYMAX5Span.innerText = "N/A";
                 btc200wmaSpan.innerText = "N/A";
                 piSMA471Span.innerText = "N/A";
                 piEMA150Span.innerText = "N/A";
