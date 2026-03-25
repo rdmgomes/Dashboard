@@ -227,41 +227,70 @@
             cbbiSpan.innerText = "34";
         }
 
-        // --- Coinbase App Rank (fetch from Nitter) ---
+        // --- Coinbase App Rank (fetch from multiple Nitter instances, cache) ---
         async function fetchCoinbaseRank() {
-            try {
-                // Use Nitter (privacy-friendly Twitter front-end) to get the timeline as HTML
-                const nitterUrl = "https://nitter.net/COINAppRankBot";
-                const html = await fetchWithProxy(nitterUrl);
-                // Find the latest tweet content (the most recent one)
-                // Nitter structure: each tweet is in a <div class="tweet-content"> or similar.
-                // We'll extract the first occurrence of the tweet text.
-                const tweetMatch = html.match(/<div class="tweet-content[^>]*>([\s\S]*?)<\/div>/i);
-                if (tweetMatch) {
-                    const tweetText = tweetMatch[1].replace(/<[^>]*>/g, ' ');
-                    console.log("Latest tweet text:", tweetText);
-                    // Extract numbers: "All Apps 476" and "Finance Apps 39"
-                    const allMatch = tweetText.match(/All Apps\s*(\d+)/i);
-                    const financeMatch = tweetText.match(/Finance Apps\s*(\d+)/i);
-                    if (allMatch && financeMatch) {
-                        const allRank = parseInt(allMatch[1], 10);
-                        const financeRank = parseInt(financeMatch[1], 10);
-                        // Extract timestamp (if present)
-                        const timeMatch = html.match(/<span class="tweet-date"[^>]*>([^<]+)</i);
-                        let timeStr = timeMatch ? timeMatch[1] : "";
-                        console.log("Coinbase ranks:", { allRank, financeRank, timeStr });
-                        coinbaseAllRankSpan.innerText = allRank.toString();
-                        coinbaseFinanceRankSpan.innerText = financeRank.toString();
-                        coinbaseRankTimeSpan.innerText = timeStr || "latest";
-                        return;
+            const nitterInstances = [
+                "https://nitter.net",
+                "https://nitter.poast.org",
+                "https://nitter.lqdo.eu",
+                "https://nitter.unixfox.eu",
+                "https://nitter.kavin.rocks"
+            ];
+            let success = false;
+            let allRank = null, financeRank = null, timeStr = null;
+
+            for (const instance of nitterInstances) {
+                try {
+                    const url = `${instance}/COINAppRankBot`;
+                    const html = await fetchWithProxy(url);
+                    // Find the first tweet content that contains the rank data
+                    const tweetMatch = html.match(/<div class="tweet-content[^>]*>([\s\S]*?)<\/div>/i);
+                    if (tweetMatch) {
+                        const tweetText = tweetMatch[1].replace(/<[^>]*>/g, ' ');
+                        console.log("Tweet text from", instance, ":", tweetText);
+                        // Extract numbers: "All Apps" followed by a number
+                        const allMatch = tweetText.match(/All Apps\s*(\d+)/i);
+                        const financeMatch = tweetText.match(/Finance Apps\s*(\d+)/i);
+                        if (allMatch && financeMatch) {
+                            allRank = parseInt(allMatch[1], 10);
+                            financeRank = parseInt(financeMatch[1], 10);
+                            // Extract timestamp (if present)
+                            const timeMatch = html.match(/<span class="tweet-date"[^>]*>([^<]+)</i);
+                            timeStr = timeMatch ? timeMatch[1] : "";
+                            success = true;
+                            break;
+                        }
                     }
+                } catch (err) {
+                    console.warn(`Nitter instance ${instance} failed:`, err.message);
                 }
-                throw new Error("Could not parse ranks from Nitter");
-            } catch (err) {
-                console.warn("Coinbase rank fetch failed:", err);
-                coinbaseAllRankSpan.innerText = "N/A";
-                coinbaseFinanceRankSpan.innerText = "N/A";
-                coinbaseRankTimeSpan.innerText = "offline";
+            }
+
+            if (success && allRank !== null && financeRank !== null) {
+                coinbaseAllRankSpan.innerText = allRank.toString();
+                coinbaseFinanceRankSpan.innerText = financeRank.toString();
+                coinbaseRankTimeSpan.innerText = timeStr || "latest";
+                // Save to localStorage for future use
+                localStorage.setItem("coinbaseAllRank", allRank.toString());
+                localStorage.setItem("coinbaseFinanceRank", financeRank.toString());
+                localStorage.setItem("coinbaseRankTime", timeStr || "");
+                console.log("Coinbase ranks updated and cached");
+            } else {
+                // Fallback to cached values
+                const cachedAll = localStorage.getItem("coinbaseAllRank");
+                const cachedFinance = localStorage.getItem("coinbaseFinanceRank");
+                const cachedTime = localStorage.getItem("coinbaseRankTime");
+                if (cachedAll && cachedFinance) {
+                    coinbaseAllRankSpan.innerText = cachedAll;
+                    coinbaseFinanceRankSpan.innerText = cachedFinance;
+                    coinbaseRankTimeSpan.innerText = cachedTime || "cached";
+                    console.log("Using cached Coinbase ranks");
+                } else {
+                    coinbaseAllRankSpan.innerText = "N/A";
+                    coinbaseFinanceRankSpan.innerText = "N/A";
+                    coinbaseRankTimeSpan.innerText = "offline";
+                    console.warn("No Coinbase rank data available");
+                }
             }
         }
 
