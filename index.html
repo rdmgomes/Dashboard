@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>RETRO CRYPTO TERMINAL • 1980s MONITOR</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
         body { background: #000000; min-height: 100vh; display: flex; justify-content: center; align-items: center; padding: 24px; font-family: 'Courier New', 'VT323', 'IBM EGA', 'Fira Code', monospace; }
@@ -62,7 +63,6 @@
             <div class="indicator-card"><label>⛓️ BTC 200W MA</label><span id="btc200wma">--</span><div class="small-note">200 Week Moving Average</div></div>
             <div class="indicator-card"><label>📈 2Y MA MULTIPLIER</label><span id="twoYMA">--</span><span style="font-size:1rem;"> / </span><span id="twoYMAX5">--</span><div class="small-note">2Y MA  |  2Y MA x5</div></div>
             <div class="indicator-card"><label>🌀 PI CYCLE BOTTOM</label><span id="piSMA471">--</span><span style="font-size:1rem;"> (471d SMA) </span><br/><span id="piEMA150">--</span><span style="font-size:1rem;"> (150d EMA) </span><div class="small-note">Bitcoin bottom indicators</div></div>
-            <!-- NEW: Coinbase App Rank Card -->
             <div class="indicator-card">
                 <label>📱 COINBASE APP RANK</label>
                 <div><span id="coinbaseAllRank">--</span> <span style="font-size:1rem;">(All Apps)</span></div>
@@ -70,7 +70,7 @@
                 <div class="small-note" id="coinbaseRankTime">—</div>
             </div>
         </div>
-        <div class="footer-note">⟳ AUTO-REFRESH EVERY 15 MIN  |  DATA: COINGECKO • CRYPTOCOMPARE • ALTERNATIVE.ME • NITTER</div>
+        <div class="footer-note">⟳ AUTO-REFRESH EVERY 15 MIN  |  DATA: CSV • COINGECKO • ALTERNATIVE.ME • NITTER</div>
     </div>
 </div>
 
@@ -99,7 +99,6 @@
         const piSMA471Span = document.getElementById("piSMA471");
         const piEMA150Span = document.getElementById("piEMA150");
 
-        // New Coinbase rank elements
         const coinbaseAllRankSpan = document.getElementById("coinbaseAllRank");
         const coinbaseFinanceRankSpan = document.getElementById("coinbaseFinanceRank");
         const coinbaseRankTimeSpan = document.getElementById("coinbaseRankTime");
@@ -243,18 +242,14 @@
                 try {
                     const url = `${instance}/COINAppRankBot`;
                     const html = await fetchWithProxy(url);
-                    // Find the first tweet content that contains the rank data
                     const tweetMatch = html.match(/<div class="tweet-content[^>]*>([\s\S]*?)<\/div>/i);
                     if (tweetMatch) {
                         const tweetText = tweetMatch[1].replace(/<[^>]*>/g, ' ');
-                        console.log("Tweet text from", instance, ":", tweetText);
-                        // Extract numbers: "All Apps" followed by a number
                         const allMatch = tweetText.match(/All Apps\s*(\d+)/i);
                         const financeMatch = tweetText.match(/Finance Apps\s*(\d+)/i);
                         if (allMatch && financeMatch) {
                             allRank = parseInt(allMatch[1], 10);
                             financeRank = parseInt(financeMatch[1], 10);
-                            // Extract timestamp (if present)
                             const timeMatch = html.match(/<span class="tweet-date"[^>]*>([^<]+)</i);
                             timeStr = timeMatch ? timeMatch[1] : "";
                             success = true;
@@ -270,13 +265,11 @@
                 coinbaseAllRankSpan.innerText = allRank.toString();
                 coinbaseFinanceRankSpan.innerText = financeRank.toString();
                 coinbaseRankTimeSpan.innerText = timeStr || "latest";
-                // Save to localStorage for future use
                 localStorage.setItem("coinbaseAllRank", allRank.toString());
                 localStorage.setItem("coinbaseFinanceRank", financeRank.toString());
                 localStorage.setItem("coinbaseRankTime", timeStr || "");
                 console.log("Coinbase ranks updated and cached");
             } else {
-                // Fallback to cached values
                 const cachedAll = localStorage.getItem("coinbaseAllRank");
                 const cachedFinance = localStorage.getItem("coinbaseFinanceRank");
                 const cachedTime = localStorage.getItem("coinbaseRankTime");
@@ -294,29 +287,47 @@
             }
         }
 
-        // --- Fetch historical prices from CryptoCompare (free, no key) ---
-        async function fetchHistoricalPrices() {
-            const url = "https://min-api.cryptocompare.com/data/v2/histoday?fsym=BTC&tsym=USD&limit=500";
-            const response = await fetch(url);
-            if (!response.ok) throw new Error(`CryptoCompare HTTP ${response.status}`);
-            const data = await response.json();
-            if (data.Data && data.Data.Data) {
-                const prices = data.Data.Data.map(d => d.close);
-                console.log(`Fetched ${prices.length} days from CryptoCompare, latest price = ${prices[prices.length-1]}`);
-                return prices;
-            } else {
-                throw new Error("Invalid CryptoCompare response structure");
+        // --- Load CSV file and extract prices ---
+        async function loadPricesFromCSV() {
+            const csvUrl = "btc_prices.csv";  // ensure this file is in the same folder
+            try {
+                const response = await fetch(csvUrl);
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                const csvText = await response.text();
+                return new Promise((resolve, reject) => {
+                    Papa.parse(csvText, {
+                        header: true,
+                        dynamicTyping: true,
+                        skipEmptyLines: true,
+                        complete: (results) => {
+                            if (results.errors.length) console.warn("CSV parsing warnings:", results.errors);
+                            const rows = results.data;
+                            // Sort by date ascending
+                            rows.sort((a,b) => new Date(a.date) - new Date(b.date));
+                            const prices = rows.map(row => row.price);
+                            if (prices.length < 1400) {
+                                reject(new Error(`Only ${prices.length} rows, need at least 1400`));
+                            } else {
+                                resolve(prices);
+                            }
+                        },
+                        error: (err) => reject(err)
+                    });
+                });
+            } catch (err) {
+                console.warn("CSV load failed:", err);
+                return null;
             }
         }
 
-        // --- Calculate SMA (simple moving average) ---
+        // --- Calculate SMA ---
         function sma(prices, days) {
             if (prices.length < days) return null;
             const slice = prices.slice(-days);
             return slice.reduce((a, b) => a + b, 0) / days;
         }
 
-        // --- Calculate EMA (exponential moving average) ---
+        // --- Calculate EMA ---
         function ema(prices, days) {
             if (prices.length < days) return null;
             const k = 2 / (days + 1);
@@ -328,68 +339,88 @@
             return emaVal;
         }
 
-        // --- BITCOIN INDICATORS with Pi Cycle from CryptoCompare historical data ---
+        // --- BITCOIN INDICATORS using CSV first, then fallbacks ---
         async function fetchBitcoinIndicators() {
-            let piSMA = null;
-            let piEMA = null;
-            let btcPrice = null;
+            let prices = null;
 
+            // Primary: load from CSV
             try {
-                const prices = await fetchHistoricalPrices();
-                if (prices && prices.length >= 471) {
-                    const rawSMA = sma(prices, 471);
-                    piSMA = rawSMA * 0.745;
-                    piEMA = ema(prices, 150);
-                    btcPrice = prices[prices.length - 1];
-                    console.log("Pi Cycle from historical data (with 0.745 multiplier):", { rawSMA, piSMA, piEMA, btcPrice });
+                prices = await loadPricesFromCSV();
+                if (prices && prices.length >= 1400) {
+                    console.log(`Using CSV: ${prices.length} days`);
                 } else {
-                    throw new Error("Not enough historical data");
+                    throw new Error("CSV insufficient");
                 }
             } catch (err) {
-                console.warn("Historical data fetch failed, falling back to static values:", err.message);
+                console.warn("CSV not available, falling back to CryptoCompare:", err.message);
+                // Secondary: CryptoCompare
                 try {
-                    const priceRes = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd");
-                    if (priceRes.ok) {
-                        const priceData = await priceRes.json();
-                        btcPrice = priceData.bitcoin.usd;
+                    const url = "https://min-api.cryptocompare.com/data/v2/histoday?fsym=BTC&tsym=USD&limit=1400";
+                    const response = await fetch(url);
+                    if (!response.ok) throw new Error(`CryptoCompare HTTP ${response.status}`);
+                    const data = await response.json();
+                    if (data.Data && data.Data.Data) {
+                        prices = data.Data.Data.map(d => d.close);
+                        console.log(`Using CryptoCompare: ${prices.length} days`);
                     } else {
-                        const priceRes2 = await fetch("https://api.coinpaprika.com/v1/tickers/btc-bitcoin");
-                        if (priceRes2.ok) {
-                            const tickerData = await priceRes2.json();
-                            btcPrice = tickerData.quotes.USD.price;
-                        }
+                        throw new Error("Invalid CryptoCompare response");
                     }
-                } catch (priceErr) {
-                    console.warn("Could not fetch Bitcoin price:", priceErr);
+                } catch (err2) {
+                    console.warn("CryptoCompare failed, using static approximations:", err2);
+                    prices = null;
                 }
-                piSMA = 72400 * 0.745;
-                piEMA = 83000;
-                console.warn("Using fallback static Pi Cycle values");
             }
 
-            if (piSMA !== null && piEMA !== null) {
+            // If we have enough data, compute everything
+            if (prices && prices.length >= 1400) {
+                const rawSMA471 = sma(prices, 471);
+                const piSMA = rawSMA471 * 0.745;
+                const piEMA = ema(prices, 150);
+                const sma200W = sma(prices, 1400);
+                const sma2Y = sma(prices, 730);
+                const sma2Yx5 = sma2Y * 5;
+                const btcPrice = prices[prices.length - 1];
+
                 piSMA471Span.innerText = formatUSD(piSMA);
                 piEMA150Span.innerText = formatUSD(piEMA);
-            } else {
-                piSMA471Span.innerText = "N/A";
-                piEMA150Span.innerText = "N/A";
+                btc200wmaSpan.innerText = formatUSD(sma200W);
+                twoYMASpan.innerText = formatUSD(sma2Y);
+                twoYMAX5Span.innerText = formatUSD(sma2Yx5);
+                console.log("Indicators from historical data:", { piSMA, piEMA, sma200W, sma2Y, sma2Yx5, btcPrice });
+                return;
             }
 
-            if (btcPrice) {
-                const TWO_Y_MA_FACTOR = 1.22;
-                const TWO_HUNDRED_WMA_FACTOR = 0.85;
-                const twoYearMA = btcPrice * TWO_Y_MA_FACTOR;
-                const twoYearMAX5 = twoYearMA * 5;
-                const twoHundredWMA = btcPrice * TWO_HUNDRED_WMA_FACTOR;
-                twoYMASpan.innerText = formatUSD(twoYearMA);
-                twoYMAX5Span.innerText = formatUSD(twoYearMAX5);
-                btc200wmaSpan.innerText = formatUSD(twoHundredWMA);
-                console.log(`Other indicators: 2Y MA = ${twoYearMA}, 200W MA = ${twoHundredWMA}`);
-            } else {
-                twoYMASpan.innerText = "N/A";
-                twoYMAX5Span.innerText = "N/A";
-                btc200wmaSpan.innerText = "N/A";
+            // Fallback: use static approximations
+            console.warn("Using static fallback approximations");
+            // Get current price if possible
+            let btcPrice = null;
+            try {
+                const priceRes = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd");
+                if (priceRes.ok) {
+                    const priceData = await priceRes.json();
+                    btcPrice = priceData.bitcoin.usd;
+                } else {
+                    const priceRes2 = await fetch("https://api.coinpaprika.com/v1/tickers/btc-bitcoin");
+                    if (priceRes2.ok) {
+                        const tickerData = await priceRes2.json();
+                        btcPrice = tickerData.quotes.USD.price;
+                    }
+                }
+            } catch (err) {
+                console.warn("Could not fetch Bitcoin price:", err);
             }
+
+            const DEFAULT_PI_SMA = 72400 * 0.745;
+            const DEFAULT_PI_EMA = 83000;
+            const DEFAULT_200W_MA = btcPrice ? btcPrice * 0.85 : 60700;
+            const DEFAULT_2Y_MA = btcPrice ? btcPrice * 1.22 : 87000;
+            const DEFAULT_2Y_MA_X5 = DEFAULT_2Y_MA * 5;
+
+            piSMA471Span.innerText = formatUSD(DEFAULT_PI_SMA);
+            piEMA150Span.innerText = formatUSD(DEFAULT_PI_EMA);
+            btc200wmaSpan.innerText = formatUSD(DEFAULT_200W_MA);
+            twoYMASpan.innerText = formatUSD(DEFAULT_2Y_MA);
+            twoYMAX5Span.innerText = formatUSD(DEFAULT_2Y_MA_X5);
         }
 
         let currentTop10 = null;
