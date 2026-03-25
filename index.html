@@ -33,8 +33,6 @@
         .footer-note span { color: #5bc96b; }
         .refresh-btn { background: #0a1a0a; border: 1px solid #2eff7a; color: #2eff7a; font-family: monospace; font-size: 0.7rem; padding: 4px 12px; border-radius: 20px; cursor: pointer; transition: all 0.2s; }
         .refresh-btn:hover { background: #1e3a1e; text-shadow: 0 0 4px #2eff7a; }
-        .edit-rank-btn { background: #0a1a0a; border: 1px solid #2eff7a; color: #2eff7a; font-family: monospace; font-size: 0.6rem; padding: 2px 8px; border-radius: 12px; cursor: pointer; margin-left: 8px; transition: all 0.2s; }
-        .edit-rank-btn:hover { background: #1e3a1e; }
         @keyframes subtle-flicker { 0% { opacity: 0.99; } 100% { opacity: 1; } }
         .screen { animation: subtle-flicker 0.2s infinite; }
     </style>
@@ -66,11 +64,14 @@
             <div class="indicator-card"><label>⛓️ BTC 200W MA</label><span id="btc200wma">--</span><div class="small-note">200 Week Moving Average</div></div>
             <div class="indicator-card"><label>📈 2Y MA MULTIPLIER</label><span id="twoYMA">--</span><span style="font-size:1rem;"> / </span><span id="twoYMAX5">--</span><div class="small-note">2Y MA  |  2Y MA x5</div></div>
             <div class="indicator-card"><label>🌀 PI CYCLE BOTTOM</label><span id="piSMA471">--</span><span style="font-size:1rem;"> (471d SMA) </span><br/><span id="piEMA150">--</span><span style="font-size:1rem;"> (150d EMA) </span><div class="small-note">Bitcoin bottom indicators</div></div>
-            <div class="indicator-card">
-                <label>📱 COINBASE APP RANK <span class="edit-rank-btn" id="editRankBtn">✎</span></label>
+            <div class="indicator-card"><label>📱 COINBASE APP RANK</label>
                 <div><span id="coinbaseAllRank">--</span> <span style="font-size:1rem;">(All Apps)</span></div>
                 <div><span id="coinbaseFinanceRank">--</span> <span style="font-size:1rem;">(Finance)</span></div>
                 <div class="small-note" id="coinbaseRankTime">—</div>
+            </div>
+            <div class="indicator-card"><label>⚖️ OPEN INTEREST LEVERAGE</label>
+                <div><span id="oiPercentage">--</span> <span style="font-size:1rem;">(BTC dominance)</span></div>
+                <div class="small-note" id="oiSource">—</div>
             </div>
         </div>
         <div class="footer-note" id="dataSourceFooter">
@@ -107,7 +108,9 @@
         const coinbaseAllRankSpan = document.getElementById("coinbaseAllRank");
         const coinbaseFinanceRankSpan = document.getElementById("coinbaseFinanceRank");
         const coinbaseRankTimeSpan = document.getElementById("coinbaseRankTime");
-        const editRankBtn = document.getElementById("editRankBtn");
+
+        const oiPercentageSpan = document.getElementById("oiPercentage");
+        const oiSourceSpan = document.getElementById("oiSource");
 
         const dataSourceTextSpan = document.getElementById("dataSourceText");
 
@@ -124,7 +127,7 @@
             return (pct >= 0 ? `+${val}` : `${val}`) + "%";
         }
 
-        // --- PROXIES (for RSSHub and Nitter) ---
+        // --- PROXIES (for RSSHub, Nitter, and Coinglass) ---
         const PROXIES = [
             "https://corsproxy.io/?",
             "https://thingproxy.freeboard.io/fetch/",
@@ -355,9 +358,8 @@
             dataSourceTextSpan.innerText = dataSource;
         }
 
-        // --- Coinbase App Rank: fetch from RSS feed (Nitter or RSSHub) with fallback ---
+        // --- Coinbase App Rank: fetch from RSS feeds (Nitter / RSSHub) ---
         async function fetchCoinbaseRank() {
-            // 1. Nitter instances (from https://github.com/zedeus/nitter/wiki/Instances)
             const nitterInstances = [
                 "https://nitter.net",
                 "https://nitter.poast.org",
@@ -370,12 +372,8 @@
                 "https://nitter.sethforprivacy.com",
                 "https://nitter.moomoo.me",
                 "https://nitter.1d4.us",
-                "https://nitter.ir",
-                "https://nitter.nixnet.services",
-                "https://nitter.actionsack.com",
-                "https://nitter.weaponizedhumiliation.com"
+                "https://nitter.ir"
             ];
-            // 2. RSSHub instances (public)
             const rsshubInstances = [
                 "https://rsshub.app",
                 "https://rsshub.rssforever.com",
@@ -386,15 +384,12 @@
                 "https://rsshub.ping8.top",
                 "https://rsshub.ktachibana.party",
                 "https://rsshub.bangumi.cyou",
-                "https://rsshub.slqw.me",
-                "https://rsshub.akash.blue",
-                "https://rsshub.liumingye.cn"
+                "https://rsshub.slqw.me"
             ];
 
             let success = false;
             let allRank = null, financeRank = null, timeStr = null;
 
-            // Helper to parse RSS XML
             function parseRSS(xmlText) {
                 const parser = new DOMParser();
                 const xmlDoc = parser.parseFromString(xmlText, "text/xml");
@@ -418,12 +413,10 @@
                 return null;
             }
 
-            // Try Nitter RSS feeds first
             for (const proxy of PROXIES) {
                 for (const instance of nitterInstances) {
                     try {
                         const url = instance + "/COINAppRankBot/rss";
-                        console.log("Trying Nitter RSS via", proxy, url);
                         const xmlText = await fetchWithProxy(url, proxy);
                         const parsed = parseRSS(xmlText);
                         if (parsed) {
@@ -433,35 +426,24 @@
                             success = true;
                             break;
                         }
-                    } catch (err) {
-                        console.warn(`Failed Nitter ${proxy} + ${instance}:`, err.message);
-                    }
+                    } catch (err) { /* ignore */ }
                 }
                 if (success) break;
-            }
-
-            // If Nitter fails, try RSSHub
-            if (!success) {
-                for (const proxy of PROXIES) {
-                    for (const instance of rsshubInstances) {
-                        try {
-                            const url = instance + "/twitter/user/COINAppRankBot";
-                            console.log("Trying RSSHub via", proxy, url);
-                            const xmlText = await fetchWithProxy(url, proxy);
-                            const parsed = parseRSS(xmlText);
-                            if (parsed) {
-                                allRank = parsed.allRank;
-                                financeRank = parsed.financeRank;
-                                timeStr = parsed.timeStr;
-                                success = true;
-                                break;
-                            }
-                        } catch (err) {
-                            console.warn(`Failed RSSHub ${proxy} + ${instance}:`, err.message);
+                for (const instance of rsshubInstances) {
+                    try {
+                        const url = instance + "/twitter/user/COINAppRankBot";
+                        const xmlText = await fetchWithProxy(url, proxy);
+                        const parsed = parseRSS(xmlText);
+                        if (parsed) {
+                            allRank = parsed.allRank;
+                            financeRank = parsed.financeRank;
+                            timeStr = parsed.timeStr;
+                            success = true;
+                            break;
                         }
-                    }
-                    if (success) break;
+                    } catch (err) { /* ignore */ }
                 }
+                if (success) break;
             }
 
             if (success && allRank !== null && financeRank !== null) {
@@ -472,9 +454,7 @@
                 localStorage.setItem("coinbaseAllRank", allRank.toString());
                 localStorage.setItem("coinbaseFinanceRank", financeRank.toString());
                 localStorage.setItem("coinbaseRankTime", displayTime);
-                console.log("Coinbase ranks updated and cached");
             } else {
-                // Fallback to cached values
                 const cachedAll = localStorage.getItem("coinbaseAllRank");
                 const cachedFinance = localStorage.getItem("coinbaseFinanceRank");
                 const cachedTime = localStorage.getItem("coinbaseRankTime");
@@ -482,38 +462,50 @@
                     coinbaseAllRankSpan.innerText = cachedAll;
                     coinbaseFinanceRankSpan.innerText = cachedFinance;
                     coinbaseRankTimeSpan.innerText = cachedTime || "cached";
-                    console.log("Using cached Coinbase ranks");
                 } else {
                     coinbaseAllRankSpan.innerText = "N/A";
                     coinbaseFinanceRankSpan.innerText = "N/A";
                     coinbaseRankTimeSpan.innerText = "offline";
-                    console.warn("No Coinbase rank data available. Click the ✎ button to update manually.");
                 }
             }
         }
 
-        // Manual update for Coinbase rank
-        function promptForRankUpdate() {
-            const currentAll = localStorage.getItem("coinbaseAllRank") || "";
-            const currentFinance = localStorage.getItem("coinbaseFinanceRank") || "";
-            const currentTime = localStorage.getItem("coinbaseRankTime") || "";
-            const allApps = prompt("Enter All Apps rank:", currentAll);
-            if (allApps === null) return;
-            const finance = prompt("Enter Finance Apps rank:", currentFinance);
-            if (finance === null) return;
-            const time = prompt("Enter timestamp (e.g., Mar 25 8PM):", currentTime);
-            coinbaseAllRankSpan.innerText = allApps;
-            coinbaseFinanceRankSpan.innerText = finance;
-            coinbaseRankTimeSpan.innerText = time || "manual";
-            localStorage.setItem("coinbaseAllRank", allApps);
-            localStorage.setItem("coinbaseFinanceRank", finance);
-            localStorage.setItem("coinbaseRankTime", time || "");
-        }
+        // --- Open Interest Leverage: fetch BTC dominance from Coinglass ---
+        async function fetchOpenInterestLeverage() {
+            const coinglassUrl = "https://www.coinglass.com/OpenInterest";
+            let oiPercent = null;
 
-        editRankBtn.addEventListener("click", (e) => {
-            e.stopPropagation();
-            promptForRankUpdate();
-        });
+            for (const proxy of PROXIES) {
+                try {
+                    const html = await fetchWithProxy(coinglassUrl, proxy);
+                    // Look for the BTC dominance value – typical pattern: "BTC Dominance: 52.3%"
+                    const match = html.match(/BTC\s+Dominance:\s*(\d+(?:\.\d+)?)\s*%/i);
+                    if (match) {
+                        oiPercent = parseFloat(match[1]);
+                        console.log("OI percentage scraped:", oiPercent);
+                        break;
+                    }
+                } catch (err) {
+                    console.warn(`Coinglass scrape failed with ${proxy}:`, err.message);
+                }
+            }
+
+            if (oiPercent !== null && !isNaN(oiPercent)) {
+                oiPercentageSpan.innerText = oiPercent.toFixed(1) + "%";
+                oiSourceSpan.innerText = "Coinglass (live)";
+                localStorage.setItem("oiPercentage", oiPercent.toFixed(1));
+                localStorage.setItem("oiSource", "Coinglass (cached)");
+            } else {
+                const cached = localStorage.getItem("oiPercentage");
+                if (cached) {
+                    oiPercentageSpan.innerText = cached + "%";
+                    oiSourceSpan.innerText = localStorage.getItem("oiSource") || "cached";
+                } else {
+                    oiPercentageSpan.innerText = "N/A";
+                    oiSourceSpan.innerText = "offline";
+                }
+            }
+        }
 
         // --- Main refresh ---
         let currentTop10 = null;
@@ -535,7 +527,8 @@
                 fetchFearGreed(),
                 fetchCBBI(),
                 fetchBitcoinIndicators(),
-                fetchCoinbaseRank()
+                fetchCoinbaseRank(),
+                fetchOpenInterestLeverage()
             ]);
         }
 
