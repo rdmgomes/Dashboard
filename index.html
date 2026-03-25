@@ -76,6 +76,10 @@
                 <div><span id="btcDominance">--</span> <span style="font-size:1rem;">(of total crypto)</span></div>
                 <div class="small-note" id="dominanceSource">CoinGecko (live)</div>
             </div>
+            <div class="indicator-card"><label>🌈 BITCOIN RAINBOW CHART</label>
+                <div><span id="rainbowClassification">--</span></div>
+                <div class="small-note" id="rainbowSource">BlockchainCenter.net</div>
+            </div>
         </div>
         <div class="footer-note" id="dataSourceFooter">
             ⟳ AUTO-REFRESH EVERY 15 MIN  |  DATA: <span id="dataSourceText">—</span>
@@ -116,6 +120,9 @@
         const btcDominanceSpan = document.getElementById("btcDominance");
         const dominanceSourceSpan = document.getElementById("dominanceSource");
 
+        const rainbowClassificationSpan = document.getElementById("rainbowClassification");
+        const rainbowSourceSpan = document.getElementById("rainbowSource");
+
         const dataSourceTextSpan = document.getElementById("dataSourceText");
 
         // Helper functions
@@ -131,7 +138,7 @@
             return (pct >= 0 ? `+${val}` : `${val}`) + "%";
         }
 
-        // --- PROXIES (only needed for fallback, not for the RSS feed if it's CORS-friendly) ---
+        // --- PROXIES (for RSS feed and Rainbow Chart) ---
         const PROXIES = [
             "https://corsproxy.io/?",
             "https://thingproxy.freeboard.io/fetch/",
@@ -367,7 +374,6 @@
         async function fetchCoinbaseRank() {
             const feedUrl = "https://rss.app/feeds/XRpkIErFDjKyhSMo.xml";
             try {
-                // Try direct fetch first (if CORS allows)
                 let response = await fetch(feedUrl);
                 if (!response.ok) throw new Error(`HTTP ${response.status}`);
                 let xmlText = await response.text();
@@ -379,7 +385,6 @@
                 throw new Error("Parsing failed");
             } catch (err) {
                 console.warn("Direct RSS fetch failed, trying proxies:", err.message);
-                // Fallback to proxies
                 for (const proxy of PROXIES) {
                     try {
                         const xmlText = await fetchWithProxy(feedUrl, proxy);
@@ -392,7 +397,7 @@
                         console.warn(`Proxy ${proxy} failed:`, proxyErr.message);
                     }
                 }
-                // If all fail, fall back to cached values
+                // Fallback to cached values
                 const cachedAll = localStorage.getItem("coinbaseAllRank");
                 const cachedFinance = localStorage.getItem("coinbaseFinanceRank");
                 const cachedTime = localStorage.getItem("coinbaseRankTime");
@@ -413,13 +418,11 @@
             const xmlDoc = parser.parseFromString(xmlText, "text/xml");
             const items = xmlDoc.querySelectorAll("item");
             if (items.length === 0) return null;
-            // Get the first item (latest)
             const item = items[0];
             const title = item.querySelector("title")?.textContent || "";
             if (!title.includes("$COIN App Rank")) return null;
             const pubDate = item.querySelector("pubDate")?.textContent || "";
             const description = item.querySelector("description")?.textContent || "";
-            // Extract numbers from description: format like "🌐 All Apps 🔼 437 🔄 476 ... 🏦 Finance Apps 🔼 33 🔄 39"
             const allMatch = description.match(/All Apps[^\d]*(\d+)/i);
             const financeMatch = description.match(/Finance Apps[^\d]*(\d+)/i);
             if (allMatch && financeMatch) {
@@ -485,6 +488,65 @@
             }
         }
 
+        // --- Rainbow Chart: fetch classification from blockchaincenter.net ---
+        async function fetchRainbowClassification() {
+            const url = "https://www.blockchaincenter.net/bitcoin-rainbow-chart/";
+            let classification = null;
+            for (const proxy of PROXIES) {
+                try {
+                    const html = await fetchWithProxy(url, proxy);
+                    // Look for the active classification – the page highlights the current band with a class like "active" or a different style.
+                    // We'll search for a span or div containing the band text and having class "active" or "current".
+                    // Known bands in order from bottom to top:
+                    const bands = [
+                        "Basically a Fire Sale",
+                        "BUY!",
+                        "Accumulate",
+                        "Still cheap",
+                        "HODL!",
+                        "Is this a bubble?",
+                        "FOMO intensifies",
+                        "Sell. Seriously, SELL!",
+                        "Maximum Bubble Territory"
+                    ];
+                    // Look for any of these texts wrapped in an element that indicates it's the current one.
+                    // Common pattern: the band name might be inside a <span> or <div> with class "active", "current", or a specific style.
+                    // We'll check each band if it's inside a container that has a class containing "active", "current", or "highlight".
+                    for (const band of bands) {
+                        // Escape regex special characters in band name
+                        const escaped = band.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                        // Look for the band name followed by an element with active class, or vice versa.
+                        // Simple pattern: band name appears, and the surrounding element has class containing "active" or "current".
+                        const pattern = new RegExp(`<[^>]*class="[^"]*(?:active|current|highlight)[^"]*"[^>]*>.*?${escaped}.*?</[^>]*>`, 'i');
+                        if (pattern.test(html)) {
+                            classification = band;
+                            console.log("Rainbow classification found:", band);
+                            break;
+                        }
+                    }
+                    if (classification) break;
+                } catch (err) {
+                    console.warn(`Rainbow fetch failed with ${proxy}:`, err.message);
+                }
+            }
+
+            if (classification) {
+                rainbowClassificationSpan.innerText = classification;
+                rainbowSourceSpan.innerText = "BlockchainCenter.net (live)";
+                localStorage.setItem("rainbowClassification", classification);
+                localStorage.setItem("rainbowSource", "BlockchainCenter.net (cached)");
+            } else {
+                const cached = localStorage.getItem("rainbowClassification");
+                if (cached) {
+                    rainbowClassificationSpan.innerText = cached;
+                    rainbowSourceSpan.innerText = localStorage.getItem("rainbowSource") || "cached";
+                } else {
+                    rainbowClassificationSpan.innerText = "N/A";
+                    rainbowSourceSpan.innerText = "offline";
+                }
+            }
+        }
+
         // --- Main refresh ---
         let currentTop10 = null;
         async function refreshAllData() {
@@ -506,7 +568,8 @@
                 fetchCBBI(),
                 fetchBitcoinIndicators(),
                 fetchCoinbaseRank(),
-                fetchBTCDominance()
+                fetchBTCDominance(),
+                fetchRainbowClassification()
             ]);
         }
 
