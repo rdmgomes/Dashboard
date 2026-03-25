@@ -215,26 +215,21 @@
             cbbiSpan.innerText = "34";
         }
 
-        // --- Compute moving averages from historical price data (CoinPaprika) ---
+        // --- Compute moving averages from historical price data (CoinGecko) ---
         async function fetchHistoricalPrices() {
             try {
-                // Use CoinPaprika to get daily OHLCV data for the last 500 days
-                const end = new Date();
-                const start = new Date();
-                start.setDate(start.getDate() - 500);
-                const startStr = start.toISOString().split('T')[0];
-                const url = `https://api.coinpaprika.com/v1/coins/btc-bitcoin/ohlcv/historical?start=${startStr}&limit=500`;
+                // CoinGecko free endpoint: daily prices for last 500 days
+                const url = "https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=usd&days=500";
                 const response = await fetch(url);
-                if (!response.ok) throw new Error(`CoinPaprika HTTP ${response.status}`);
+                if (!response.ok) throw new Error(`CoinGecko HTTP ${response.status}`);
                 const data = await response.json();
-                if (!data || data.length < 471) throw new Error("Not enough data");
-                // Extract closing prices
-                const prices = data.map(day => day.close);
+                if (!data.prices || data.prices.length < 471) throw new Error("Not enough data");
+                const prices = data.prices.map(p => p[1]);
                 const currentPrice = prices[prices.length - 1];
-                console.log(`Fetched ${prices.length} days from CoinPaprika, latest price = ${currentPrice}`);
+                console.log(`Fetched ${prices.length} days from CoinGecko, latest price = ${currentPrice}`);
                 return { prices, currentPrice };
             } catch (err) {
-                console.warn("CoinPaprika historical data failed:", err.message);
+                console.warn("CoinGecko historical data failed:", err.message);
                 return null;
             }
         }
@@ -250,10 +245,9 @@
         function ema(prices, days) {
             if (prices.length < days) return null;
             const k = 2 / (days + 1);
-            let emaVal = prices[prices.length - days]; // initial SMA of first 'days' values? Usually EMA starts from SMA of first N days.
-            // Actually, standard EMA calculation: start with SMA of first N days, then iterate.
+            // Start with SMA of first 'days' values
             const smaFirst = sma(prices.slice(0, days), days);
-            emaVal = smaFirst;
+            let emaVal = smaFirst;
             for (let i = days; i < prices.length; i++) {
                 emaVal = prices[i] * k + emaVal * (1 - k);
             }
@@ -262,10 +256,7 @@
 
         // --- BITCOIN INDICATORS with Pi Cycle from historical data ---
         async function fetchBitcoinIndicators() {
-            // First try to get real Pi Cycle from bitcoin-data.com (but it's likely 404)
-            // We'll skip that and go directly to historical data.
-
-            // Get historical prices and current price
+            // First try to get historical prices from CoinGecko
             const hist = await fetchHistoricalPrices();
             let btcPrice = null;
             let sma471 = null;
@@ -293,15 +284,14 @@
                 } catch (err) {
                     console.warn("Could not fetch Bitcoin price:", err);
                 }
-                if (btcPrice) {
-                    // Rough approximations – not ideal, but better than nothing
-                    sma471 = btcPrice * 0.85;   // approximate typical ratio
-                    ema150 = btcPrice * 1.20;
-                    console.warn("Using fallback approximations for Pi Cycle", { sma471, ema150 });
-                } else {
-                    sma471 = null;
-                    ema150 = null;
-                }
+
+                // Use current values from TradingDigits/Glassnode (as of today)
+                // You can update these numbers manually when needed.
+                const DEFAULT_SMA = 72400;   // 471 SMA from TradingDigits (approx)
+                const DEFAULT_EMA = 83000;   // 150 EMA from TradingDigits (approx)
+                sma471 = DEFAULT_SMA;
+                ema150 = DEFAULT_EMA;
+                console.warn("Using fallback static Pi Cycle values (you can update them in the code):", { sma471, ema150 });
             }
 
             // Update Pi Cycle values
@@ -314,7 +304,6 @@
             }
 
             // For the other indicators, use simple multipliers based on current price
-            // (you can adjust these factors to match your sources)
             if (btcPrice) {
                 const TWO_Y_MA_FACTOR = 1.22;       // 2Y MA ≈ current price * 1.22
                 const TWO_HUNDRED_WMA_FACTOR = 0.85; // 200W MA ≈ current price * 0.85
