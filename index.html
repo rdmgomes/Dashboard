@@ -33,6 +33,8 @@
         .footer-note span { color: #5bc96b; }
         .refresh-btn { background: #0a1a0a; border: 1px solid #2eff7a; color: #2eff7a; font-family: monospace; font-size: 0.7rem; padding: 4px 12px; border-radius: 20px; cursor: pointer; transition: all 0.2s; }
         .refresh-btn:hover { background: #1e3a1e; text-shadow: 0 0 4px #2eff7a; }
+        .edit-rank-btn { background: #0a1a0a; border: 1px solid #2eff7a; color: #2eff7a; font-family: monospace; font-size: 0.6rem; padding: 2px 8px; border-radius: 12px; cursor: pointer; margin-left: 8px; transition: all 0.2s; }
+        .edit-rank-btn:hover { background: #1e3a1e; }
         @keyframes subtle-flicker { 0% { opacity: 0.99; } 100% { opacity: 1; } }
         .screen { animation: subtle-flicker 0.2s infinite; }
     </style>
@@ -64,14 +66,15 @@
             <div class="indicator-card"><label>⛓️ BTC 200W MA</label><span id="btc200wma">--</span><div class="small-note">200 Week Moving Average</div></div>
             <div class="indicator-card"><label>📈 2Y MA MULTIPLIER</label><span id="twoYMA">--</span><span style="font-size:1rem;"> / </span><span id="twoYMAX5">--</span><div class="small-note">2Y MA  |  2Y MA x5</div></div>
             <div class="indicator-card"><label>🌀 PI CYCLE BOTTOM</label><span id="piSMA471">--</span><span style="font-size:1rem;"> (471d SMA) </span><br/><span id="piEMA150">--</span><span style="font-size:1rem;"> (150d EMA) </span><div class="small-note">Bitcoin bottom indicators</div></div>
-            <div class="indicator-card"><label>📱 COINBASE APP RANK</label>
+            <div class="indicator-card">
+                <label>📱 COINBASE APP RANK <span class="edit-rank-btn" id="editRankBtn">✎</span></label>
                 <div><span id="coinbaseAllRank">--</span> <span style="font-size:1rem;">(All Apps)</span></div>
                 <div><span id="coinbaseFinanceRank">--</span> <span style="font-size:1rem;">(Finance)</span></div>
                 <div class="small-note" id="coinbaseRankTime">—</div>
             </div>
-            <div class="indicator-card"><label>⚖️ OPEN INTEREST LEVERAGE</label>
-                <div><span id="oiPercentage">--</span> <span style="font-size:1rem;">(BTC dominance)</span></div>
-                <div class="small-note" id="oiSource">—</div>
+            <div class="indicator-card"><label>📊 BTC MARKET DOMINANCE</label>
+                <div><span id="btcDominance">--</span> <span style="font-size:1rem;">(of total crypto)</span></div>
+                <div class="small-note" id="dominanceSource">CoinGecko (live)</div>
             </div>
         </div>
         <div class="footer-note" id="dataSourceFooter">
@@ -108,9 +111,10 @@
         const coinbaseAllRankSpan = document.getElementById("coinbaseAllRank");
         const coinbaseFinanceRankSpan = document.getElementById("coinbaseFinanceRank");
         const coinbaseRankTimeSpan = document.getElementById("coinbaseRankTime");
+        const editRankBtn = document.getElementById("editRankBtn");
 
-        const oiPercentageSpan = document.getElementById("oiPercentage");
-        const oiSourceSpan = document.getElementById("oiSource");
+        const btcDominanceSpan = document.getElementById("btcDominance");
+        const dominanceSourceSpan = document.getElementById("dominanceSource");
 
         const dataSourceTextSpan = document.getElementById("dataSourceText");
 
@@ -127,7 +131,7 @@
             return (pct >= 0 ? `+${val}` : `${val}`) + "%";
         }
 
-        // --- PROXIES (including allorigins.win) ---
+        // --- PROXIES (only needed for fallback, not for the RSS feed if it's CORS-friendly) ---
         const PROXIES = [
             "https://corsproxy.io/?",
             "https://thingproxy.freeboard.io/fetch/",
@@ -359,115 +363,36 @@
             dataSourceTextSpan.innerText = dataSource;
         }
 
-        // --- Coinbase App Rank: expanded instances and proxies ---
+        // --- Coinbase App Rank: fetch from your personal RSS feed ---
         async function fetchCoinbaseRank() {
-            const nitterInstances = [
-                "https://nitter.net",
-                "https://nitter.poast.org",
-                "https://nitter.lqdo.eu",
-                "https://nitter.kavin.rocks",
-                "https://nitter.privacydev.net",
-                "https://nitter.woodlands.no",
-                "https://nitter.dark.fail",
-                "https://nitter.nl",
-                "https://nitter.sethforprivacy.com",
-                "https://nitter.moomoo.me",
-                "https://nitter.1d4.us",
-                "https://nitter.ir",
-                "https://nitter.nixnet.services",
-                "https://nitter.actionsack.com",
-                "https://nitter.weaponizedhumiliation.com",
-                "https://nitter.d420.de",
-                "https://nitter.cc",
-                "https://nitter.space",
-                "https://nitter.pw",
-                "https://nitter.tokyo"
-            ];
-            const rsshubInstances = [
-                "https://rsshub.app",
-                "https://rsshub.rssforever.com",
-                "https://rsshub.uneasy.win",
-                "https://rsshub.fly.dev",
-                "https://rsshub.netlify.app",
-                "https://rsshub.js.org",
-                "https://rsshub.ping8.top",
-                "https://rsshub.ktachibana.party",
-                "https://rsshub.bangumi.cyou",
-                "https://rsshub.slqw.me",
-                "https://rsshub.akash.blue",
-                "https://rsshub.liumingye.cn",
-                "https://rsshub.pseudoyu.com",
-                "https://rsshub.hoey.xyz"
-            ];
-
-            let success = false;
-            let allRank = null, financeRank = null, timeStr = null;
-
-            function parseRSS(xmlText) {
-                const parser = new DOMParser();
-                const xmlDoc = parser.parseFromString(xmlText, "text/xml");
-                const items = xmlDoc.querySelectorAll("item");
-                for (let i = 0; i < items.length; i++) {
-                    const title = items[i].querySelector("title")?.textContent || "";
-                    if (title.includes("$COIN App Rank")) {
-                        const pubDate = items[i].querySelector("pubDate")?.textContent || "";
-                        const description = items[i].querySelector("description")?.textContent || "";
-                        const allMatch = description.match(/All Apps\s*(\d+)/i);
-                        const financeMatch = description.match(/Finance Apps\s*(\d+)/i);
-                        if (allMatch && financeMatch) {
-                            return {
-                                allRank: parseInt(allMatch[1], 10),
-                                financeRank: parseInt(financeMatch[1], 10),
-                                timeStr: pubDate
-                            };
+            const feedUrl = "https://rss.app/feeds/XRpkIErFDjKyhSMo.xml";
+            try {
+                // Try direct fetch first (if CORS allows)
+                let response = await fetch(feedUrl);
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                let xmlText = await response.text();
+                let parsed = parseRSS(xmlText);
+                if (parsed) {
+                    updateCoinbaseUI(parsed);
+                    return;
+                }
+                throw new Error("Parsing failed");
+            } catch (err) {
+                console.warn("Direct RSS fetch failed, trying proxies:", err.message);
+                // Fallback to proxies
+                for (const proxy of PROXIES) {
+                    try {
+                        const xmlText = await fetchWithProxy(feedUrl, proxy);
+                        const parsed = parseRSS(xmlText);
+                        if (parsed) {
+                            updateCoinbaseUI(parsed);
+                            return;
                         }
+                    } catch (proxyErr) {
+                        console.warn(`Proxy ${proxy} failed:`, proxyErr.message);
                     }
                 }
-                return null;
-            }
-
-            for (const proxy of PROXIES) {
-                for (const instance of nitterInstances) {
-                    try {
-                        const url = instance + "/COINAppRankBot/rss";
-                        const xmlText = await fetchWithProxy(url, proxy);
-                        const parsed = parseRSS(xmlText);
-                        if (parsed) {
-                            allRank = parsed.allRank;
-                            financeRank = parsed.financeRank;
-                            timeStr = parsed.timeStr;
-                            success = true;
-                            break;
-                        }
-                    } catch (err) { /* ignore */ }
-                }
-                if (success) break;
-                for (const instance of rsshubInstances) {
-                    try {
-                        const url = instance + "/twitter/user/COINAppRankBot";
-                        const xmlText = await fetchWithProxy(url, proxy);
-                        const parsed = parseRSS(xmlText);
-                        if (parsed) {
-                            allRank = parsed.allRank;
-                            financeRank = parsed.financeRank;
-                            timeStr = parsed.timeStr;
-                            success = true;
-                            break;
-                        }
-                    } catch (err) { /* ignore */ }
-                }
-                if (success) break;
-            }
-
-            if (success && allRank !== null && financeRank !== null) {
-                coinbaseAllRankSpan.innerText = allRank.toString();
-                coinbaseFinanceRankSpan.innerText = financeRank.toString();
-                const displayTime = timeStr ? new Date(timeStr).toLocaleString() : "latest";
-                coinbaseRankTimeSpan.innerText = displayTime;
-                localStorage.setItem("coinbaseAllRank", allRank.toString());
-                localStorage.setItem("coinbaseFinanceRank", financeRank.toString());
-                localStorage.setItem("coinbaseRankTime", displayTime);
-            } else {
+                // If all fail, fall back to cached values
                 const cachedAll = localStorage.getItem("coinbaseAllRank");
                 const cachedFinance = localStorage.getItem("coinbaseFinanceRank");
                 const cachedTime = localStorage.getItem("coinbaseRankTime");
@@ -483,51 +408,80 @@
             }
         }
 
-        // --- Open Interest Leverage: try multiple sources and patterns ---
-        async function fetchOpenInterestLeverage() {
-            let oiPercent = null;
-            // Try Coinglass with different patterns
-            const coinglassUrl = "https://www.coinglass.com/OpenInterest";
-            for (const proxy of PROXIES) {
-                try {
-                    const html = await fetchWithProxy(coinglassUrl, proxy);
-                    // Try multiple patterns: "BTC Dominance: 52.3%" or "BTC Dominance 52.3%" or just a number near "BTC Dominance"
-                    const patterns = [
-                        /BTC\s+Dominance:\s*(\d+(?:\.\d+)?)\s*%/i,
-                        /BTC\s+Dominance\s*(\d+(?:\.\d+)?)\s*%/i,
-                        /Dominance.*?(\d+(?:\.\d+)?)\s*%/i,
-                        /BTC.*?(\d+(?:\.\d+)?)\s*%/i
-                    ];
-                    for (const pattern of patterns) {
-                        const match = html.match(pattern);
-                        if (match) {
-                            oiPercent = parseFloat(match[1]);
-                            console.log("OI percentage scraped from Coinglass:", oiPercent);
-                            break;
-                        }
-                    }
-                    if (oiPercent !== null) break;
-                } catch (err) {
-                    console.warn(`Coinglass scrape failed with ${proxy}:`, err.message);
-                }
+        function parseRSS(xmlText) {
+            const parser = new DOMParser();
+            const xmlDoc = parser.parseFromString(xmlText, "text/xml");
+            const items = xmlDoc.querySelectorAll("item");
+            if (items.length === 0) return null;
+            // Get the first item (latest)
+            const item = items[0];
+            const title = item.querySelector("title")?.textContent || "";
+            if (!title.includes("$COIN App Rank")) return null;
+            const pubDate = item.querySelector("pubDate")?.textContent || "";
+            const description = item.querySelector("description")?.textContent || "";
+            // Extract numbers from description: format like "🌐 All Apps 🔼 437 🔄 476 ... 🏦 Finance Apps 🔼 33 🔄 39"
+            const allMatch = description.match(/All Apps[^\d]*(\d+)/i);
+            const financeMatch = description.match(/Finance Apps[^\d]*(\d+)/i);
+            if (allMatch && financeMatch) {
+                return {
+                    allRank: parseInt(allMatch[1], 10),
+                    financeRank: parseInt(financeMatch[1], 10),
+                    timeStr: pubDate
+                };
             }
+            return null;
+        }
 
-            // If Coinglass fails, try a static fallback from cache or default
-            if (oiPercent !== null && !isNaN(oiPercent)) {
-                oiPercentageSpan.innerText = oiPercent.toFixed(1) + "%";
-                oiSourceSpan.innerText = "Coinglass (live)";
-                localStorage.setItem("oiPercentage", oiPercent.toFixed(1));
-                localStorage.setItem("oiSource", "Coinglass (cached)");
-            } else {
-                const cached = localStorage.getItem("oiPercentage");
-                if (cached) {
-                    oiPercentageSpan.innerText = cached + "%";
-                    oiSourceSpan.innerText = localStorage.getItem("oiSource") || "cached";
+        function updateCoinbaseUI(parsed) {
+            coinbaseAllRankSpan.innerText = parsed.allRank.toString();
+            coinbaseFinanceRankSpan.innerText = parsed.financeRank.toString();
+            const displayTime = parsed.timeStr ? new Date(parsed.timeStr).toLocaleString() : "latest";
+            coinbaseRankTimeSpan.innerText = displayTime;
+            localStorage.setItem("coinbaseAllRank", parsed.allRank.toString());
+            localStorage.setItem("coinbaseFinanceRank", parsed.financeRank.toString());
+            localStorage.setItem("coinbaseRankTime", displayTime);
+            console.log("Coinbase ranks updated from RSS feed");
+        }
+
+        function promptForRankUpdate() {
+            const currentAll = localStorage.getItem("coinbaseAllRank") || "";
+            const currentFinance = localStorage.getItem("coinbaseFinanceRank") || "";
+            const currentTime = localStorage.getItem("coinbaseRankTime") || "";
+            const allApps = prompt("Enter All Apps rank:", currentAll);
+            if (allApps === null) return;
+            const finance = prompt("Enter Finance Apps rank:", currentFinance);
+            if (finance === null) return;
+            const time = prompt("Enter timestamp (e.g., Mar 25 8PM):", currentTime);
+            coinbaseAllRankSpan.innerText = allApps;
+            coinbaseFinanceRankSpan.innerText = finance;
+            coinbaseRankTimeSpan.innerText = time || "manual";
+            localStorage.setItem("coinbaseAllRank", allApps);
+            localStorage.setItem("coinbaseFinanceRank", finance);
+            localStorage.setItem("coinbaseRankTime", time || "");
+        }
+
+        editRankBtn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            promptForRankUpdate();
+        });
+
+        // --- BTC Market Dominance from CoinGecko (reliable) ---
+        async function fetchBTCDominance() {
+            try {
+                const response = await fetch("https://api.coingecko.com/api/v3/global");
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                const data = await response.json();
+                const dominance = data.data.market_cap_percentage.btc;
+                if (dominance) {
+                    btcDominanceSpan.innerText = dominance.toFixed(1) + "%";
+                    dominanceSourceSpan.innerText = "CoinGecko (live)";
                 } else {
-                    // Default approximate value (typical range 50-60%)
-                    oiPercentageSpan.innerText = "55.0%";
-                    oiSourceSpan.innerText = "default (approx)";
+                    throw new Error("No dominance data");
                 }
+            } catch (err) {
+                console.warn("BTC dominance fetch failed:", err);
+                btcDominanceSpan.innerText = "N/A";
+                dominanceSourceSpan.innerText = "offline";
             }
         }
 
@@ -552,7 +506,7 @@
                 fetchCBBI(),
                 fetchBitcoinIndicators(),
                 fetchCoinbaseRank(),
-                fetchOpenInterestLeverage()
+                fetchBTCDominance()
             ]);
         }
 
