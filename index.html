@@ -6,7 +6,6 @@
     <title>RETRO CRYPTO TERMINAL • 1980s MONITOR</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <style>
-        /* ... (same CSS as before) ... */
         * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
         body { background: #000000; min-height: 100vh; display: flex; justify-content: center; align-items: center; padding: 24px; font-family: 'Courier New', 'VT323', 'IBM EGA', 'Fira Code', monospace; }
         .crt { max-width: 1400px; width: 100%; background: #0a0f0a; border-radius: 28px 28px 32px 32px; padding: 24px 28px 32px 28px; box-shadow: 0 0 0 4px #2e3b2e, 0 0 0 8px #1e2a1a, 0 10px 30px rgba(0,255,0,0.2); border-bottom: 6px solid #1f3a1f; }
@@ -122,34 +121,21 @@
             return (pct >= 0 ? `+${val}` : `${val}`) + "%";
         }
 
-        // --- PROXY WITH FALLBACK ---
+        // --- PROXIES (for RSSHub) ---
         const PROXIES = [
-            url => fetch(`https://corsproxy.io/?${encodeURIComponent(url)}`),
-            url => fetch(`https://thingproxy.freeboard.io/fetch/${url}`)
+            "https://corsproxy.io/?",
+            "https://thingproxy.freeboard.io/fetch/",
+            "https://cors-anywhere.herokuapp.com/"
         ];
 
-        async function fetchWithProxy(url, retries = 2) {
-            for (let attempt = 0; attempt <= retries; attempt++) {
-                for (let proxyIdx = 0; proxyIdx < PROXIES.length; proxyIdx++) {
-                    try {
-                        const response = await PROXIES[proxyIdx](url);
-                        if (!response.ok) continue;
-                        const text = await response.text();
-                        try {
-                            return JSON.parse(text);
-                        } catch (e) {
-                            return text;
-                        }
-                    } catch (err) {
-                        console.warn(`Proxy ${proxyIdx+1} attempt ${attempt+1} failed:`, err.message);
-                    }
-                }
-                if (attempt < retries) await new Promise(r => setTimeout(r, 1000 * (attempt+1)));
-            }
-            throw new Error(`All proxies failed after ${retries+1} attempts for ${url}`);
+        async function fetchWithProxy(url, proxy) {
+            const fullUrl = proxy + url;
+            const response = await fetch(fullUrl);
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            return await response.text();
         }
 
-        // --- TOP 10 CRYPTO ---
+        // --- TOP 10 CRYPTO (CoinGecko + fallback) ---
         async function fetchTop10Crypto() {
             try {
                 const url = "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=150&page=1&sparkline=false&price_change_percentage=24h";
@@ -265,14 +251,13 @@
             }
         }
 
-        // --- Calculate SMA ---
+        // --- SMA and EMA helpers ---
         function sma(prices, days) {
             if (prices.length < days) return null;
             const slice = prices.slice(-days);
             return slice.reduce((a, b) => a + b, 0) / days;
         }
 
-        // --- Calculate EMA ---
         function ema(prices, days) {
             if (prices.length < days) return null;
             const k = 2 / (days + 1);
@@ -284,7 +269,7 @@
             return emaVal;
         }
 
-        // --- BITCOIN INDICATORS using CSV first, then fallbacks ---
+        // --- Bitcoin indicators: CSV first, then CryptoCompare, then static ---
         async function fetchBitcoinIndicators() {
             let prices = null;
             let dataSource = "";
@@ -297,7 +282,7 @@
                 dataSource = `CSV (${lastDate})`;
                 console.log(`Using CSV: ${prices.length} days, last date ${lastDate}`);
             } else {
-                // Secondary: CryptoCompare
+                // Fallback to CryptoCompare
                 try {
                     const url = "https://min-api.cryptocompare.com/data/v2/histoday?fsym=BTC&tsym=USD&limit=1400";
                     const response = await fetch(url);
@@ -332,8 +317,7 @@
                 twoYMAX5Span.innerText = formatUSD(sma2Yx5);
                 console.log("Indicators from historical data:", { piSMA, piEMA, sma200W, sma2Y, sma2Yx5, btcPrice });
             } else {
-                // Fallback: use static approximations
-                console.warn("Using static fallback approximations");
+                // Static fallback
                 let btcPrice = null;
                 try {
                     const priceRes = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd");
@@ -368,60 +352,64 @@
             dataSourceTextSpan.innerText = dataSource;
         }
 
-        // --- Coinbase App Rank: fetch RSS feed from Nitter instances ---
+        // --- Coinbase App Rank: fetch RSS from RSSHub (robust, automatic) ---
         async function fetchCoinbaseRank() {
-            const nitterInstances = [
-                "https://nitter.net",
-                "https://nitter.poast.org",
-                "https://nitter.lqdo.eu",
-                "https://nitter.kavin.rocks",
-                "https://nitter.privacydev.net",
-                "https://nitter.woodlands.no",
-                "https://nitter.dark.fail"
-            ];
-            const proxies = [
-                "https://corsproxy.io/?",
-                "https://thingproxy.freeboard.io/fetch/"
+            // Public RSSHub instances (from https://docs.rsshub.app/instances.html)
+            const rsshubInstances = [
+                "https://rsshub.app",
+                "https://rsshub.rssforever.com",
+                "https://rsshub.uneasy.win",
+                "https://rsshub.fly.dev",
+                "https://rsshub.netlify.app",
+                "https://rsshub.js.org",
+                "https://rsshub.ping8.top",
+                "https://rsshub.ktachibana.party",
+                "https://rsshub.bangumi.cyou",
+                "https://rsshub.slqw.me"
             ];
             let success = false;
             let allRank = null, financeRank = null, timeStr = null;
 
-            for (const proxy of proxies) {
-                for (const instance of nitterInstances) {
-                    try {
-                        const url = proxy + instance + "/COINAppRankBot/rss";
-                        console.log("Trying RSS:", url);
-                        const response = await fetch(url);
-                        if (!response.ok) continue;
-                        const xmlText = await response.text();
-                        // Parse XML manually (simple regex)
-                        const items = xmlText.match(/<item>[\s\S]*?<\/item>/g);
-                        if (!items) continue;
-                        // Find the first item that contains "$COIN App Rank"
-                        for (const item of items) {
-                            if (item.includes("$COIN App Rank")) {
-                                // Extract title (contains the ranks)
-                                const titleMatch = item.match(/<title>([\s\S]*?)<\/title>/);
-                                if (!titleMatch) continue;
-                                const title = titleMatch[1];
-                                console.log("Found tweet title:", title);
-                                // Parse numbers: "All Apps 437" and "Finance Apps 33"
-                                const allMatch = title.match(/All Apps\s*(\d+)/i);
-                                const financeMatch = title.match(/Finance Apps\s*(\d+)/i);
-                                if (allMatch && financeMatch) {
-                                    allRank = parseInt(allMatch[1], 10);
-                                    financeRank = parseInt(financeMatch[1], 10);
-                                    // Extract pubDate for timestamp
-                                    const dateMatch = item.match(/<pubDate>([^<]+)<\/pubDate>/);
-                                    timeStr = dateMatch ? dateMatch[1] : "";
-                                    success = true;
-                                    break;
-                                }
-                            }
+            // Helper to parse RSS XML
+            function parseRSS(xmlText) {
+                const parser = new DOMParser();
+                const xmlDoc = parser.parseFromString(xmlText, "text/xml");
+                const items = xmlDoc.querySelectorAll("item");
+                for (let i = 0; i < items.length; i++) {
+                    const title = items[i].querySelector("title")?.textContent || "";
+                    if (title.includes("$COIN App Rank")) {
+                        const pubDate = items[i].querySelector("pubDate")?.textContent || "";
+                        const description = items[i].querySelector("description")?.textContent || "";
+                        const allMatch = description.match(/All Apps\s*(\d+)/i);
+                        const financeMatch = description.match(/Finance Apps\s*(\d+)/i);
+                        if (allMatch && financeMatch) {
+                            return {
+                                allRank: parseInt(allMatch[1], 10),
+                                financeRank: parseInt(financeMatch[1], 10),
+                                timeStr: pubDate
+                            };
                         }
-                        if (success) break;
+                    }
+                }
+                return null;
+            }
+
+            for (const proxy of PROXIES) {
+                for (const instance of rsshubInstances) {
+                    try {
+                        const url = instance + "/twitter/user/COINAppRankBot";
+                        console.log("Trying RSSHub via", proxy, url);
+                        const xmlText = await fetchWithProxy(url, proxy);
+                        const parsed = parseRSS(xmlText);
+                        if (parsed) {
+                            allRank = parsed.allRank;
+                            financeRank = parsed.financeRank;
+                            timeStr = parsed.timeStr;
+                            success = true;
+                            break;
+                        }
                     } catch (err) {
-                        console.warn(`Failed RSS ${proxy} + ${instance}:`, err.message);
+                        console.warn(`Failed ${proxy} + ${instance}:`, err.message);
                     }
                 }
                 if (success) break;
@@ -430,10 +418,11 @@
             if (success && allRank !== null && financeRank !== null) {
                 coinbaseAllRankSpan.innerText = allRank.toString();
                 coinbaseFinanceRankSpan.innerText = financeRank.toString();
-                coinbaseRankTimeSpan.innerText = timeStr || "latest";
+                const displayTime = timeStr ? new Date(timeStr).toLocaleString() : "latest";
+                coinbaseRankTimeSpan.innerText = displayTime;
                 localStorage.setItem("coinbaseAllRank", allRank.toString());
                 localStorage.setItem("coinbaseFinanceRank", financeRank.toString());
-                localStorage.setItem("coinbaseRankTime", timeStr || "");
+                localStorage.setItem("coinbaseRankTime", displayTime);
                 console.log("Coinbase ranks updated and cached");
             } else {
                 // Fallback to cached values
@@ -449,11 +438,12 @@
                     coinbaseAllRankSpan.innerText = "N/A";
                     coinbaseFinanceRankSpan.innerText = "N/A";
                     coinbaseRankTimeSpan.innerText = "offline";
-                    console.warn("No Coinbase rank data available. RSS fetch failed.");
+                    console.warn("No Coinbase rank data available. RSSHub fetch failed for all instances.");
                 }
             }
         }
 
+        // --- Main refresh ---
         let currentTop10 = null;
         async function refreshAllData() {
             const now = new Date();
@@ -477,6 +467,7 @@
             ]);
         }
 
+        // --- Auto-refresh loop ---
         let refreshIntervalId = null;
         async function startAutoRefresh() {
             if (refreshIntervalId) clearInterval(refreshIntervalId);
