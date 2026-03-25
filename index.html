@@ -215,7 +215,7 @@
             cbbiSpan.innerText = "34";
         }
 
-        // --- Scrape Pi Cycle values from TradingDigits with improved regex and logging ---
+        // --- Scrape Pi Cycle values from TradingDigits with refined patterns ---
         async function fetchPiCycleFromTradingDigits() {
             const url = "https://www.tradingdigits.io/pi-cycle-bottom-indicator";
             const html = await fetchWithProxy(url);
@@ -225,51 +225,51 @@
             let smaValue = null;
             let emaValue = null;
             
-            // Try multiple patterns for SMA (471)
-            const smaPatterns = [
-                /471SMA:?\s*\$?([\d,]+\.?\d*)/i,
-                /471\s+SMA:?\s*\$?([\d,]+\.?\d*)/i,
-                /471d\s+SMA:?\s*\$?([\d,]+\.?\d*)/i,
-                /SMA\s*471:?\s*\$?([\d,]+\.?\d*)/i,
-                /471\s*day\s*SMA:?\s*\$?([\d,]+\.?\d*)/i,
-                /471[^\d]*(\d+[\d,]*\.?\d*)/i   // fallback: any number near 471
-            ];
-            for (const pattern of smaPatterns) {
-                const match = html.match(pattern);
+            // 1. Look for a dollar amount that appears after "471SMA" or "471d SMA"
+            //    Example: "471SMA: $72,400.00"
+            const smaDollarPattern = /471\s*SMA[^\$]*\$([\d,]+\.?\d*)/i;
+            let match = html.match(smaDollarPattern);
+            if (match) {
+                smaValue = parseFloat(match[1].replace(/,/g, ''));
+            }
+            
+            // 2. Look for a dollar amount that appears after "150EMA" or "150d EMA"
+            const emaDollarPattern = /150\s*EMA[^\$]*\$([\d,]+\.?\d*)/i;
+            match = html.match(emaDollarPattern);
+            if (match) {
+                emaValue = parseFloat(match[1].replace(/,/g, ''));
+            }
+            
+            // If still missing, try broader patterns that capture a number near the labels
+            if (!smaValue) {
+                const broadSMAPattern = /471\s*SMA.*?(\d{4,6}(?:,\d{3})*(?:\.\d+)?)/i;
+                match = html.match(broadSMAPattern);
                 if (match) {
                     smaValue = parseFloat(match[1].replace(/,/g, ''));
-                    if (smaValue) break;
                 }
             }
-            
-            // Patterns for EMA (150)
-            const emaPatterns = [
-                /EMA150:?\s*\$?([\d,]+\.?\d*)/i,
-                /150\s+EMA:?\s*\$?([\d,]+\.?\d*)/i,
-                /150d\s+EMA:?\s*\$?([\d,]+\.?\d*)/i,
-                /EMA\s*150:?\s*\$?([\d,]+\.?\d*)/i,
-                /150\s*day\s*EMA:?\s*\$?([\d,]+\.?\d*)/i,
-                /150[^\d]*(\d+[\d,]*\.?\d*)/i
-            ];
-            for (const pattern of emaPatterns) {
-                const match = html.match(pattern);
+            if (!emaValue) {
+                const broadEMAPattern = /150\s*EMA.*?(\d{4,6}(?:,\d{3})*(?:\.\d+)?)/i;
+                match = html.match(broadEMAPattern);
                 if (match) {
                     emaValue = parseFloat(match[1].replace(/,/g, ''));
-                    if (emaValue) break;
                 }
             }
             
-            // Additional fallback: look for two numbers near the labels
+            // 3. Fallback: search for any numbers in the typical range ($50k–$100k) near the labels
             if (!smaValue || !emaValue) {
-                // Search for any numbers that look like 5-6 digit numbers around the words "471" and "150"
                 const text = html.replace(/<[^>]*>/g, ' ');
-                const numbers = text.match(/\b\d{4,6}\b/g);
-                if (numbers && numbers.length >= 2) {
-                    // Assume the first large number is SMA, second is EMA (could be reversed)
-                    const sorted = numbers.map(Number).sort((a,b)=>a-b);
-                    smaValue = sorted[0];  // typically SMA is lower
-                    emaValue = sorted[1];  // EMA is higher
-                    console.log("Fallback numbers from plain text:", { smaValue, emaValue });
+                // Find all numbers that look like USD amounts (5-6 digits, possibly with commas)
+                const usdNumbers = text.match(/\$?(\d{1,3}(?:,\d{3})*(?:\.\d+)?)/g);
+                if (usdNumbers && usdNumbers.length >= 2) {
+                    const parsed = usdNumbers.map(s => parseFloat(s.replace(/,/g, ''))).filter(n => n > 50000 && n < 150000);
+                    if (parsed.length >= 2) {
+                        // Sort ascending; typically SMA is lower, EMA is higher
+                        parsed.sort((a,b)=>a-b);
+                        smaValue = parsed[0];
+                        emaValue = parsed[1];
+                        console.log("Fallback USD numbers:", parsed);
+                    }
                 }
             }
             
@@ -294,9 +294,9 @@
                 console.log("Successfully fetched Pi Cycle from TradingDigits");
             } catch (err) {
                 console.warn("Scraping TradingDigits failed, falling back to static values:", err.message);
-                // Fallback to the static numbers you provided earlier (update if needed)
-                piSMA = 72400;   // current approximate
-                piEMA = 83000;   // current approximate
+                // Fallback static numbers (you can update these manually if needed)
+                piSMA = 72400;
+                piEMA = 83000;
             }
 
             // Update Pi Cycle values
