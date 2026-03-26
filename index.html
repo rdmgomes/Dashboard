@@ -33,8 +33,6 @@
         .footer-note span { color: #5bc96b; }
         .refresh-btn { background: #0a1a0a; border: 1px solid #2eff7a; color: #2eff7a; font-family: monospace; font-size: 0.7rem; padding: 4px 12px; border-radius: 20px; cursor: pointer; transition: all 0.2s; }
         .refresh-btn:hover { background: #1e3a1e; text-shadow: 0 0 4px #2eff7a; }
-        .edit-rank-btn { background: #0a1a0a; border: 1px solid #2eff7a; color: #2eff7a; font-family: monospace; font-size: 0.6rem; padding: 2px 8px; border-radius: 12px; cursor: pointer; margin-left: 8px; transition: all 0.2s; }
-        .edit-rank-btn:hover { background: #1e3a1e; }
         @keyframes subtle-flicker { 0% { opacity: 0.99; } 100% { opacity: 1; } }
         .screen { animation: subtle-flicker 0.2s infinite; }
     </style>
@@ -67,18 +65,19 @@
             <div class="indicator-card"><label>📈 2Y MA MULTIPLIER</label><span id="twoYMA">--</span><span style="font-size:1rem;"> / </span><span id="twoYMAX5">--</span><div class="small-note">2Y MA  |  2Y MA x5</div></div>
             <div class="indicator-card"><label>🌀 PI CYCLE BOTTOM</label><span id="piSMA471">--</span><span style="font-size:1rem;"> (471d SMA) </span><br/><span id="piEMA150">--</span><span style="font-size:1rem;"> (150d EMA) </span><div class="small-note">Bitcoin bottom indicators</div></div>
             <div class="indicator-card">
-                <label>📱 COINBASE APP RANK <span class="edit-rank-btn" id="editRankBtn">✎</span></label>
+                <label>📱 COINBASE APP RANK</label>
                 <div><span id="coinbaseAllRank">--</span> <span style="font-size:1rem;">(All Apps)</span></div>
                 <div><span id="coinbaseFinanceRank">--</span> <span style="font-size:1rem;">(Finance)</span></div>
                 <div class="small-note" id="coinbaseRankTime">—</div>
             </div>
             <div class="indicator-card"><label>📊 BTC MARKET DOMINANCE</label>
                 <div><span id="btcDominance">--</span> <span style="font-size:1rem;">(of total crypto)</span></div>
-                <div class="small-note" id="dominanceSource">CoinGecko (live)</div>
+                <div class="small-note" id="dominanceSource">—</div>
             </div>
-            <div class="indicator-card"><label>🌈 BITCOIN RAINBOW CHART</label>
+            <div class="indicator-card">
+                <label>🌈 BITCOIN RAINBOW CHART</label>
                 <div><span id="rainbowClassification">--</span></div>
-                <div class="small-note" id="rainbowSource">BlockchainCenter.net</div>
+                <div class="small-note" id="rainbowSource">—</div>
             </div>
         </div>
         <div class="footer-note" id="dataSourceFooter">
@@ -115,7 +114,6 @@
         const coinbaseAllRankSpan = document.getElementById("coinbaseAllRank");
         const coinbaseFinanceRankSpan = document.getElementById("coinbaseFinanceRank");
         const coinbaseRankTimeSpan = document.getElementById("coinbaseRankTime");
-        const editRankBtn = document.getElementById("editRankBtn");
 
         const btcDominanceSpan = document.getElementById("btcDominance");
         const dominanceSourceSpan = document.getElementById("dominanceSource");
@@ -138,7 +136,7 @@
             return (pct >= 0 ? `+${val}` : `${val}`) + "%";
         }
 
-        // --- PROXIES (for RSS feed and Rainbow Chart) ---
+        // --- PROXIES (for RSS feed and other APIs) ---
         const PROXIES = [
             "https://corsproxy.io/?",
             "https://thingproxy.freeboard.io/fetch/",
@@ -153,44 +151,76 @@
             return await response.text();
         }
 
-        // --- TOP 10 CRYPTO (CoinGecko + fallback) ---
+        // --- TOP 10 CRYPTO (via proxy) ---
         async function fetchTop10Crypto() {
-            try {
-                const url = "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=150&page=1&sparkline=false&price_change_percentage=24h";
-                const response = await fetch(url);
-                if (!response.ok) throw new Error(`CoinGecko HTTP ${response.status}`);
-                let data = await response.json();
-                let filtered = data.filter(coin => !STABLE_COINS.has(coin.symbol.toLowerCase()));
-                const top10 = filtered.slice(0, 10);
-                if (top10.length === 0) throw new Error("No coins after filter");
-                return top10.map(coin => ({
-                    symbol: coin.symbol.toUpperCase(),
-                    price: coin.current_price,
-                    change24h: coin.price_change_percentage_24h,
-                }));
-            } catch (err) {
-                console.warn("CoinGecko failed, trying CoinPaprika:", err.message);
+            const urls = [
+                "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=150&page=1&sparkline=false&price_change_percentage=24h",
+                "https://api.coinpaprika.com/v1/tickers?quotes=USD&limit=100"
+            ];
+            let data = null;
+            for (const url of urls) {
                 try {
-                    const url = "https://api.coinpaprika.com/v1/tickers?quotes=USD&limit=100";
-                    const response = await fetch(url);
-                    if (!response.ok) throw new Error(`CoinPaprika HTTP ${response.status}`);
-                    let data = await response.json();
-                    let filtered = data.filter(coin => {
-                        const sym = coin.symbol.toLowerCase();
-                        return !STABLE_COINS.has(sym) && coin.quotes?.USD?.price;
-                    });
-                    const top10 = filtered.slice(0, 10);
-                    if (top10.length === 0) throw new Error("No coins from CoinPaprika");
-                    return top10.map(coin => ({
-                        symbol: coin.symbol.toUpperCase(),
-                        price: coin.quotes.USD.price,
-                        change24h: coin.quotes.USD.percent_change_24h,
-                    }));
-                } catch (err2) {
-                    console.error("Both CoinGecko and CoinPaprika failed:", err2);
-                    return null;
+                    // Try direct fetch first (some APIs might be CORS-friendly)
+                    let response = await fetch(url);
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                    data = await response.json();
+                    if (url.includes("coingecko")) {
+                        let filtered = data.filter(coin => !STABLE_COINS.has(coin.symbol.toLowerCase()));
+                        const top10 = filtered.slice(0, 10);
+                        if (top10.length === 0) throw new Error("No coins after filter");
+                        return top10.map(coin => ({
+                            symbol: coin.symbol.toUpperCase(),
+                            price: coin.current_price,
+                            change24h: coin.price_change_percentage_24h,
+                        }));
+                    } else if (url.includes("coinpaprika")) {
+                        let filtered = data.filter(coin => {
+                            const sym = coin.symbol.toLowerCase();
+                            return !STABLE_COINS.has(sym) && coin.quotes?.USD?.price;
+                        });
+                        const top10 = filtered.slice(0, 10);
+                        if (top10.length === 0) throw new Error("No coins from CoinPaprika");
+                        return top10.map(coin => ({
+                            symbol: coin.symbol.toUpperCase(),
+                            price: coin.quotes.USD.price,
+                            change24h: coin.quotes.USD.percent_change_24h,
+                        }));
+                    }
+                } catch (err) {
+                    console.warn(`Direct fetch for ${url} failed, trying proxy:`, err.message);
+                    for (const proxy of PROXIES) {
+                        try {
+                            const text = await fetchWithProxy(url, proxy);
+                            data = JSON.parse(text);
+                            if (url.includes("coingecko")) {
+                                let filtered = data.filter(coin => !STABLE_COINS.has(coin.symbol.toLowerCase()));
+                                const top10 = filtered.slice(0, 10);
+                                if (top10.length === 0) throw new Error("No coins after filter");
+                                return top10.map(coin => ({
+                                    symbol: coin.symbol.toUpperCase(),
+                                    price: coin.current_price,
+                                    change24h: coin.price_change_percentage_24h,
+                                }));
+                            } else if (url.includes("coinpaprika")) {
+                                let filtered = data.filter(coin => {
+                                    const sym = coin.symbol.toLowerCase();
+                                    return !STABLE_COINS.has(sym) && coin.quotes?.USD?.price;
+                                });
+                                const top10 = filtered.slice(0, 10);
+                                if (top10.length === 0) throw new Error("No coins from CoinPaprika");
+                                return top10.map(coin => ({
+                                    symbol: coin.symbol.toUpperCase(),
+                                    price: coin.quotes.USD.price,
+                                    change24h: coin.quotes.USD.percent_change_24h,
+                                }));
+                            }
+                        } catch (proxyErr) {
+                            console.warn(`Proxy ${proxy} failed for ${url}:`, proxyErr.message);
+                        }
+                    }
                 }
             }
+            return null;
         }
 
         function buildTickerItemsHTML(coinsList) {
@@ -446,100 +476,73 @@
             console.log("Coinbase ranks updated from RSS feed");
         }
 
-        function promptForRankUpdate() {
-            const currentAll = localStorage.getItem("coinbaseAllRank") || "";
-            const currentFinance = localStorage.getItem("coinbaseFinanceRank") || "";
-            const currentTime = localStorage.getItem("coinbaseRankTime") || "";
-            const allApps = prompt("Enter All Apps rank:", currentAll);
-            if (allApps === null) return;
-            const finance = prompt("Enter Finance Apps rank:", currentFinance);
-            if (finance === null) return;
-            const time = prompt("Enter timestamp (e.g., Mar 25 8PM):", currentTime);
-            coinbaseAllRankSpan.innerText = allApps;
-            coinbaseFinanceRankSpan.innerText = finance;
-            coinbaseRankTimeSpan.innerText = time || "manual";
-            localStorage.setItem("coinbaseAllRank", allApps);
-            localStorage.setItem("coinbaseFinanceRank", finance);
-            localStorage.setItem("coinbaseRankTime", time || "");
-        }
-
-        editRankBtn.addEventListener("click", (e) => {
-            e.stopPropagation();
-            promptForRankUpdate();
-        });
-
-        // --- BTC Market Dominance from CoinGecko (reliable) ---
+        // --- BTC Market Dominance via proxy ---
         async function fetchBTCDominance() {
+            const url = "https://api.coingecko.com/api/v3/global";
             try {
-                const response = await fetch("https://api.coingecko.com/api/v3/global");
+                // Try direct first
+                let response = await fetch(url);
                 if (!response.ok) throw new Error(`HTTP ${response.status}`);
                 const data = await response.json();
                 const dominance = data.data.market_cap_percentage.btc;
                 if (dominance) {
                     btcDominanceSpan.innerText = dominance.toFixed(1) + "%";
                     dominanceSourceSpan.innerText = "CoinGecko (live)";
-                } else {
-                    throw new Error("No dominance data");
+                    localStorage.setItem("btcDominance", dominance.toFixed(1));
+                    return;
                 }
+                throw new Error("No dominance data");
             } catch (err) {
-                console.warn("BTC dominance fetch failed:", err);
-                btcDominanceSpan.innerText = "N/A";
-                dominanceSourceSpan.innerText = "offline";
+                console.warn("Direct dominance fetch failed, trying proxy:", err.message);
+                for (const proxy of PROXIES) {
+                    try {
+                        const text = await fetchWithProxy(url, proxy);
+                        const data = JSON.parse(text);
+                        const dominance = data.data.market_cap_percentage.btc;
+                        if (dominance) {
+                            btcDominanceSpan.innerText = dominance.toFixed(1) + "%";
+                            dominanceSourceSpan.innerText = "CoinGecko (live via proxy)";
+                            localStorage.setItem("btcDominance", dominance.toFixed(1));
+                            return;
+                        }
+                    } catch (proxyErr) {
+                        console.warn(`Proxy ${proxy} failed for dominance:`, proxyErr.message);
+                    }
+                }
+                // Fallback to cached
+                const cached = localStorage.getItem("btcDominance");
+                if (cached) {
+                    btcDominanceSpan.innerText = cached + "%";
+                    dominanceSourceSpan.innerText = "cached";
+                } else {
+                    btcDominanceSpan.innerText = "N/A";
+                    dominanceSourceSpan.innerText = "offline";
+                }
             }
         }
 
-        // --- Rainbow Chart: fetch classification from blockchaincenter.net ---
+        // --- Rainbow Chart: fetch from bitcoinrainbow.com API (CORS-friendly) ---
         async function fetchRainbowClassification() {
-            const url = "https://www.blockchaincenter.net/bitcoin-rainbow-chart/";
-            let classification = null;
-            for (const proxy of PROXIES) {
-                try {
-                    const html = await fetchWithProxy(url, proxy);
-                    // Look for the active classification – the page highlights the current band with a class like "active" or a different style.
-                    // We'll search for a span or div containing the band text and having class "active" or "current".
-                    // Known bands in order from bottom to top:
-                    const bands = [
-                        "Basically a Fire Sale",
-                        "BUY!",
-                        "Accumulate",
-                        "Still cheap",
-                        "HODL!",
-                        "Is this a bubble?",
-                        "FOMO intensifies",
-                        "Sell. Seriously, SELL!",
-                        "Maximum Bubble Territory"
-                    ];
-                    // Look for any of these texts wrapped in an element that indicates it's the current one.
-                    // Common pattern: the band name might be inside a <span> or <div> with class "active", "current", or a specific style.
-                    // We'll check each band if it's inside a container that has a class containing "active", "current", or "highlight".
-                    for (const band of bands) {
-                        // Escape regex special characters in band name
-                        const escaped = band.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-                        // Look for the band name followed by an element with active class, or vice versa.
-                        // Simple pattern: band name appears, and the surrounding element has class containing "active" or "current".
-                        const pattern = new RegExp(`<[^>]*class="[^"]*(?:active|current|highlight)[^"]*"[^>]*>.*?${escaped}.*?</[^>]*>`, 'i');
-                        if (pattern.test(html)) {
-                            classification = band;
-                            console.log("Rainbow classification found:", band);
-                            break;
-                        }
+            const apiUrl = "https://api.bitcoinrainbow.com/v1/current";
+            try {
+                const response = await fetch(apiUrl);
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data && data.currentZone) {
+                        const zone = data.currentZone;
+                        rainbowClassificationSpan.innerText = zone;
+                        rainbowSourceSpan.innerText = "bitcoinrainbow.com (live)";
+                        localStorage.setItem("rainbowClassification", zone);
+                        return;
                     }
-                    if (classification) break;
-                } catch (err) {
-                    console.warn(`Rainbow fetch failed with ${proxy}:`, err.message);
                 }
-            }
-
-            if (classification) {
-                rainbowClassificationSpan.innerText = classification;
-                rainbowSourceSpan.innerText = "BlockchainCenter.net (live)";
-                localStorage.setItem("rainbowClassification", classification);
-                localStorage.setItem("rainbowSource", "BlockchainCenter.net (cached)");
-            } else {
+                throw new Error("API response invalid");
+            } catch (err) {
+                console.warn("Rainbow API failed, falling back to cache:", err.message);
                 const cached = localStorage.getItem("rainbowClassification");
                 if (cached) {
                     rainbowClassificationSpan.innerText = cached;
-                    rainbowSourceSpan.innerText = localStorage.getItem("rainbowSource") || "cached";
+                    rainbowSourceSpan.innerText = "cached";
                 } else {
                     rainbowClassificationSpan.innerText = "N/A";
                     rainbowSourceSpan.innerText = "offline";
