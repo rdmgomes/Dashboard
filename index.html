@@ -8,21 +8,21 @@
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
         body { background: #000000; min-height: 100vh; display: flex; justify-content: center; align-items: center; padding: 24px; font-family: 'Courier New', 'VT323', 'IBM EGA', 'Fira Code', monospace; }
-        .crt { max-width: 1400px; width: 100%; background: #0a0f0a; border-radius: 28px 28px 32px 32px; padding: 24px 28px 32px 28px; box-shadow: 0 0 0 4px #2e3b2e, 0 0 0 8px #1e2a1a, 0 10px 30px rgba(0,255,0,0.2); border-bottom: 6px solid #1f3a1f; }
-        .screen { background: #030c03; border-radius: 16px; padding: 20px 18px 24px 18px; box-shadow: inset 0 0 40px rgba(0,30,0,0.8), 0 0 0 2px #3c6e3c; position: relative; overflow: hidden; }
-        .screen::before { content: ""; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: repeating-linear-gradient(0deg, rgba(0,255,0,0.03) 0px, rgba(0,255,0,0.03) 2px, transparent 2px, transparent 6px); pointer-events: none; z-index: 2; }
-        .screen::after { content: ""; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: radial-gradient(circle at 30% 20%, rgba(0,20,0,0.2), #00000088); pointer-events: none; z-index: 1; }
-        h1, h2, h3, .ticker-item, .indicator-card span, .indicator-card label, .timestamp, .status { color: #2eff7a; text-shadow: 0 0 3px #1eff6e, 0 0 1px #0fdd5a; letter-spacing: 0.5px; }
-        h1 { font-size: 2rem; margin-bottom: 8px; border-left: 5px solid #2eff7a; padding-left: 18px; font-weight: normal; text-transform: uppercase; letter-spacing: 3px; }
-        .sub { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 1px dashed #2e7a3e; margin-bottom: 24px; padding-bottom: 8px; flex-wrap: wrap; }
-        .timestamp { font-size: 0.75rem; background: #071007; padding: 4px 10px; border-radius: 20px; font-family: monospace; }
-        .ticker-zone { margin: 18px 0 28px 0; background: #021002; border: 1px solid #1f6e2f; border-radius: 12px; padding: 12px 0; box-shadow: inset 0 0 10px #0a2f0a; }
+        .crt { max-width: 1400px; width: 100%; background: #1a0f06; border-radius: 28px 28px 32px 32px; padding: 24px 28px 32px 28px; box-shadow: 0 0 0 4px #b87c4f, 0 0 0 8px #5e3a1f, 0 10px 30px rgba(255,140,0,0.2); border-bottom: 6px solid #c47c3e; }
+        .screen { background: #2a1a0c; border-radius: 16px; padding: 20px 18px 24px 18px; box-shadow: inset 0 0 40px rgba(180,100,20,0.4), 0 0 0 2px #d99444; position: relative; overflow: hidden; }
+        .screen::before { content: ""; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: repeating-linear-gradient(0deg, rgba(255,140,0,0.05) 0px, rgba(255,140,0,0.05) 2px, transparent 2px, transparent 6px); pointer-events: none; z-index: 2; }
+        .screen::after { content: ""; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: radial-gradient(circle at 30% 20%, rgba(100,50,0,0.3), #00000088); pointer-events: none; z-index: 1; }
+        h1, h2, h3, .ticker-item, .indicator-card span, .indicator-card label, .timestamp, .status { color: #ffaa66; text-shadow: 0 0 3px #ff8844, 0 0 1px #dd7733; letter-spacing: 0.5px; }
+        .logo-img { max-width: 100%; height: auto; margin-bottom: 8px; display: block; }
+        .sub { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 1px dashed #b87c4f; margin-bottom: 24px; padding-bottom: 8px; flex-wrap: wrap; }
+        .timestamp { font-size: 0.75rem; background: #331e0e; padding: 4px 10px; border-radius: 20px; font-family: monospace; color: #ffaa66; }
+        .ticker-zone { margin: 18px 0 28px 0; background: #2e1c0c; border: 1px solid #c47c3e; border-radius: 12px; padding: 12px 0; box-shadow: inset 0 0 10px #5e3a1f; }
         .ticker-container { width: 100%; overflow: hidden; white-space: nowrap; position: relative; }
         .ticker-track { display: inline-block; white-space: nowrap; animation: scrollTicker 38s linear infinite; will-change: transform; }
         .ticker-content { display: inline-block; white-space: nowrap; }
-        .ticker-item { display: inline-block; font-size: 1.35rem; font-weight: bold; font-family: 'Courier New', monospace; margin-right: 48px; letter-spacing: 1px; background: #051005; padding: 4px 14px; border-radius: 40px; box-shadow: inset 0 0 4px #1e551e, 0 0 2px #2eff7a; }
-        .positive { color: #46ff8c; text-shadow: 0 0 2px #1eff6e; }
-        .negative { color: #ff5a6e; text-shadow: 0 0 2px #ff3366; }
+        .ticker-item { display: inline-block; font-size: 1.35rem; font-weight: bold; font-family: 'Courier New', monospace; margin-right: 48px; letter-spacing: 1px; background: #2a180a; padding: 4px 14px; border-radius: 40px; box-shadow: inset 0 0 4px #b87c4f, 0 0 2px #ffaa66; }
+        .positive { color: #ffaa66; text-shadow: 0 0 2px #ff8844; }
+        .negative { color: #ff8855; text-shadow: 0 0 2px #ff5533; }
         @keyframes scrollTicker { 0% { transform: translateX(0%); } 100% { transform: translateX(-50%); } }
         .indicators-grid {
             display: grid;
@@ -32,19 +32,19 @@
         }
         .summary-card {
             grid-column: 1 / -1;
-            background: #051005;
-            border: 1px solid #2d7542;
+            background: #2a1a0c;
+            border: 1px solid #c47c3e;
             border-radius: 14px;
             padding: 12px 18px;
-            box-shadow: 2px 2px 0px #0a2a0a;
+            box-shadow: 2px 2px 0px #5e3a1f;
         }
         .indicator-card {
-            background: #051005;
-            border: 1px solid #2d7542;
+            background: #2a1a0c;
+            border: 1px solid #c47c3e;
             border-radius: 14px;
             padding: 12px 18px;
             transition: all 0.1s ease;
-            box-shadow: 2px 2px 0px #0a2a0a;
+            box-shadow: 2px 2px 0px #5e3a1f;
         }
         .indicator-card label, .summary-card label {
             font-size: 0.7rem;
@@ -52,7 +52,7 @@
             letter-spacing: 2px;
             display: block;
             margin-bottom: 8px;
-            color: #5bc96b;
+            color: #e69854;
         }
         .indicator-card span, .summary-card span {
             font-size: 1.65rem;
@@ -62,9 +62,9 @@
         }
         .small-note {
             font-size: 0.7rem;
-            color: #3a984a;
+            color: #b87c4f;
             margin-top: 8px;
-            border-top: 1px dotted #1f4a2a;
+            border-top: 1px dotted #b87c4f;
             padding-top: 6px;
         }
         .progress-container {
@@ -76,16 +76,17 @@
         }
         .progress-label {
             font-size: 0.7rem;
-            color: #3a984a;
+            color: #b87c4f;
             min-width: 45px;
         }
         .progress-track {
             flex: 1;
             height: 12px;
-            background: #0a2a0a;
+            background: #2a1a0c;
             border-radius: 10px;
             position: relative;
             display: flex;
+            border: 1px solid #b87c4f;
         }
         .track-half {
             flex: 1;
@@ -101,14 +102,14 @@
             overflow: hidden;
         }
         .fill-left {
-            background: #2eff7a;
+            background: #ffaa66;
             height: 100%;
             width: 0%;
-            margin-left: auto;  /* push to the right (center) */
+            margin-left: auto;
             transition: width 0.3s ease;
         }
         .fill-right {
-            background: #2eff7a;
+            background: #ffaa66;
             height: 100%;
             width: 0%;
             transition: width 0.3s ease;
@@ -118,18 +119,18 @@
             top: -4px;
             width: 10px;
             height: 20px;
-            background: #2eff7a;
+            background: #ffaa66;
             border-radius: 50%;
-            box-shadow: 0 0 6px #2eff7a;
+            box-shadow: 0 0 6px #ffaa66;
             transform: translateX(-50%);
             z-index: 2;
             pointer-events: none;
             transition: left 0.3s ease;
         }
-        .footer-note { text-align: right; font-size: 0.6rem; margin-top: 24px; color: #3a864a; }
-        .footer-note span { color: #5bc96b; }
-        .refresh-btn { background: #0a1a0a; border: 1px solid #2eff7a; color: #2eff7a; font-family: monospace; font-size: 0.7rem; padding: 4px 12px; border-radius: 20px; cursor: pointer; transition: all 0.2s; }
-        .refresh-btn:hover { background: #1e3a1e; text-shadow: 0 0 4px #2eff7a; }
+        .footer-note { text-align: right; font-size: 0.6rem; margin-top: 24px; color: #b87c4f; }
+        .footer-note span { color: #e69854; }
+        .refresh-btn { background: #331e0e; border: 1px solid #ffaa66; color: #ffaa66; font-family: monospace; font-size: 0.7rem; padding: 4px 12px; border-radius: 20px; cursor: pointer; transition: all 0.2s; }
+        .refresh-btn:hover { background: #5e3a1f; text-shadow: 0 0 4px #ffaa66; }
         @keyframes subtle-flicker { 0% { opacity: 0.99; } 100% { opacity: 1; } }
         .screen { animation: subtle-flicker 0.2s infinite; }
     </style>
@@ -137,7 +138,9 @@
 <body>
 <div class="crt">
     <div class="screen">
-        <h1>⚡ CRYPTO•SCOPE ][</h1>
+        <div class="logo-container">
+            <img src="3amigos.png" alt="3 Amigos" class="logo-img" style="max-width: 300px; margin: 0 auto 8px auto; display: block;">
+        </div>
         <div class="sub">
             <div>⟁ LIVE MARKET STREAM  |  TOP 10 (EXCL. STABLES)</div>
             <div style="display: flex; gap: 12px; align-items: center;">
@@ -800,19 +803,17 @@
 
             // Update center-expanding bar
             if (score <= 50) {
-                // Left side fills from center outward
-                const leftPercent = ((50 - score) / 50) * 100;  // 0% at score 50, 100% at score 0
+                const leftPercent = ((50 - score) / 50) * 100;
                 fillLeft.style.width = leftPercent + "%";
                 fillRight.style.width = "0%";
             } else {
-                // Right side fills from center outward
-                const rightPercent = ((score - 50) / 50) * 100; // 0% at score 50, 100% at score 100
-                fillLeft.style.width = "100%";  // left side fully filled to the center
+                const rightPercent = ((score - 50) / 50) * 100;
+                fillLeft.style.width = "100%";
                 fillRight.style.width = rightPercent + "%";
             }
 
-            // Update marker position: left offset = score% of total track width
-            const markerLeft = (score / 100) * 100; // percentage
+            // Update marker position
+            const markerLeft = (score / 100) * 100;
             scoreMarker.style.left = markerLeft + "%";
         }
 
