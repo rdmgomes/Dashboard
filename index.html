@@ -24,19 +24,79 @@
         .positive { color: #46ff8c; text-shadow: 0 0 2px #1eff6e; }
         .negative { color: #ff5a6e; text-shadow: 0 0 2px #ff3366; }
         @keyframes scrollTicker { 0% { transform: translateX(0%); } 100% { transform: translateX(-50%); } }
-        .indicators-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-top: 28px; }
-        .indicator-card { background: #051005; border: 1px solid #2d7542; border-radius: 14px; padding: 12px 18px; transition: all 0.1s ease; box-shadow: 2px 2px 0px #0a2a0a; }
-        .indicator-card label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 2px; display: block; margin-bottom: 8px; color: #5bc96b; }
-        .indicator-card span { font-size: 1.65rem; font-weight: bold; word-break: break-word; line-height: 1.2; }
-        .small-note { font-size: 0.7rem; color: #3a984a; margin-top: 8px; border-top: 1px dotted #1f4a2a; padding-top: 6px; }
+        .indicators-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 16px;
+            margin-top: 28px;
+        }
+        .summary-card {
+            grid-column: 1 / -1;
+            background: #051005;
+            border: 1px solid #2d7542;
+            border-radius: 14px;
+            padding: 12px 18px;
+            box-shadow: 2px 2px 0px #0a2a0a;
+        }
+        .indicator-card {
+            background: #051005;
+            border: 1px solid #2d7542;
+            border-radius: 14px;
+            padding: 12px 18px;
+            transition: all 0.1s ease;
+            box-shadow: 2px 2px 0px #0a2a0a;
+        }
+        .indicator-card label, .summary-card label {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            display: block;
+            margin-bottom: 8px;
+            color: #5bc96b;
+        }
+        .indicator-card span, .summary-card span {
+            font-size: 1.65rem;
+            font-weight: bold;
+            word-break: break-word;
+            line-height: 1.2;
+        }
+        .small-note {
+            font-size: 0.7rem;
+            color: #3a984a;
+            margin-top: 8px;
+            border-top: 1px dotted #1f4a2a;
+            padding-top: 6px;
+        }
+        .progress-container {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-top: 8px;
+        }
+        .progress-label {
+            font-size: 0.7rem;
+            color: #3a984a;
+            min-width: 45px;
+        }
+        .progress-bar-container {
+            flex: 1;
+            background: #0a2a0a;
+            border-radius: 10px;
+            height: 12px;
+            overflow: hidden;
+        }
+        .progress-bar {
+            background: #2eff7a;
+            width: 0%;
+            height: 100%;
+            transition: width 0.3s ease;
+        }
         .footer-note { text-align: right; font-size: 0.6rem; margin-top: 24px; color: #3a864a; }
         .footer-note span { color: #5bc96b; }
         .refresh-btn { background: #0a1a0a; border: 1px solid #2eff7a; color: #2eff7a; font-family: monospace; font-size: 0.7rem; padding: 4px 12px; border-radius: 20px; cursor: pointer; transition: all 0.2s; }
         .refresh-btn:hover { background: #1e3a1e; text-shadow: 0 0 4px #2eff7a; }
         @keyframes subtle-flicker { 0% { opacity: 0.99; } 100% { opacity: 1; } }
         .screen { animation: subtle-flicker 0.2s infinite; }
-        .progress-bar-container { background: #0a2a0a; border-radius: 10px; margin: 8px 0; height: 12px; width: 100%; overflow: hidden; }
-        .progress-bar { background: #2eff7a; width: 0%; height: 100%; transition: width 0.3s ease; }
     </style>
 </head>
 <body>
@@ -60,17 +120,22 @@
             </div>
         </div>
 
-        <div class="indicators-grid">
-            <!-- Summary Score Card (first) -->
-            <div class="indicator-card">
+        <div class="indicators-grid" id="indicatorsGrid">
+            <!-- Summary Card (full width) -->
+            <div class="summary-card">
                 <label>📊 SUMMARY SCORE (0-100)</label>
                 <div><span id="summaryScore">--</span> <span style="font-size:1rem;">/ 100</span></div>
-                <div class="progress-bar-container">
-                    <div class="progress-bar" id="summaryBar" style="width: 0%;"></div>
+                <div class="progress-container">
+                    <span class="progress-label">Bottom</span>
+                    <div class="progress-bar-container">
+                        <div class="progress-bar" id="summaryBar" style="width: 0%;"></div>
+                    </div>
+                    <span class="progress-label">Top</span>
                 </div>
-                <div class="small-note" id="summaryNote">Weighted average of all indicators</div>
+                <div class="small-note">Weighted average of all indicators</div>
             </div>
 
+            <!-- Other 8 cards (will be inserted here by JavaScript to keep order, but we can put them statically as before) -->
             <div class="indicator-card"><label>😨 FEAR & GREED INDEX</label><span id="fngValue">--</span><div class="small-note" id="fngClassification">—</div></div>
             <div class="indicator-card"><label>📊 CBBI INDEX</label><span id="cbbiValue">--.--</span><div class="small-note">Crypto Bitcoin Bull Run Index</div></div>
             <div class="indicator-card"><label>⛓️ BTC 200W MA</label><span id="btc200wma">--</span><div class="small-note">200 Week Moving Average</div></div>
@@ -385,9 +450,7 @@
         }
         function score2YMA(btcPrice, ma2y, ma2y5) {
             if (!btcPrice || !ma2y || !ma2y5) return 50;
-            // 0 when BTC is 50% below 2Y MA
             let lowerBound = ma2y * 0.5;
-            // 100 when BTC is 10% above 2Y MA x5
             let upperBound = ma2y5 * 1.1;
             if (btcPrice <= lowerBound) return 0;
             if (btcPrice >= upperBound) return 100;
@@ -428,7 +491,6 @@
             if (idx === -1) return 50;
             if (idx <= 0) return 0;
             if (idx >= 7) return 100;
-            // linear mapping from 0 to 100 across bands 1-6
             return (idx / 7) * 100;
         }
 
@@ -663,18 +725,7 @@
 
         // --- Summary score calculation ---
         async function updateSummary() {
-            // Gather current values (they are already displayed)
-            const fng = parseFloat(fngSpan.innerText);
-            const cbbi = parseFloat(cbbiSpan.innerText);
-            const btcPriceText = document.getElementById("btc200wma")?.parentElement?.previousSibling?.innerText; // Not stored directly; we can get from latest price from CSV or use the one from fetchBitcoinIndicators which is stored in a variable.
-            // Instead, we'll use the values that were stored during the fetch. We'll set them in closure variables.
-            // We'll restructure to capture values during fetch. For simplicity, we'll recompute from the displayed numbers (some need additional parsing).
-            // Since we already have functions to compute scores from raw values, we'll re‑fetch them from the DOM or from cached variables.
-
-            // For simplicity, we'll read the displayed values (the numbers) and compute scores.
-            // But some values (like 200W MA, 2Y MA, Pi Cycle) need the numeric values.
-            // We can store these in variables when they are fetched.
-            // Let's use global variables inside the closure.
+            // Gather values from globals set during refresh
             let btcPrice = window._btcPrice;
             let wma200 = window._wma200;
             let ma2y = window._ma2y;
@@ -684,6 +735,8 @@
             let rainbow = window._rainbow;
             let dominance = window._dominance;
             let financeRank = window._financeRank;
+            let fng = parseFloat(fngSpan.innerText);
+            let cbbi = parseFloat(cbbiSpan.innerText);
 
             if (btcPrice === undefined || wma200 === undefined || ma2y === undefined || ma2y5 === undefined ||
                 piSMA === undefined || piEMA === undefined || rainbow === undefined || dominance === undefined || financeRank === undefined) {
