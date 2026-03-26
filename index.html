@@ -35,6 +35,8 @@
         .refresh-btn:hover { background: #1e3a1e; text-shadow: 0 0 4px #2eff7a; }
         @keyframes subtle-flicker { 0% { opacity: 0.99; } 100% { opacity: 1; } }
         .screen { animation: subtle-flicker 0.2s infinite; }
+        .progress-bar-container { background: #0a2a0a; border-radius: 10px; margin: 8px 0; height: 12px; width: 100%; overflow: hidden; }
+        .progress-bar { background: #2eff7a; width: 0%; height: 100%; transition: width 0.3s ease; }
     </style>
 </head>
 <body>
@@ -59,6 +61,16 @@
         </div>
 
         <div class="indicators-grid">
+            <!-- Summary Score Card (first) -->
+            <div class="indicator-card">
+                <label>📊 SUMMARY SCORE (0-100)</label>
+                <div><span id="summaryScore">--</span> <span style="font-size:1rem;">/ 100</span></div>
+                <div class="progress-bar-container">
+                    <div class="progress-bar" id="summaryBar" style="width: 0%;"></div>
+                </div>
+                <div class="small-note" id="summaryNote">Weighted average of all indicators</div>
+            </div>
+
             <div class="indicator-card"><label>😨 FEAR & GREED INDEX</label><span id="fngValue">--</span><div class="small-note" id="fngClassification">—</div></div>
             <div class="indicator-card"><label>📊 CBBI INDEX</label><span id="cbbiValue">--.--</span><div class="small-note">Crypto Bitcoin Bull Run Index</div></div>
             <div class="indicator-card"><label>⛓️ BTC 200W MA</label><span id="btc200wma">--</span><div class="small-note">200 Week Moving Average</div></div>
@@ -122,6 +134,9 @@
         const rainbowSourceSpan = document.getElementById("rainbowSource");
 
         const dataSourceTextSpan = document.getElementById("dataSourceText");
+
+        const summaryScoreSpan = document.getElementById("summaryScore");
+        const summaryBar = document.getElementById("summaryBar");
 
         // Helper functions
         function formatUSD(value) {
@@ -316,6 +331,107 @@
             return emaVal;
         }
 
+        // --- Rainbow Chart calculation from price history (log regression) ---
+        function computeRainbowFromPrices(prices) {
+            if (!prices || prices.length < 500) return null;
+
+            const n = prices.length;
+            const x = Array.from({ length: n }, (_, i) => i / 365.25);
+            const y = prices.map(p => Math.log(p));
+            
+            let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;
+            for (let i = 0; i < n; i++) {
+                sumX += x[i];
+                sumY += y[i];
+                sumXY += x[i] * y[i];
+                sumX2 += x[i] * x[i];
+            }
+            const b = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
+            const a = (sumY - b * sumX) / n;
+            
+            const residuals = [];
+            for (let i = 0; i < n; i++) {
+                const pred = a + b * x[i];
+                residuals.push(y[i] - pred);
+            }
+            const stdDev = Math.sqrt(residuals.reduce((sum, r) => sum + r * r, 0) / n);
+            
+            const currentX = (n - 1) / 365.25;
+            const predicted = a + b * currentX;
+            const currentResidual = Math.log(prices[n-1]) - predicted;
+            const zScore = currentResidual / stdDev;
+            
+            // Map z-score to band
+            if (zScore < -2) return "Basically a Fire Sale";
+            if (zScore < -1) return "BUY!";
+            if (zScore < -0.5) return "Accumulate";
+            if (zScore < 0) return "Still cheap";
+            if (zScore < 0.5) return "HODL!";
+            if (zScore < 1) return "Is this a bubble?";
+            if (zScore < 2) return "FOMO intensifies";
+            if (zScore < 3) return "Sell. Seriously, SELL!";
+            return "Maximum Bubble Territory";
+        }
+
+        // --- Scoring functions ---
+        function scoreFearGreed(value) { return parseFloat(value) || 0; }
+        function scoreCBBI(value) { return parseFloat(value) || 0; }
+        function score200WMA(btcPrice, wma200) {
+            if (!btcPrice || !wma200) return 50;
+            let ratio = (btcPrice / wma200) * 100;
+            if (ratio <= 66) return 0;
+            if (ratio >= 300) return 100;
+            return (ratio - 66) / (300 - 66) * 100;
+        }
+        function score2YMA(btcPrice, ma2y, ma2y5) {
+            if (!btcPrice || !ma2y || !ma2y5) return 50;
+            // 0 when BTC is 50% below 2Y MA
+            let lowerBound = ma2y * 0.5;
+            // 100 when BTC is 10% above 2Y MA x5
+            let upperBound = ma2y5 * 1.1;
+            if (btcPrice <= lowerBound) return 0;
+            if (btcPrice >= upperBound) return 100;
+            return (btcPrice - lowerBound) / (upperBound - lowerBound) * 100;
+        }
+        function scorePiCycle(sma471, ema150) {
+            if (!sma471 || !ema150) return 50;
+            let ratio = ema150 / sma471;
+            if (ratio <= 1) return 0;
+            if (ratio >= 2) return 100;
+            return (ratio - 1) / (2 - 1) * 100;
+        }
+        function scoreCoinbase(financeRank) {
+            if (financeRank === undefined) return 50;
+            if (financeRank >= 50) return 0;
+            if (financeRank <= 1) return 100;
+            return (50 - financeRank) / 49 * 100;
+        }
+        function scoreDominance(dominance) {
+            if (dominance === undefined) return 50;
+            if (dominance >= 66) return 0;
+            if (dominance <= 40) return 100;
+            return (66 - dominance) / (66 - 40) * 100;
+        }
+        function scoreRainbow(band) {
+            const bands = [
+                "Basically a Fire Sale",
+                "BUY!",
+                "Accumulate",
+                "Still cheap",
+                "HODL!",
+                "Is this a bubble?",
+                "FOMO intensifies",
+                "Sell. Seriously, SELL!",
+                "Maximum Bubble Territory"
+            ];
+            let idx = bands.indexOf(band);
+            if (idx === -1) return 50;
+            if (idx <= 0) return 0;
+            if (idx >= 7) return 100;
+            // linear mapping from 0 to 100 across bands 1-6
+            return (idx / 7) * 100;
+        }
+
         // --- Bitcoin indicators: CSV first, then CryptoCompare, then static ---
         async function fetchBitcoinIndicators() {
             let prices = null;
@@ -348,14 +464,16 @@
                 }
             }
 
+            let btcPrice = null;
+            let sma200W = null, sma2Y = null, sma2Yx5 = null, piSMA = null, piEMA = null, rainbow = null;
             if (prices && prices.length >= 1400) {
                 const rawSMA471 = sma(prices, 471);
-                const piSMA = rawSMA471 * 0.745;
-                const piEMA = ema(prices, 150);
-                const sma200W = sma(prices, 1400);
-                const sma2Y = sma(prices, 730);
-                const sma2Yx5 = sma2Y * 5;
-                const btcPrice = prices[prices.length - 1];
+                piSMA = rawSMA471 * 0.745;
+                piEMA = ema(prices, 150);
+                sma200W = sma(prices, 1400);
+                sma2Y = sma(prices, 730);
+                sma2Yx5 = sma2Y * 5;
+                btcPrice = prices[prices.length - 1];
 
                 piSMA471Span.innerText = formatUSD(piSMA);
                 piEMA150Span.innerText = formatUSD(piEMA);
@@ -364,8 +482,8 @@
                 twoYMAX5Span.innerText = formatUSD(sma2Yx5);
                 console.log("Indicators from historical data:", { piSMA, piEMA, sma200W, sma2Y, sma2Yx5, btcPrice });
 
-                // Also update Rainbow Chart using these prices
-                const rainbow = computeRainbowFromPrices(prices);
+                // Rainbow
+                rainbow = computeRainbowFromPrices(prices);
                 if (rainbow) {
                     rainbowClassificationSpan.innerText = rainbow;
                     rainbowSourceSpan.innerText = "Calculated from CSV";
@@ -373,7 +491,6 @@
                 }
             } else {
                 // Static fallback
-                let btcPrice = null;
                 try {
                     const priceRes = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd");
                     if (priceRes.ok) {
@@ -408,62 +525,16 @@
                 if (cachedRainbow) {
                     rainbowClassificationSpan.innerText = cachedRainbow;
                     rainbowSourceSpan.innerText = "cached";
+                    rainbow = cachedRainbow;
                 } else {
                     rainbowClassificationSpan.innerText = "N/A";
                     rainbowSourceSpan.innerText = "offline";
                 }
             }
-
             dataSourceTextSpan.innerText = dataSource;
-        }
 
-        // --- Rainbow Chart calculation from price history (log regression) ---
-        function computeRainbowFromPrices(prices) {
-            if (!prices || prices.length < 500) return null;
-
-            // Use last N days for regression (all data)
-            const n = prices.length;
-            // Convert days since start to years (starting from first day of data)
-            const x = Array.from({ length: n }, (_, i) => i / 365.25); // years since first date
-            const y = prices.map(p => Math.log(p));
-            
-            // Linear regression: y = a + b*x
-            let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;
-            for (let i = 0; i < n; i++) {
-                sumX += x[i];
-                sumY += y[i];
-                sumXY += x[i] * y[i];
-                sumX2 += x[i] * x[i];
-            }
-            const b = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
-            const a = (sumY - b * sumX) / n;
-            
-            // Compute residuals and standard deviation
-            const residuals = [];
-            for (let i = 0; i < n; i++) {
-                const pred = a + b * x[i];
-                residuals.push(y[i] - pred);
-            }
-            const stdDev = Math.sqrt(residuals.reduce((sum, r) => sum + r * r, 0) / n);
-            
-            // Current day's residual
-            const currentX = (n - 1) / 365.25;
-            const predicted = a + b * currentX;
-            const currentResidual = Math.log(prices[n-1]) - predicted;
-            const zScore = currentResidual / stdDev;
-            
-            console.log(`Rainbow z-score: ${zScore.toFixed(2)}`);
-            
-            // Map z-score to band
-            if (zScore < -2) return "Basically a Fire Sale";
-            if (zScore < -1) return "BUY!";
-            if (zScore < -0.5) return "Accumulate";
-            if (zScore < 0) return "Still cheap";
-            if (zScore < 0.5) return "HODL!";
-            if (zScore < 1) return "Is this a bubble?";
-            if (zScore < 2) return "FOMO intensifies";
-            if (zScore < 3) return "Sell. Seriously, SELL!";
-            return "Maximum Bubble Territory";
+            // Return all needed values for summary
+            return { btcPrice, sma200W, sma2Y, sma2Yx5, piSMA, piEMA, rainbow };
         }
 
         // --- Coinbase App Rank: fetch from your personal RSS feed ---
@@ -476,7 +547,7 @@
                 let parsed = parseRSS(xmlText);
                 if (parsed) {
                     updateCoinbaseUI(parsed);
-                    return;
+                    return parsed.financeRank;
                 }
                 throw new Error("Parsing failed");
             } catch (err) {
@@ -487,7 +558,7 @@
                         const parsed = parseRSS(xmlText);
                         if (parsed) {
                             updateCoinbaseUI(parsed);
-                            return;
+                            return parsed.financeRank;
                         }
                     } catch (proxyErr) {
                         console.warn(`Proxy ${proxy} failed:`, proxyErr.message);
@@ -501,10 +572,12 @@
                     coinbaseAllRankSpan.innerText = cachedAll;
                     coinbaseFinanceRankSpan.innerText = cachedFinance;
                     coinbaseRankTimeSpan.innerText = cachedTime || "cached";
+                    return parseInt(cachedFinance);
                 } else {
                     coinbaseAllRankSpan.innerText = "N/A";
                     coinbaseFinanceRankSpan.innerText = "N/A";
                     coinbaseRankTimeSpan.innerText = "offline";
+                    return null;
                 }
             }
         }
@@ -546,7 +619,6 @@
         async function fetchBTCDominance() {
             const url = "https://api.coingecko.com/api/v3/global";
             try {
-                // Try direct first
                 let response = await fetch(url);
                 if (!response.ok) throw new Error(`HTTP ${response.status}`);
                 const data = await response.json();
@@ -555,7 +627,7 @@
                     btcDominanceSpan.innerText = dominance.toFixed(1) + "%";
                     dominanceSourceSpan.innerText = "CoinGecko (live)";
                     localStorage.setItem("btcDominance", dominance.toFixed(1));
-                    return;
+                    return dominance;
                 }
                 throw new Error("No dominance data");
             } catch (err) {
@@ -569,7 +641,7 @@
                             btcDominanceSpan.innerText = dominance.toFixed(1) + "%";
                             dominanceSourceSpan.innerText = "CoinGecko (live via proxy)";
                             localStorage.setItem("btcDominance", dominance.toFixed(1));
-                            return;
+                            return dominance;
                         }
                     } catch (proxyErr) {
                         console.warn(`Proxy ${proxy} failed for dominance:`, proxyErr.message);
@@ -580,11 +652,59 @@
                 if (cached) {
                     btcDominanceSpan.innerText = cached + "%";
                     dominanceSourceSpan.innerText = "cached";
+                    return parseFloat(cached);
                 } else {
                     btcDominanceSpan.innerText = "N/A";
                     dominanceSourceSpan.innerText = "offline";
+                    return null;
                 }
             }
+        }
+
+        // --- Summary score calculation ---
+        async function updateSummary() {
+            // Gather current values (they are already displayed)
+            const fng = parseFloat(fngSpan.innerText);
+            const cbbi = parseFloat(cbbiSpan.innerText);
+            const btcPriceText = document.getElementById("btc200wma")?.parentElement?.previousSibling?.innerText; // Not stored directly; we can get from latest price from CSV or use the one from fetchBitcoinIndicators which is stored in a variable.
+            // Instead, we'll use the values that were stored during the fetch. We'll set them in closure variables.
+            // We'll restructure to capture values during fetch. For simplicity, we'll recompute from the displayed numbers (some need additional parsing).
+            // Since we already have functions to compute scores from raw values, we'll re‑fetch them from the DOM or from cached variables.
+
+            // For simplicity, we'll read the displayed values (the numbers) and compute scores.
+            // But some values (like 200W MA, 2Y MA, Pi Cycle) need the numeric values.
+            // We can store these in variables when they are fetched.
+            // Let's use global variables inside the closure.
+            let btcPrice = window._btcPrice;
+            let wma200 = window._wma200;
+            let ma2y = window._ma2y;
+            let ma2y5 = window._ma2y5;
+            let piSMA = window._piSMA;
+            let piEMA = window._piEMA;
+            let rainbow = window._rainbow;
+            let dominance = window._dominance;
+            let financeRank = window._financeRank;
+
+            if (btcPrice === undefined || wma200 === undefined || ma2y === undefined || ma2y5 === undefined ||
+                piSMA === undefined || piEMA === undefined || rainbow === undefined || dominance === undefined || financeRank === undefined) {
+                console.warn("Summary values not ready");
+                return;
+            }
+
+            const scores = [
+                scoreFearGreed(fng),
+                scoreCBBI(cbbi),
+                score200WMA(btcPrice, wma200),
+                score2YMA(btcPrice, ma2y, ma2y5),
+                scorePiCycle(piSMA, piEMA),
+                scoreCoinbase(financeRank),
+                scoreDominance(dominance),
+                scoreRainbow(rainbow)
+            ];
+            const total = scores.reduce((a,b) => a + b, 0);
+            const avg = total / scores.length;
+            summaryScoreSpan.innerText = Math.round(avg);
+            summaryBar.style.width = avg + "%";
         }
 
         // --- Main refresh ---
@@ -603,14 +723,23 @@
                 updateTicker(currentTop10);
             }
             
-            await Promise.allSettled([
-                fetchFearGreed(),
-                fetchCBBI(),
-                fetchBitcoinIndicators(),
-                fetchCoinbaseRank(),
-                fetchBTCDominance()
-                // Rainbow is now inside fetchBitcoinIndicators
-            ]);
+            // Fetch all indicators and capture values
+            const btcData = await fetchBitcoinIndicators();
+            if (btcData) {
+                window._btcPrice = btcData.btcPrice;
+                window._wma200 = btcData.sma200W;
+                window._ma2y = btcData.sma2Y;
+                window._ma2y5 = btcData.sma2Yx5;
+                window._piSMA = btcData.piSMA;
+                window._piEMA = btcData.piEMA;
+                window._rainbow = btcData.rainbow;
+            }
+            window._financeRank = await fetchCoinbaseRank();
+            window._dominance = await fetchBTCDominance();
+            await fetchFearGreed();
+            await fetchCBBI();
+            
+            await updateSummary();
         }
 
         // --- Auto-refresh loop ---
