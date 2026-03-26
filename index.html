@@ -113,17 +113,18 @@
             width: 0%;
             transition: width 0.3s ease;
         }
-        .center-marker {
+        .score-marker {
             position: absolute;
-            left: 50%;
-            transform: translateX(-50%);
             top: -4px;
             width: 10px;
             height: 20px;
             background: #2eff7a;
             border-radius: 50%;
             box-shadow: 0 0 6px #2eff7a;
+            transform: translateX(-50%);
             z-index: 2;
+            pointer-events: none;
+            transition: left 0.3s ease;
         }
         .footer-note { text-align: right; font-size: 0.6rem; margin-top: 24px; color: #3a864a; }
         .footer-note span { color: #5bc96b; }
@@ -168,7 +169,7 @@
                         <div class="track-half right">
                             <div class="fill-right" id="fillRight"></div>
                         </div>
-                        <div class="center-marker"></div>
+                        <div class="score-marker" id="scoreMarker"></div>
                     </div>
                     <span class="progress-label">Top</span>
                 </div>
@@ -243,6 +244,7 @@
         const summaryScoreSpan = document.getElementById("summaryScore");
         const fillLeft = document.getElementById("fillLeft");
         const fillRight = document.getElementById("fillRight");
+        const scoreMarker = document.getElementById("scoreMarker");
 
         // Helper functions
         function formatUSD(value) {
@@ -761,7 +763,7 @@
             }
         }
 
-        // --- Summary score calculation with center-expanding bar ---
+        // --- Summary score calculation with marker at score position ---
         async function updateSummary() {
             let btcPrice = window._btcPrice;
             let wma200 = window._wma200;
@@ -808,6 +810,10 @@
                 fillLeft.style.width = "100%";  // left side fully filled to the center
                 fillRight.style.width = rightPercent + "%";
             }
+
+            // Update marker position: left offset = score% of total track width
+            const markerLeft = (score / 100) * 100; // percentage
+            scoreMarker.style.left = markerLeft + "%";
         }
 
         // --- Main refresh ---
