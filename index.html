@@ -72,6 +72,7 @@
             align-items: center;
             gap: 12px;
             margin-top: 8px;
+            position: relative;
         }
         .progress-label {
             font-size: 0.7rem;
@@ -85,18 +86,44 @@
             border-radius: 10px;
             position: relative;
             display: flex;
+        }
+        .track-half {
+            flex: 1;
+            height: 100%;
+            position: relative;
+        }
+        .track-half.left {
+            border-radius: 10px 0 0 10px;
             overflow: hidden;
         }
-        .progress-left-fill, .progress-right-fill {
+        .track-half.right {
+            border-radius: 0 10px 10px 0;
+            overflow: hidden;
+        }
+        .fill-left {
             background: #2eff7a;
             height: 100%;
+            width: 0%;
+            margin-left: auto;  /* push to the right (center) */
             transition: width 0.3s ease;
         }
-        .progress-left-fill {
-            border-radius: 10px 0 0 10px;
+        .fill-right {
+            background: #2eff7a;
+            height: 100%;
+            width: 0%;
+            transition: width 0.3s ease;
         }
-        .progress-right-fill {
-            border-radius: 0 10px 10px 0;
+        .center-marker {
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+            top: -4px;
+            width: 10px;
+            height: 20px;
+            background: #2eff7a;
+            border-radius: 50%;
+            box-shadow: 0 0 6px #2eff7a;
+            z-index: 2;
         }
         .footer-note { text-align: right; font-size: 0.6rem; margin-top: 24px; color: #3a864a; }
         .footer-note span { color: #5bc96b; }
@@ -135,8 +162,13 @@
                 <div class="progress-container">
                     <span class="progress-label">Bottom</span>
                     <div class="progress-track">
-                        <div class="progress-left-fill" id="progressLeftFill" style="width: 0%;"></div>
-                        <div class="progress-right-fill" id="progressRightFill" style="width: 0%;"></div>
+                        <div class="track-half left">
+                            <div class="fill-left" id="fillLeft"></div>
+                        </div>
+                        <div class="track-half right">
+                            <div class="fill-right" id="fillRight"></div>
+                        </div>
+                        <div class="center-marker"></div>
                     </div>
                     <span class="progress-label">Top</span>
                 </div>
@@ -209,8 +241,8 @@
         const dataSourceTextSpan = document.getElementById("dataSourceText");
 
         const summaryScoreSpan = document.getElementById("summaryScore");
-        const progressLeftFill = document.getElementById("progressLeftFill");
-        const progressRightFill = document.getElementById("progressRightFill");
+        const fillLeft = document.getElementById("fillLeft");
+        const fillRight = document.getElementById("fillRight");
 
         // Helper functions
         function formatUSD(value) {
@@ -729,7 +761,7 @@
             }
         }
 
-        // --- Summary score calculation (with center‑expanding bar) ---
+        // --- Summary score calculation with center-expanding bar ---
         async function updateSummary() {
             let btcPrice = window._btcPrice;
             let wma200 = window._wma200;
@@ -764,15 +796,17 @@
             const score = Math.round(avg);
             summaryScoreSpan.innerText = score;
 
-            // Update center‑expanding bar
+            // Update center-expanding bar
             if (score <= 50) {
-                const leftWidth = (score / 50) * 50;  // 0% to 50% of total width
-                progressLeftFill.style.width = leftWidth + "%";
-                progressRightFill.style.width = "0%";
+                // Left side fills from center outward
+                const leftPercent = ((50 - score) / 50) * 100;  // 0% at score 50, 100% at score 0
+                fillLeft.style.width = leftPercent + "%";
+                fillRight.style.width = "0%";
             } else {
-                const rightWidth = ((score - 50) / 50) * 50; // 0% to 50% of total width
-                progressLeftFill.style.width = "50%";
-                progressRightFill.style.width = rightWidth + "%";
+                // Right side fills from center outward
+                const rightPercent = ((score - 50) / 50) * 100; // 0% at score 50, 100% at score 100
+                fillLeft.style.width = "100%";  // left side fully filled to the center
+                fillRight.style.width = rightPercent + "%";
             }
         }
 
