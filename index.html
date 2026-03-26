@@ -77,7 +77,7 @@
             <div class="indicator-card">
                 <label>🌈 BITCOIN RAINBOW CHART</label>
                 <div><span id="rainbowClassification">--</span></div>
-                <div class="small-note" id="rainbowSource">—</div>
+                <div class="small-note" id="rainbowSource">Calculated from CSV</div>
             </div>
         </div>
         <div class="footer-note" id="dataSourceFooter">
@@ -136,7 +136,7 @@
             return (pct >= 0 ? `+${val}` : `${val}`) + "%";
         }
 
-        // --- PROXIES (for APIs that don't support CORS) ---
+        // --- PROXIES (for other APIs) ---
         const PROXIES = [
             "https://corsproxy.io/?",
             "https://thingproxy.freeboard.io/fetch/",
@@ -159,7 +159,7 @@
             ];
             for (const url of urls) {
                 try {
-                    // Try direct fetch first (some APIs might be CORS-friendly)
+                    // Try direct fetch first
                     let response = await fetch(url);
                     if (!response.ok) throw new Error(`HTTP ${response.status}`);
                     let data = await response.json();
@@ -363,6 +363,14 @@
                 twoYMASpan.innerText = formatUSD(sma2Y);
                 twoYMAX5Span.innerText = formatUSD(sma2Yx5);
                 console.log("Indicators from historical data:", { piSMA, piEMA, sma200W, sma2Y, sma2Yx5, btcPrice });
+
+                // Also update Rainbow Chart using these prices
+                const rainbow = computeRainbowFromPrices(prices);
+                if (rainbow) {
+                    rainbowClassificationSpan.innerText = rainbow;
+                    rainbowSourceSpan.innerText = "Calculated from CSV";
+                    localStorage.setItem("rainbowClassification", rainbow);
+                }
             } else {
                 // Static fallback
                 let btcPrice = null;
@@ -394,9 +402,68 @@
                 twoYMASpan.innerText = formatUSD(DEFAULT_2Y_MA);
                 twoYMAX5Span.innerText = formatUSD(DEFAULT_2Y_MA_X5);
                 dataSource = "static approximations";
+
+                // Use cached rainbow or fallback
+                const cachedRainbow = localStorage.getItem("rainbowClassification");
+                if (cachedRainbow) {
+                    rainbowClassificationSpan.innerText = cachedRainbow;
+                    rainbowSourceSpan.innerText = "cached";
+                } else {
+                    rainbowClassificationSpan.innerText = "N/A";
+                    rainbowSourceSpan.innerText = "offline";
+                }
             }
 
             dataSourceTextSpan.innerText = dataSource;
+        }
+
+        // --- Rainbow Chart calculation from price history (log regression) ---
+        function computeRainbowFromPrices(prices) {
+            if (!prices || prices.length < 500) return null;
+
+            // Use last N days for regression (all data)
+            const n = prices.length;
+            // Convert days since start to years (starting from first day of data)
+            const x = Array.from({ length: n }, (_, i) => i / 365.25); // years since first date
+            const y = prices.map(p => Math.log(p));
+            
+            // Linear regression: y = a + b*x
+            let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;
+            for (let i = 0; i < n; i++) {
+                sumX += x[i];
+                sumY += y[i];
+                sumXY += x[i] * y[i];
+                sumX2 += x[i] * x[i];
+            }
+            const b = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
+            const a = (sumY - b * sumX) / n;
+            
+            // Compute residuals and standard deviation
+            const residuals = [];
+            for (let i = 0; i < n; i++) {
+                const pred = a + b * x[i];
+                residuals.push(y[i] - pred);
+            }
+            const stdDev = Math.sqrt(residuals.reduce((sum, r) => sum + r * r, 0) / n);
+            
+            // Current day's residual
+            const currentX = (n - 1) / 365.25;
+            const predicted = a + b * currentX;
+            const currentResidual = Math.log(prices[n-1]) - predicted;
+            const zScore = currentResidual / stdDev;
+            
+            console.log(`Rainbow z-score: ${zScore.toFixed(2)}`);
+            
+            // Map z-score to band
+            if (zScore < -2) return "Basically a Fire Sale";
+            if (zScore < -1) return "BUY!";
+            if (zScore < -0.5) return "Accumulate";
+            if (zScore < 0) return "Still cheap";
+            if (zScore < 0.5) return "HODL!";
+            if (zScore < 1) return "Is this a bubble?";
+            if (zScore < 2) return "FOMO intensifies";
+            if (zScore < 3) return "Sell. Seriously, SELL!";
+            return "Maximum Bubble Territory";
         }
 
         // --- Coinbase App Rank: fetch from your personal RSS feed ---
@@ -520,53 +587,6 @@
             }
         }
 
-        // --- Rainbow Chart: fetch via proxy (CORS-friendly) ---
-        async function fetchRainbowClassification() {
-            const apiUrl = "https://api.bitcoinrainbow.com/v1/current";
-            // Try direct fetch first (it may not have CORS, but try anyway)
-            try {
-                const response = await fetch(apiUrl);
-                if (response.ok) {
-                    const data = await response.json();
-                    if (data && data.currentZone) {
-                        const zone = data.currentZone;
-                        rainbowClassificationSpan.innerText = zone;
-                        rainbowSourceSpan.innerText = "bitcoinrainbow.com (live)";
-                        localStorage.setItem("rainbowClassification", zone);
-                        return;
-                    }
-                }
-                throw new Error("Direct fetch failed or invalid data");
-            } catch (err) {
-                console.warn("Direct Rainbow fetch failed, trying proxies:", err.message);
-                // Try via proxies
-                for (const proxy of PROXIES) {
-                    try {
-                        const text = await fetchWithProxy(apiUrl, proxy);
-                        const data = JSON.parse(text);
-                        if (data && data.currentZone) {
-                            const zone = data.currentZone;
-                            rainbowClassificationSpan.innerText = zone;
-                            rainbowSourceSpan.innerText = "bitcoinrainbow.com (via proxy)";
-                            localStorage.setItem("rainbowClassification", zone);
-                            return;
-                        }
-                    } catch (proxyErr) {
-                        console.warn(`Proxy ${proxy} failed for Rainbow:`, proxyErr.message);
-                    }
-                }
-                // Fallback to cache
-                const cached = localStorage.getItem("rainbowClassification");
-                if (cached) {
-                    rainbowClassificationSpan.innerText = cached;
-                    rainbowSourceSpan.innerText = "cached";
-                } else {
-                    rainbowClassificationSpan.innerText = "N/A";
-                    rainbowSourceSpan.innerText = "offline";
-                }
-            }
-        }
-
         // --- Main refresh ---
         let currentTop10 = null;
         async function refreshAllData() {
@@ -588,8 +608,8 @@
                 fetchCBBI(),
                 fetchBitcoinIndicators(),
                 fetchCoinbaseRank(),
-                fetchBTCDominance(),
-                fetchRainbowClassification()
+                fetchBTCDominance()
+                // Rainbow is now inside fetchBitcoinIndicators
             ]);
         }
 
