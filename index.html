@@ -78,18 +78,25 @@
             color: #3a984a;
             min-width: 45px;
         }
-        .progress-bar-container {
+        .progress-track {
             flex: 1;
+            height: 12px;
             background: #0a2a0a;
             border-radius: 10px;
-            height: 12px;
+            position: relative;
+            display: flex;
             overflow: hidden;
         }
-        .progress-bar {
+        .progress-left-fill, .progress-right-fill {
             background: #2eff7a;
-            width: 0%;
             height: 100%;
             transition: width 0.3s ease;
+        }
+        .progress-left-fill {
+            border-radius: 10px 0 0 10px;
+        }
+        .progress-right-fill {
+            border-radius: 0 10px 10px 0;
         }
         .footer-note { text-align: right; font-size: 0.6rem; margin-top: 24px; color: #3a864a; }
         .footer-note span { color: #5bc96b; }
@@ -127,15 +134,16 @@
                 <div><span id="summaryScore">--</span> <span style="font-size:1rem;">/ 100</span></div>
                 <div class="progress-container">
                     <span class="progress-label">Bottom</span>
-                    <div class="progress-bar-container">
-                        <div class="progress-bar" id="summaryBar" style="width: 0%;"></div>
+                    <div class="progress-track">
+                        <div class="progress-left-fill" id="progressLeftFill" style="width: 0%;"></div>
+                        <div class="progress-right-fill" id="progressRightFill" style="width: 0%;"></div>
                     </div>
                     <span class="progress-label">Top</span>
                 </div>
                 <div class="small-note">Weighted average of all indicators</div>
             </div>
 
-            <!-- Other 8 cards (will be inserted here by JavaScript to keep order, but we can put them statically as before) -->
+            <!-- Other 8 cards -->
             <div class="indicator-card"><label>😨 FEAR & GREED INDEX</label><span id="fngValue">--</span><div class="small-note" id="fngClassification">—</div></div>
             <div class="indicator-card"><label>📊 CBBI INDEX</label><span id="cbbiValue">--.--</span><div class="small-note">Crypto Bitcoin Bull Run Index</div></div>
             <div class="indicator-card"><label>⛓️ BTC 200W MA</label><span id="btc200wma">--</span><div class="small-note">200 Week Moving Average</div></div>
@@ -201,7 +209,8 @@
         const dataSourceTextSpan = document.getElementById("dataSourceText");
 
         const summaryScoreSpan = document.getElementById("summaryScore");
-        const summaryBar = document.getElementById("summaryBar");
+        const progressLeftFill = document.getElementById("progressLeftFill");
+        const progressRightFill = document.getElementById("progressRightFill");
 
         // Helper functions
         function formatUSD(value) {
@@ -239,7 +248,6 @@
             ];
             for (const url of urls) {
                 try {
-                    // Try direct fetch first
                     let response = await fetch(url);
                     if (!response.ok) throw new Error(`HTTP ${response.status}`);
                     let data = await response.json();
@@ -595,7 +603,6 @@
             }
             dataSourceTextSpan.innerText = dataSource;
 
-            // Return all needed values for summary
             return { btcPrice, sma200W, sma2Y, sma2Yx5, piSMA, piEMA, rainbow };
         }
 
@@ -709,7 +716,6 @@
                         console.warn(`Proxy ${proxy} failed for dominance:`, proxyErr.message);
                     }
                 }
-                // Fallback to cached
                 const cached = localStorage.getItem("btcDominance");
                 if (cached) {
                     btcDominanceSpan.innerText = cached + "%";
@@ -723,9 +729,8 @@
             }
         }
 
-        // --- Summary score calculation ---
+        // --- Summary score calculation (with center‑expanding bar) ---
         async function updateSummary() {
-            // Gather values from globals set during refresh
             let btcPrice = window._btcPrice;
             let wma200 = window._wma200;
             let ma2y = window._ma2y;
@@ -756,8 +761,19 @@
             ];
             const total = scores.reduce((a,b) => a + b, 0);
             const avg = total / scores.length;
-            summaryScoreSpan.innerText = Math.round(avg);
-            summaryBar.style.width = avg + "%";
+            const score = Math.round(avg);
+            summaryScoreSpan.innerText = score;
+
+            // Update center‑expanding bar
+            if (score <= 50) {
+                const leftWidth = (score / 50) * 50;  // 0% to 50% of total width
+                progressLeftFill.style.width = leftWidth + "%";
+                progressRightFill.style.width = "0%";
+            } else {
+                const rightWidth = ((score - 50) / 50) * 50; // 0% to 50% of total width
+                progressLeftFill.style.width = "50%";
+                progressRightFill.style.width = rightWidth + "%";
+            }
         }
 
         // --- Main refresh ---
@@ -776,7 +792,6 @@
                 updateTicker(currentTop10);
             }
             
-            // Fetch all indicators and capture values
             const btcData = await fetchBitcoinIndicators();
             if (btcData) {
                 window._btcPrice = btcData.btcPrice;
