@@ -136,7 +136,7 @@
             return (pct >= 0 ? `+${val}` : `${val}`) + "%";
         }
 
-        // --- PROXIES (for RSS feed and other APIs) ---
+        // --- PROXIES (for APIs that don't support CORS) ---
         const PROXIES = [
             "https://corsproxy.io/?",
             "https://thingproxy.freeboard.io/fetch/",
@@ -157,13 +157,12 @@
                 "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=150&page=1&sparkline=false&price_change_percentage=24h",
                 "https://api.coinpaprika.com/v1/tickers?quotes=USD&limit=100"
             ];
-            let data = null;
             for (const url of urls) {
                 try {
                     // Try direct fetch first (some APIs might be CORS-friendly)
                     let response = await fetch(url);
                     if (!response.ok) throw new Error(`HTTP ${response.status}`);
-                    data = await response.json();
+                    let data = await response.json();
                     if (url.includes("coingecko")) {
                         let filtered = data.filter(coin => !STABLE_COINS.has(coin.symbol.toLowerCase()));
                         const top10 = filtered.slice(0, 10);
@@ -191,7 +190,7 @@
                     for (const proxy of PROXIES) {
                         try {
                             const text = await fetchWithProxy(url, proxy);
-                            data = JSON.parse(text);
+                            const data = JSON.parse(text);
                             if (url.includes("coingecko")) {
                                 let filtered = data.filter(coin => !STABLE_COINS.has(coin.symbol.toLowerCase()));
                                 const top10 = filtered.slice(0, 10);
@@ -521,9 +520,10 @@
             }
         }
 
-        // --- Rainbow Chart: fetch from bitcoinrainbow.com API (CORS-friendly) ---
+        // --- Rainbow Chart: fetch via proxy (CORS-friendly) ---
         async function fetchRainbowClassification() {
             const apiUrl = "https://api.bitcoinrainbow.com/v1/current";
+            // Try direct fetch first (it may not have CORS, but try anyway)
             try {
                 const response = await fetch(apiUrl);
                 if (response.ok) {
@@ -536,9 +536,26 @@
                         return;
                     }
                 }
-                throw new Error("API response invalid");
+                throw new Error("Direct fetch failed or invalid data");
             } catch (err) {
-                console.warn("Rainbow API failed, falling back to cache:", err.message);
+                console.warn("Direct Rainbow fetch failed, trying proxies:", err.message);
+                // Try via proxies
+                for (const proxy of PROXIES) {
+                    try {
+                        const text = await fetchWithProxy(apiUrl, proxy);
+                        const data = JSON.parse(text);
+                        if (data && data.currentZone) {
+                            const zone = data.currentZone;
+                            rainbowClassificationSpan.innerText = zone;
+                            rainbowSourceSpan.innerText = "bitcoinrainbow.com (via proxy)";
+                            localStorage.setItem("rainbowClassification", zone);
+                            return;
+                        }
+                    } catch (proxyErr) {
+                        console.warn(`Proxy ${proxy} failed for Rainbow:`, proxyErr.message);
+                    }
+                }
+                // Fallback to cache
                 const cached = localStorage.getItem("rainbowClassification");
                 if (cached) {
                     rainbowClassificationSpan.innerText = cached;
