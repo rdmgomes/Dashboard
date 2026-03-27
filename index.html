@@ -6,6 +6,7 @@
     <title>RETRO CRYPTO TERMINAL • 1980s MONITOR</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <style>
+        /* (same as previous, no changes needed) */
         * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
         body { background: #000000; min-height: 100vh; display: flex; justify-content: center; align-items: center; padding: 24px; font-family: 'Courier New', 'VT323', 'IBM EGA', 'Fira Code', monospace; }
         .crt { max-width: 1400px; width: 100%; background: #1a0f06; border-radius: 28px 28px 32px 32px; padding: 24px 28px 32px 28px; box-shadow: 0 0 0 4px #b87c4f, 0 0 0 8px #5e3a1f, 0 10px 30px rgba(255,140,0,0.2); border-bottom: 6px solid #c47c3e; }
@@ -648,29 +649,19 @@
             for (const proxy of PROXIES) {
                 try {
                     const html = await fetchWithProxy(url, proxy);
-                    // 1. Look for the confidence phrase (e.g., "CONFIDENCE WE ARE AT THE PEAK: 33")
-                    const confidenceMatch = html.match(/CONFIDENCE\s+WE\s+ARE\s+AT\s+THE\s+PEAK\s*:?\s*#?\s*(\d+)/i);
+                    // Remove HTML tags to get plain text
+                    const plainText = html.replace(/<[^>]*>/g, ' ');
+                    // Look for the confidence phrase in plain text
+                    const confidenceMatch = plainText.match(/CONFIDENCE\s+WE\s+ARE\s+AT\s+THE\s+PEAK\s*:?\s*#?\s*(\d+)/i);
                     if (confidenceMatch && confidenceMatch[1]) {
                         cbbiValue = parseInt(confidenceMatch[1], 10);
                         if (!isNaN(cbbiValue) && cbbiValue >= 0 && cbbiValue <= 100) break;
                     }
-                    // 2. Look for a number inside <h1 class="title confidence-score-value">
+                    // Fallback: look for the specific h1 element
                     const tagMatch = html.match(/<h1[^>]*class="[^"]*confidence-score-value[^"]*"[^>]*>\s*#?\s*(\d+)\s*<\/h1>/i);
                     if (tagMatch && tagMatch[1]) {
                         cbbiValue = parseInt(tagMatch[1], 10);
                         if (!isNaN(cbbiValue) && cbbiValue >= 0 && cbbiValue <= 100) break;
-                    }
-                    // 3. Generic fallback: find any number between 1 and 100 that is not 0, 50, 100 (scale)
-                    const allMatches = html.match(/#\s*(\d+)/g);
-                    if (allMatches) {
-                        for (let m of allMatches) {
-                            let num = parseInt(m.match(/\d+/)[0], 10);
-                            if (num !== 0 && num !== 50 && num !== 100 && num >= 1 && num <= 100) {
-                                cbbiValue = num;
-                                break;
-                            }
-                        }
-                        if (cbbiValue) break;
                     }
                 } catch (err) {
                     console.warn(`CBBI fetch via ${proxy} failed:`, err.message);
