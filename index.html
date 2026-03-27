@@ -411,6 +411,10 @@
                 0 → score &lt; 20.<br>
                 100 → score &gt; 90.<br>
                 Linear scaling between 20 and 90.</p></li>
+            <li><strong>11. ATH Drawdown</strong><p>Percentage decline from the all‑time high.<br>
+                0 → 0% drawdown (at ATH).<br>
+                100 → 100% drawdown (price at $0).<br>
+                Linear scaling: score = drawdown percentage (clamped 0–100).</p></li>
         </ul>
     </div>
 </div>
@@ -722,7 +726,7 @@
             return "Maximum Bubble Territory";
         }
 
-        // --- Scoring functions (including new ones) ---
+        // --- Scoring functions (including drawdown) ---
         function scoreFearGreed(value) { return parseFloat(value) || 0; }
         function scoreCBBI(value) { return parseFloat(value) || 0; }
         function score200WMA(btcPrice, wma200) {
@@ -751,7 +755,7 @@
         }
         function scorePiCycleTop(sma111, sma350x2) {
             if (!sma111 || !sma350x2) return 50;
-            let lowerBound = sma350x2 / 3;   // (350d MA x2) / 3
+            let lowerBound = sma350x2 / 3;
             let upperBound = sma350x2;
             if (sma111 <= lowerBound) return 0;
             if (sma111 >= upperBound) return 100;
@@ -792,6 +796,14 @@
             if (trendValue <= 20) return 0;
             if (trendValue >= 90) return 100;
             return (trendValue - 20) / (90 - 20) * 100;
+        }
+        function scoreDrawdown(drawdownPercent) {
+            // drawdownPercent is negative (e.g., -25.5 for 25.5% drawdown)
+            let absDrawdown = Math.abs(drawdownPercent);
+            if (isNaN(absDrawdown)) return 50;
+            if (absDrawdown >= 100) return 100;
+            if (absDrawdown <= 0) return 0;
+            return absDrawdown;
         }
 
         // --- Fetch Google Trends score using SerpAPI (via proxy to avoid CORS) ---
@@ -955,7 +967,7 @@
             }
             dataSourceTextSpan.innerText = dataSource;
 
-            return { btcPrice, sma200W, sma2Y, sma2Yx5, piSMA, piEMA, rainbow, piSMA111, piSMA350x2 };
+            return { btcPrice, sma200W, sma2Y, sma2Yx5, piSMA, piEMA, rainbow, piSMA111, piSMA350x2, drawdown: parseFloat(athDrawdownSpan.innerText) };
         }
 
         // --- Coinbase App Rank: fetch from your personal RSS feed ---
@@ -1096,16 +1108,16 @@
             let fng = parseFloat(fngSpan.innerText);
             let cbbi = parseFloat(cbbiSpan.innerText);
             let trend = parseFloat(trendScoreSpan.innerText);
-            let drawdown = parseFloat(athDrawdownSpan.innerText);
+            let drawdown = window._drawdown; // raw negative percentage
 
             if (btcPrice === undefined || wma200 === undefined || ma2y === undefined || ma2y5 === undefined ||
                 piSMA === undefined || piEMA === undefined || piSMA111 === undefined || piSMA350x2 === undefined ||
-                rainbow === undefined || dominance === undefined || financeRank === undefined || isNaN(trend) || isNaN(drawdown)) {
+                rainbow === undefined || dominance === undefined || financeRank === undefined || isNaN(trend) || drawdown === undefined) {
                 console.warn("Summary values not ready");
                 return;
             }
 
-            // Weights as given (sum = 115)
+            // Weights (total = 115)
             const weights = {
                 fng: 10,
                 cbbi: 10,
@@ -1119,8 +1131,7 @@
                 rainbow: 10,
                 drawdown: 10
             };
-            const totalWeight = weights.fng + weights.cbbi + weights.wma + weights.y2ma + weights.piBottom + weights.piTop +
-                                weights.coinbase + weights.trends + weights.dominance + weights.rainbow + weights.drawdown; // 115
+            const totalWeight = 115;
 
             const scores = {
                 fng: scoreFearGreed(fng),
@@ -1133,8 +1144,7 @@
                 trends: scoreSearchTrend(trend),
                 dominance: scoreDominance(dominance),
                 rainbow: scoreRainbow(rainbow),
-                drawdown: scoreSearchTrend(drawdown)  // drawdown is already a percentage 0-100? Actually drawdown is % negative or positive? We'll use the same 0-100 mapping: 0% drawdown = 0, larger drawdown (worse) = higher score? But we need a rule for drawdown. Currently score for drawdown is not defined; we'll map drawdown directly as a score (0% = 0, -50% = 50? Actually we want 0 = good? Let's assume ATH drawdown is worse when larger, so higher drawdown -> higher score. So we can use raw drawdown value (negative or positive? Usually drawdown is negative percentage; we'll take absolute and clamp to 0-100). Let's define: if drawdown <= -100% it's 100, if drawdown >= 0 it's 0. But drawdown is typically negative. We'll use absolute value up to 100. For now, let's use the raw absolute value of drawdown (positive) capped at 100. So scoreDrawdown = min(100, abs(drawdown)). Since drawdown is already negative, we can use -drawdown capped at 100.
-                drawdownScore = Math.min(100, Math.max(0, -drawdown))
+                drawdown: scoreDrawdown(drawdown)
             };
 
             const weightedSum = 
@@ -1148,7 +1158,7 @@
                 scores.trends * weights.trends +
                 scores.dominance * weights.dominance +
                 scores.rainbow * weights.rainbow +
-                drawdownScore * weights.drawdown;
+                scores.drawdown * weights.drawdown;
             
             const weightedAvg = weightedSum / totalWeight;
             const score = Math.round(weightedAvg);
@@ -1203,6 +1213,7 @@
                 window._piSMA111 = btcData.piSMA111;
                 window._piSMA350x2 = btcData.piSMA350x2;
                 window._rainbow = btcData.rainbow;
+                window._drawdown = btcData.drawdown;
             }
             window._financeRank = await fetchCoinbaseRank();
             window._dominance = await fetchBTCDominance();
