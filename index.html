@@ -61,6 +61,7 @@
         .ticker-track { display: inline-block; white-space: nowrap; animation: scrollTicker 38s linear infinite; will-change: transform; }
         .ticker-content { display: inline-block; white-space: nowrap; }
         .ticker-item { display: inline-block; font-size: 1.35rem; font-weight: bold; font-family: 'Courier New', monospace; margin-right: 48px; letter-spacing: 1px; background: #2a180a; padding: 4px 14px; border-radius: 40px; box-shadow: inset 0 0 4px #b87c4f, 0 0 2px #ffaa66; color: #ffaa66; }
+        .ticker-item img { width: 20px; height: 20px; vertical-align: middle; margin-right: 6px; border-radius: 50%; background: #fff; }
         .positive { color: #2eff7a; text-shadow: 0 0 2px #1eff6e; }
         .negative { color: #ff5a6e; text-shadow: 0 0 2px #ff3366; }
         @keyframes scrollTicker { 0% { transform: translateX(0%); } 100% { transform: translateX(-50%); } }
@@ -368,9 +369,9 @@
                 <div class="small-note" id="athSource">From CSV (ATH)</div>
             </div>
             <div class="indicator-card">
-                <label>🔍 BITCOIN SEARCH TREND <span class="edit-btn" id="editTrendBtn">✎</span></label>
+                <label>🔍 BITCOIN SEARCH TREND <span class="edit-btn" id="refreshTrendBtn">⟳</span></label>
                 <div><span id="trendScore">--</span> <span style="font-size:1rem;">/ 100</span></div>
-                <div class="small-note" id="trendSource">Manual (Google Trends)</div>
+                <div class="small-note" id="trendSource">—</div>
             </div>
         </div>
         <div class="footer-note" id="dataSourceFooter">
@@ -469,7 +470,8 @@
         const piSMA350x2Span = document.getElementById("piSMA350x2");
         const athDrawdownSpan = document.getElementById("athDrawdown");
         const trendScoreSpan = document.getElementById("trendScore");
-        const editTrendBtn = document.getElementById("editTrendBtn");
+        const trendSourceSpan = document.getElementById("trendSource");
+        const refreshTrendBtn = document.getElementById("refreshTrendBtn");
 
         // Modal elements
         const modal = document.getElementById("glossaryModal");
@@ -513,7 +515,7 @@
             return await response.text();
         }
 
-        // --- TOP 10 CRYPTO (via proxy) ---
+        // --- TOP 10 CRYPTO (with images) ---
         async function fetchTop10Crypto() {
             const urls = [
                 "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=150&page=1&sparkline=false&price_change_percentage=24h",
@@ -532,6 +534,7 @@
                             symbol: coin.symbol.toUpperCase(),
                             price: coin.current_price,
                             change24h: coin.price_change_percentage_24h,
+                            image: coin.image
                         }));
                     } else if (url.includes("coinpaprika")) {
                         let filtered = data.filter(coin => {
@@ -540,10 +543,12 @@
                         });
                         const top10 = filtered.slice(0, 10);
                         if (top10.length === 0) throw new Error("No coins from CoinPaprika");
+                        // CoinPaprika doesn't provide image in this endpoint, use placeholder
                         return top10.map(coin => ({
                             symbol: coin.symbol.toUpperCase(),
                             price: coin.quotes.USD.price,
                             change24h: coin.quotes.USD.percent_change_24h,
+                            image: "https://www.coinpaprika.com/coin/" + coin.id + "/logo.png" // fallback
                         }));
                     }
                 } catch (err) {
@@ -560,6 +565,7 @@
                                     symbol: coin.symbol.toUpperCase(),
                                     price: coin.current_price,
                                     change24h: coin.price_change_percentage_24h,
+                                    image: coin.image
                                 }));
                             } else if (url.includes("coinpaprika")) {
                                 let filtered = data.filter(coin => {
@@ -572,6 +578,7 @@
                                     symbol: coin.symbol.toUpperCase(),
                                     price: coin.quotes.USD.price,
                                     change24h: coin.quotes.USD.percent_change_24h,
+                                    image: "https://www.coinpaprika.com/coin/" + coin.id + "/logo.png"
                                 }));
                             }
                         } catch (proxyErr) {
@@ -590,7 +597,8 @@
                 let priceFormatted = formatUSD(coin.price);
                 let changeFormatted = formatPercent(coin.change24h);
                 let changeClass = (coin.change24h >= 0) ? "positive" : "negative";
-                html += `<div class="ticker-item"><span>${coin.symbol}</span> ${priceFormatted} <span class="${changeClass}">${changeFormatted}</span></div>`;
+                let imgHtml = coin.image ? `<img src="${coin.image}" alt="${coin.symbol}">` : "";
+                html += `<div class="ticker-item">${imgHtml}<span>${coin.symbol}</span> ${priceFormatted} <span class="${changeClass}">${changeFormatted}</span></div>`;
             }
             return html;
         }
@@ -777,6 +785,83 @@
             if (idx >= 7) return 100;
             return (idx / 7) * 100;
         }
+
+        // --- Fetch Google Trends score for Bitcoin ---
+        async function fetchGoogleTrends() {
+            // Use a reliable proxy to fetch the Google Trends widget JSON
+            const widgetUrl = "https://trends.google.com/trends/api/widgetdata/multiline?req=%7B%22comparisonItem%22%3A%5B%7B%22keyword%22%3A%22bitcoin%22%2C%22geo%22%3A%22%22%2C%22time%22%3A%22today%205-y%22%7D%5D%2C%22category%22%3A0%2C%22property%22%3A%22%22%7D&tz=0";
+            const fallbackUrl = "https://trends.google.com/trends/explore?date=today%205-y&q=bitcoin";
+            let success = false;
+            let score = null;
+
+            // Try to get the widget data (JSON)
+            for (const proxy of PROXIES) {
+                try {
+                    const text = await fetchWithProxy(widgetUrl, proxy);
+                    // Google Trends returns a JSONP-like response: )]}',\n{...}
+                    const jsonStart = text.indexOf('{');
+                    if (jsonStart !== -1) {
+                        const jsonStr = text.substring(jsonStart);
+                        const data = JSON.parse(jsonStr);
+                        if (data.default && data.default.timelineData && data.default.timelineData.length > 0) {
+                            // Get the last value (most recent)
+                            const lastPoint = data.default.timelineData[data.default.timelineData.length - 1];
+                            const value = lastPoint.value[0];
+                            if (value !== undefined && value !== null) {
+                                score = value;
+                                success = true;
+                                break;
+                            }
+                        }
+                    }
+                } catch (err) {
+                    console.warn(`Failed to fetch Google Trends widget via ${proxy}:`, err.message);
+                }
+            }
+
+            if (!success) {
+                // Fallback: try to scrape the page for the chart data (simpler, but may be blocked)
+                for (const proxy of PROXIES) {
+                    try {
+                        const html = await fetchWithProxy(fallbackUrl, proxy);
+                        // Look for the first number that looks like an interest score in the JSON data
+                        const match = html.match(/"value":\[(\d+)\]/);
+                        if (match) {
+                            score = parseInt(match[1], 10);
+                            success = true;
+                            break;
+                        }
+                    } catch (err) {
+                        console.warn(`Failed to scrape Google Trends page via ${proxy}:`, err.message);
+                    }
+                }
+            }
+
+            if (success && score !== null) {
+                trendScoreSpan.innerText = score;
+                trendSourceSpan.innerText = "Google Trends (auto)";
+                localStorage.setItem("searchTrendScore", score);
+            } else {
+                // Use cached value if available
+                const cached = localStorage.getItem("searchTrendScore");
+                if (cached !== null) {
+                    trendScoreSpan.innerText = Math.round(parseFloat(cached));
+                    trendSourceSpan.innerText = "cached";
+                } else {
+                    trendScoreSpan.innerText = "--";
+                    trendSourceSpan.innerText = "offline";
+                }
+            }
+        }
+
+        // Manual refresh for trends
+        refreshTrendBtn.addEventListener("click", async () => {
+            refreshTrendBtn.disabled = true;
+            refreshTrendBtn.textContent = "⟳";
+            await fetchGoogleTrends();
+            refreshTrendBtn.disabled = false;
+            refreshTrendBtn.textContent = "⟳";
+        });
 
         // --- Bitcoin indicators: CSV first, then CryptoCompare, then static ---
         async function fetchBitcoinIndicators() {
@@ -1085,29 +1170,6 @@
             }
         }
 
-        // --- Manual update for search trend ---
-        function updateSearchTrend() {
-            const current = localStorage.getItem("searchTrendScore") || "";
-            const newVal = prompt("Enter Bitcoin Google Trends score (0-100):", current);
-            if (newVal !== null && !isNaN(parseFloat(newVal))) {
-                const val = Math.min(100, Math.max(0, parseFloat(newVal)));
-                trendScoreSpan.innerText = Math.round(val);
-                localStorage.setItem("searchTrendScore", val);
-            } else if (newVal !== null) {
-                alert("Please enter a number between 0 and 100.");
-            }
-        }
-
-        editTrendBtn.addEventListener("click", updateSearchTrend);
-
-        // Load stored trend score
-        const storedTrend = localStorage.getItem("searchTrendScore");
-        if (storedTrend !== null) {
-            trendScoreSpan.innerText = Math.round(parseFloat(storedTrend));
-        } else {
-            trendScoreSpan.innerText = "--";
-        }
-
         // --- Main refresh ---
         let currentTop10 = null;
         async function refreshAllData() {
@@ -1138,6 +1200,7 @@
             window._dominance = await fetchBTCDominance();
             await fetchFearGreed();
             await fetchCBBI();
+            await fetchGoogleTrends();  // automatically update trends
             
             await updateSummary();
         }
