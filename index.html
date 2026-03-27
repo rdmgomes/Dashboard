@@ -678,18 +678,25 @@
             }
         }
 
-        // --- NEW CBBI: fetch from latest.json, get latest value, multiply by 100, round ---
+        // --- FIXED CBBI: fetch latest.json, handle nested "Price" key, reject invalid cached values ---
         async function fetchCBBI() {
             const url = "https://colintalkscrypto.com/cbbi/data/latest.json";
             try {
                 const response = await fetch(url);
                 if (!response.ok) throw new Error(`HTTP ${response.status}`);
                 const data = await response.json();
-                // Data is an object with numeric keys (timestamps) and values (e.g., 0.3271)
-                const timestamps = Object.keys(data).map(Number);
-                if (timestamps.length === 0) throw new Error("No data in JSON");
+
+                // The JSON may be directly an object with timestamp keys, or nested under a "Price" key
+                let priceData = data;
+                if (data.Price && typeof data.Price === 'object') {
+                    priceData = data.Price;
+                }
+
+                const timestamps = Object.keys(priceData).map(Number).filter(k => !isNaN(k));
+                if (timestamps.length === 0) throw new Error("No numeric timestamps in JSON");
                 const latestTimestamp = Math.max(...timestamps);
-                const latestValue = data[latestTimestamp];
+                const latestValue = priceData[latestTimestamp];
+
                 if (typeof latestValue === 'number' && !isNaN(latestValue)) {
                     const cbbiScore = Math.round(latestValue * 100);
                     cbbiSpan.innerText = cbbiScore;
@@ -698,19 +705,23 @@
                     console.log(`CBBI fetched from API: ${cbbiScore} (raw ${latestValue})`);
                     return;
                 }
-                throw new Error("Invalid value");
+                throw new Error(`Invalid value: ${latestValue} (type ${typeof latestValue})`);
             } catch (err) {
                 console.warn("CBBI API fetch failed:", err.message);
-                // Fallback to cached or default
+                // Fallback to cached or default – but ignore obviously wrong values like 3
                 const cached = localStorage.getItem("cbbiValue");
-                if (cached && !isNaN(parseInt(cached))) {
+                const cachedNum = parseInt(cached, 10);
+                if (cached && !isNaN(cachedNum) && cachedNum >= 10 && cachedNum <= 100) {
                     cbbiSpan.innerText = cached;
                     cbbiScoreSpan.innerText = `(score: ${cached})`;
                     console.warn("Using cached CBBI value:", cached);
                 } else {
+                    // Default to neutral 50
                     cbbiSpan.innerText = "50";
                     cbbiScoreSpan.innerText = "(score: 50)";
-                    console.warn("No CBBI data, using default 50");
+                    console.warn("No valid CBBI data, using default 50");
+                    // Clear invalid cached value
+                    if (cached) localStorage.removeItem("cbbiValue");
                 }
             }
         }
@@ -1335,7 +1346,7 @@
             window._financeRank = await fetchCoinbaseRank();
             window._dominance = await fetchBTCDominance();
             await fetchFearGreed();
-            await fetchCBBI();   // Updated to use the new JSON endpoint
+            await fetchCBBI();   // Fixed version
             await fetchGoogleTrends();
             
             await updateSummary();
