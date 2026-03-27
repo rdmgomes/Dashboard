@@ -219,8 +219,6 @@
         }
         .refresh-btn { background: #331e0e; border: 1px solid #ffaa66; color: #ffaa66; font-family: monospace; font-size: 0.7rem; padding: 4px 12px; border-radius: 20px; cursor: pointer; transition: all 0.2s; }
         .refresh-btn:hover { background: #5e3a1f; text-shadow: 0 0 4px #ffaa66; }
-        .edit-btn { background: #331e0e; border: 1px solid #ffaa66; color: #ffaa66; font-family: monospace; font-size: 0.6rem; padding: 2px 8px; border-radius: 12px; cursor: pointer; margin-left: 8px; transition: all 0.2s; }
-        .edit-btn:hover { background: #5e3a1f; }
         @keyframes subtle-flicker { 0% { opacity: 0.99; } 100% { opacity: 1; } }
         .screen { animation: subtle-flicker 0.2s infinite; }
 
@@ -369,7 +367,7 @@
                 <div class="small-note" id="athSource">From CSV (ATH)</div>
             </div>
             <div class="indicator-card">
-                <label>🔍 BITCOIN SEARCH TREND <span class="edit-btn" id="refreshTrendBtn">⟳</span></label>
+                <label>🔍 BITCOIN SEARCH TREND</label>
                 <div><span id="trendScore">--</span> <span style="font-size:1rem;">/ 100</span></div>
                 <div class="small-note" id="trendSource">—</div>
             </div>
@@ -471,7 +469,6 @@
         const athDrawdownSpan = document.getElementById("athDrawdown");
         const trendScoreSpan = document.getElementById("trendScore");
         const trendSourceSpan = document.getElementById("trendSource");
-        const refreshTrendBtn = document.getElementById("refreshTrendBtn");
 
         // Modal elements
         const modal = document.getElementById("glossaryModal");
@@ -785,49 +782,36 @@
             return (idx / 7) * 100;
         }
 
-        // --- Fetch Google Trends score for Bitcoin (scrape page data) ---
+        // --- Fetch Google Trends score for Bitcoin (widget API with correct parameters) ---
         async function fetchGoogleTrends() {
-            const url = "https://trends.google.com/trends/explore?date=today%205-y&q=bitcoin";
+            // Build the correct widget request for "bitcoin" over 5 years
+            const req = {
+                comparisonItem: [{ keyword: "bitcoin", geo: "", time: "today 5-y" }],
+                category: 0,
+                property: ""
+            };
+            const encodedReq = encodeURIComponent(JSON.stringify(req));
+            const widgetUrl = `https://trends.google.com/trends/api/widgetdata/multiline?req=${encodedReq}&tz=0`;
             let score = null;
 
             for (const proxy of PROXIES) {
                 try {
-                    const html = await fetchWithProxy(url, proxy);
-                    // Look for the data embedded in the page
-                    const match = html.match(/window\.INITIAL_DATA\s*=\s*({.+?});/);
-                    if (match) {
-                        const data = JSON.parse(match[1]);
-                        // The structure varies; we need to find the timeline data
-                        if (data.widgets && data.widgets[0] && data.widgets[0].data && data.widgets[0].data.timelineData) {
-                            const timeline = data.widgets[0].data.timelineData;
-                            const last = timeline[timeline.length - 1];
+                    const text = await fetchWithProxy(widgetUrl, proxy);
+                    // Google Trends returns a JSONP-like response: )]}',\n{...}
+                    const jsonStart = text.indexOf('{');
+                    if (jsonStart !== -1) {
+                        const jsonStr = text.substring(jsonStart);
+                        const data = JSON.parse(jsonStr);
+                        if (data.default && data.default.timelineData && data.default.timelineData.length > 0) {
+                            const last = data.default.timelineData[data.default.timelineData.length - 1];
                             if (last && last.value && last.value[0] !== undefined) {
                                 score = last.value[0];
                                 break;
                             }
-                        }
-                        // Alternative: look for a different structure
-                        if (data.data && data.data.timelineData) {
-                            const timeline = data.data.timelineData;
-                            const last = timeline[timeline.length - 1];
-                            if (last && last.value && last.value[0] !== undefined) {
-                                score = last.value[0];
-                                break;
-                            }
-                        }
-                    }
-                    // If no structured data, try a regex for the chart JSON
-                    const chartMatch = html.match(/"timelineData":\s*(\[.*?\]),/s);
-                    if (chartMatch) {
-                        const timelineData = JSON.parse(chartMatch[1]);
-                        const last = timelineData[timelineData.length - 1];
-                        if (last && last.value && last.value[0] !== undefined) {
-                            score = last.value[0];
-                            break;
                         }
                     }
                 } catch (err) {
-                    console.warn(`Failed to scrape Google Trends via ${proxy}:`, err.message);
+                    console.warn(`Failed to fetch Google Trends via ${proxy}:`, err.message);
                 }
             }
 
@@ -847,15 +831,6 @@
                 }
             }
         }
-
-        // Manual refresh for trends
-        refreshTrendBtn.addEventListener("click", async () => {
-            refreshTrendBtn.disabled = true;
-            refreshTrendBtn.textContent = "⟳";
-            await fetchGoogleTrends();
-            refreshTrendBtn.disabled = false;
-            refreshTrendBtn.textContent = "⟳";
-        });
 
         // --- Bitcoin indicators: CSV first, then CryptoCompare, then static ---
         async function fetchBitcoinIndicators() {
