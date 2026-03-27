@@ -219,6 +219,8 @@
         }
         .refresh-btn { background: #331e0e; border: 1px solid #ffaa66; color: #ffaa66; font-family: monospace; font-size: 0.7rem; padding: 4px 12px; border-radius: 20px; cursor: pointer; transition: all 0.2s; }
         .refresh-btn:hover { background: #5e3a1f; text-shadow: 0 0 4px #ffaa66; }
+        .edit-btn { background: #331e0e; border: 1px solid #ffaa66; color: #ffaa66; font-family: monospace; font-size: 0.6rem; padding: 2px 8px; border-radius: 12px; cursor: pointer; margin-left: 8px; transition: all 0.2s; }
+        .edit-btn:hover { background: #5e3a1f; }
         @keyframes subtle-flicker { 0% { opacity: 0.99; } 100% { opacity: 1; } }
         .screen { animation: subtle-flicker 0.2s infinite; }
 
@@ -367,7 +369,7 @@
                 <div class="small-note" id="athSource">From CSV (ATH)</div>
             </div>
             <div class="indicator-card">
-                <label>🔍 BITCOIN SEARCH TREND</label>
+                <label>🔍 BITCOIN SEARCH TREND <span class="edit-btn" id="editTrendBtn">✎</span></label>
                 <div><span id="trendScore">--</span> <span style="font-size:1rem;">/ 100</span></div>
                 <div class="small-note" id="trendSource">—</div>
             </div>
@@ -469,6 +471,7 @@
         const athDrawdownSpan = document.getElementById("athDrawdown");
         const trendScoreSpan = document.getElementById("trendScore");
         const trendSourceSpan = document.getElementById("trendSource");
+        const editTrendBtn = document.getElementById("editTrendBtn");
 
         // Modal elements
         const modal = document.getElementById("glossaryModal");
@@ -505,15 +508,9 @@
             "https://api.allorigins.win/raw?url="
         ];
 
-        // Enhanced fetch with headers
         async function fetchWithProxy(url, proxy) {
             const fullUrl = proxy + url;
-            const response = await fetch(fullUrl, {
-                headers: {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                    'Accept-Language': 'en-US,en;q=0.9'
-                }
-            });
+            const response = await fetch(fullUrl);
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
             return await response.text();
         }
@@ -631,9 +628,9 @@
             }
         }
 
-        // --- CBBI: static 34 (correct value) ---
+        // --- CBBI: static 33 (correct value) ---
         async function fetchCBBI() {
-            cbbiSpan.innerText = "34";
+            cbbiSpan.innerText = "33";
         }
 
         // --- Load CSV file and extract prices and latest date ---
@@ -788,61 +785,30 @@
             return (idx / 7) * 100;
         }
 
-        // --- Fetch Google Trends score for Bitcoin (using exact date range) ---
-        async function fetchGoogleTrends() {
-            // Use the same date range as the embed code: from 2022-01-01 to today
-            const endDate = new Date();
-            const startDate = new Date(endDate);
-            startDate.setFullYear(endDate.getFullYear() - 5); // 5 years ago
-            const formatDate = (d) => d.toISOString().split('T')[0];
-            const timeRange = `${formatDate(startDate)} ${formatDate(endDate)}`;
-
-            const req = {
-                comparisonItem: [{ keyword: "bitcoin", geo: "", time: timeRange }],
-                category: 0,
-                property: ""
-            };
-            const encodedReq = encodeURIComponent(JSON.stringify(req));
-            const widgetUrl = `https://trends.google.com/trends/api/widgetdata/multiline?req=${encodedReq}&tz=0`;
-            let score = null;
-
-            for (const proxy of PROXIES) {
-                try {
-                    const text = await fetchWithProxy(widgetUrl, proxy);
-                    const jsonStart = text.indexOf('{');
-                    if (jsonStart !== -1) {
-                        const jsonStr = text.substring(jsonStart);
-                        const data = JSON.parse(jsonStr);
-                        if (data.default && data.default.timelineData && data.default.timelineData.length > 0) {
-                            const last = data.default.timelineData[data.default.timelineData.length - 1];
-                            if (last && last.value && last.value[0] !== undefined) {
-                                score = last.value[0];
-                                break;
-                            }
-                        }
-                    }
-                } catch (err) {
-                    console.warn(`Failed to fetch Google Trends via ${proxy}:`, err.message);
-                }
+        // --- Manual update for search trend (replaces automatic) ---
+        function updateSearchTrend() {
+            const current = localStorage.getItem("searchTrendScore") || "";
+            const newVal = prompt("Enter current Bitcoin Google Trends score (0-100):", current);
+            if (newVal !== null && !isNaN(parseFloat(newVal))) {
+                const val = Math.min(100, Math.max(0, parseFloat(newVal)));
+                trendScoreSpan.innerText = Math.round(val);
+                trendSourceSpan.innerText = "manual";
+                localStorage.setItem("searchTrendScore", val);
+            } else if (newVal !== null) {
+                alert("Please enter a number between 0 and 100.");
             }
+        }
 
-            if (score !== null && !isNaN(score)) {
-                trendScoreSpan.innerText = score;
-                trendSourceSpan.innerText = "Google Trends (auto)";
-                localStorage.setItem("searchTrendScore", score);
-            } else {
-                // Use cached value if available
-                const cached = localStorage.getItem("searchTrendScore");
-                if (cached !== null) {
-                    trendScoreSpan.innerText = Math.round(parseFloat(cached));
-                    trendSourceSpan.innerText = "cached";
-                    console.log("Using cached Google Trends score:", cached);
-                } else {
-                    trendScoreSpan.innerText = "--";
-                    trendSourceSpan.innerText = "offline";
-                    console.warn("Google Trends fetch failed. To set manually: localStorage.setItem('searchTrendScore', 50); then refresh.");
-                }
-            }
+        editTrendBtn.addEventListener("click", updateSearchTrend);
+
+        // Load stored trend score
+        const storedTrend = localStorage.getItem("searchTrendScore");
+        if (storedTrend !== null) {
+            trendScoreSpan.innerText = Math.round(parseFloat(storedTrend));
+            trendSourceSpan.innerText = "manual";
+        } else {
+            trendScoreSpan.innerText = "--";
+            trendSourceSpan.innerText = "click ✎ to set";
         }
 
         // --- Bitcoin indicators: CSV first, then CryptoCompare, then static ---
@@ -1180,7 +1146,6 @@
             window._dominance = await fetchBTCDominance();
             await fetchFearGreed();
             await fetchCBBI();
-            await fetchGoogleTrends();
             
             await updateSummary();
         }
