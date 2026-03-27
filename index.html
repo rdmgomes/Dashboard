@@ -473,6 +473,12 @@
         // --- SerpAPI configuration (your API key) ---
         const SERPAPI_KEY = 'ce4b6816e4a12d169c44ddacca183171df991232e896db58c1d8253834e5519b';
 
+        // --- Updated PROXIES: removed broken ones, added timeout in fetchCBBI ---
+        const PROXIES = [
+            "https://corsproxy.io/",
+            "https://api.allorigins.win/raw?url="
+        ];
+
         // DOM elements
         const updateTimestampSpan = document.getElementById("updateTimestamp");
         const tickerPrimaryDiv = document.getElementById("tickerContentPrimary");
@@ -547,13 +553,6 @@
         }
 
         // --- PROXIES (for other APIs) ---
-        const PROXIES = [
-            "https://corsproxy.io/?",
-            "https://thingproxy.freeboard.io/fetch/",
-            "https://cors-anywhere.herokuapp.com/",
-            "https://api.allorigins.win/raw?url="
-        ];
-
         async function fetchWithProxy(url, proxy) {
             const fullUrl = proxy + url;
             const response = await fetch(fullUrl);
@@ -677,39 +676,50 @@
             }
         }
 
-        // --- CBBI: fetch live from colintalkscrypto.com with improved extraction ---
+        // --- Improved fetchCBBI with timeout and fallback ---
         async function fetchCBBI() {
             const url = "https://colintalkscrypto.com/cbbi/index.html";
             let cbbiValue = null;
+
             for (const proxy of PROXIES) {
                 try {
-                    const html = await fetchWithProxy(url, proxy);
-                    // Look for the exact h1 tag with class "title confidence-score-value"
+                    // Timeout after 5 seconds
+                    const timeoutPromise = new Promise((_, reject) =>
+                        setTimeout(() => reject(new Error("Request timed out")), 5000)
+                    );
+                    const fetchPromise = fetchWithProxy(url, proxy);
+                    const html = await Promise.race([fetchPromise, timeoutPromise]);
+
+                    // Try to extract CBBI value from the page
+                    // 1. Look for h1 with class "confidence-score-value"
                     const tagMatch = html.match(/<h1[^>]*class="[^"]*confidence-score-value[^"]*"[^>]*>\s*(\d+)\s*<\/h1>/i);
                     if (tagMatch && tagMatch[1]) {
                         let candidate = parseInt(tagMatch[1], 10);
-                        if (candidate !== 0 && candidate !== 50 && candidate !== 100 && candidate >= 1 && candidate <= 100) {
+                        if (candidate >= 1 && candidate <= 100) {
                             cbbiValue = candidate;
-                            console.log("CBBI from h1 tag:", candidate);
+                            console.log(`CBBI fetched via ${proxy}: ${candidate}`);
                             break;
                         }
                     }
-                    // Fallback: look for the confidence phrase
+
+                    // 2. Fallback: search for the confidence phrase
                     const plainText = html.replace(/<[^>]*>/g, ' ');
                     const confidenceMatch = plainText.match(/CONFIDENCE\s+WE\s+ARE\s+AT\s+THE\s+PEAK\s*:?\s*#?\s*(\d+)/i);
                     if (confidenceMatch && confidenceMatch[1]) {
                         let candidate = parseInt(confidenceMatch[1], 10);
-                        if (candidate !== 0 && candidate !== 50 && candidate !== 100 && candidate >= 1 && candidate <= 100) {
+                        if (candidate >= 1 && candidate <= 100) {
                             cbbiValue = candidate;
-                            console.log("CBBI from confidence phrase:", candidate);
+                            console.log(`CBBI fetched via ${proxy} (fallback): ${candidate}`);
                             break;
                         }
                     }
+
                 } catch (err) {
-                    console.warn(`CBBI fetch via ${proxy} failed:`, err.message);
+                    console.warn(`CBBI fetch via ${proxy} failed: ${err.message}`);
                 }
             }
 
+            // Update UI or fallback to cached/default value
             if (cbbiValue !== null && !isNaN(cbbiValue)) {
                 cbbiSpan.innerText = cbbiValue;
                 cbbiScoreSpan.innerText = `(score: ${cbbiValue})`;
@@ -719,9 +729,11 @@
                 if (cached) {
                     cbbiSpan.innerText = cached;
                     cbbiScoreSpan.innerText = `(score: ${cached})`;
+                    console.warn("Using cached CBBI value:", cached);
                 } else {
-                    cbbiSpan.innerText = "33";
-                    cbbiScoreSpan.innerText = "(score: 33)";
+                    cbbiSpan.innerText = "50";
+                    cbbiScoreSpan.innerText = "(score: 50)";
+                    console.warn("No CBBI data available, using default 50");
                 }
             }
         }
