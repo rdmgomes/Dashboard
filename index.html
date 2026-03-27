@@ -285,6 +285,25 @@
             font-size: 0.85rem;
             color: #e6b87a;
         }
+        .weights-section {
+            margin-top: 20px;
+            border-top: 1px solid #c47c3e;
+            padding-top: 15px;
+        }
+        .weights-section h3 {
+            color: #e69854;
+            font-size: 1.2rem;
+            margin-bottom: 10px;
+        }
+        .weights-list {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px 20px;
+            font-size: 0.85rem;
+        }
+        .weights-list span {
+            color: #ffcc88;
+        }
     </style>
 </head>
 <body>
@@ -377,7 +396,7 @@
 <div id="glossaryModal" class="modal">
     <div class="modal-content">
         <span class="close">&times;</span>
-        <h2>KPI Scoring Criteria</h2>
+        <h2>KPI Scoring Criteria & Weights</h2>
         <ul>
             <li><strong>1. Fear & Greed Index</strong><p>Score = raw value (0–100).</p></li>
             <li><strong>2. CBBI Index</strong><p>Score = raw value (0–100).</p></li>
@@ -422,6 +441,23 @@
                 100 → BTC price ≥ ATH (0% drawdown).<br>
                 Linear scaling in between.</p></li>
         </ul>
+        <div class="weights-section">
+            <h3>📊 Summary Score Weights</h3>
+            <div class="weights-list">
+                <div><span>Fear & Greed Index</span> — 10</div>
+                <div><span>CBBI Index</span> — 10</div>
+                <div><span>BTC 200W MA</span> — 15</div>
+                <div><span>2Y MA Multiplier</span> — 15</div>
+                <div><span>Pi Cycle Bottom</span> — 15</div>
+                <div><span>Pi Cycle Top</span> — 15</div>
+                <div><span>Coinbase App Rank</span> — 5</div>
+                <div><span>Bitcoin Search Trend</span> — 5</div>
+                <div><span>BTC Market Dominance</span> — 5</div>
+                <div><span>Bitcoin Rainbow Chart</span> — 10</div>
+                <div><span>ATH Drawdown</span> — 10</div>
+            </div>
+            <div class="small-note" style="margin-top: 10px;">Total weight = 115</div>
+        </div>
     </div>
 </div>
 
@@ -672,14 +708,6 @@
                             console.log("CBBI from h1 tag:", candidate);
                             break;
                         }
-                    }
-                    // If still nothing, print a snippet for debugging
-                    const confidenceIndex = plainText.toLowerCase().indexOf("confidence we are at the peak");
-                    if (confidenceIndex !== -1) {
-                        console.log("Confidence phrase found at index", confidenceIndex);
-                        console.log("Snippet:", plainText.substring(confidenceIndex, confidenceIndex + 100));
-                    } else {
-                        console.log("Confidence phrase not found in plain text");
                     }
                 } catch (err) {
                     console.warn(`CBBI fetch via ${proxy} failed:`, err.message);
