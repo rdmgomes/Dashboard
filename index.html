@@ -678,85 +678,62 @@
             }
         }
 
-        // --- IMPROVED CBBI: robust JSON parsing with sanity checks ---
+        // --- CBBI: fetch from Confidence block in latest.json ---
         async function fetchCBBI() {
             const url = "https://colintalkscrypto.com/cbbi/data/latest.json";
             try {
                 const response = await fetch(url);
                 if (!response.ok) throw new Error(`HTTP ${response.status}`);
                 const data = await response.json();
-
-                // Log the full data for debugging (will appear in console)
                 console.log("CBBI JSON received:", data);
 
-                // Strategy 1: Look for a dedicated property named "cbbi", "value", or "cbbi"
-                let cbbiRaw = null;
-                const possibleKeys = ["cbbi", "value", "cbbi", "index"];
-                for (let key of possibleKeys) {
-                    if (data[key] !== undefined && typeof data[key] === 'number') {
-                        cbbiRaw = data[key];
-                        console.log(`Found CBBI under key "${key}": ${cbbiRaw}`);
-                        break;
-                    }
+                // Look for Confidence block (object with numeric keys)
+                let confidenceData = null;
+                if (data.Confidence && typeof data.Confidence === 'object') {
+                    confidenceData = data.Confidence;
+                } else if (data.confidence && typeof data.confidence === 'object') {
+                    confidenceData = data.confidence;
                 }
 
-                // Strategy 2: If data has a "Price" object, maybe CBBI is inside it?
-                if (cbbiRaw === null && data.Price && typeof data.Price === 'object') {
-                    for (let key of possibleKeys) {
-                        if (data.Price[key] !== undefined && typeof data.Price[key] === 'number') {
-                            cbbiRaw = data.Price[key];
-                            console.log(`Found CBBI under Price.${key}: ${cbbiRaw}`);
-                            break;
-                        }
-                    }
-                }
-
-                // Strategy 3: Fallback to timestamp-based extraction, but only accept values between 0 and 1 (CBBI in decimal)
-                if (cbbiRaw === null) {
-                    // Try to find numeric keys (timestamps) and get the latest value
-                    let priceData = data;
-                    if (data.Price && typeof data.Price === 'object') {
-                        priceData = data.Price;
-                    }
-                    const timestamps = Object.keys(priceData).map(Number).filter(k => !isNaN(k));
-                    if (timestamps.length > 0) {
-                        const latestTimestamp = Math.max(...timestamps);
-                        const latestValue = priceData[latestTimestamp];
-                        if (typeof latestValue === 'number' && !isNaN(latestValue)) {
-                            // Sanity: CBBI should be between 0 and 1 (or 0-100 raw, but we multiply by 100 later)
-                            // If value is > 100, it's likely price data, ignore
-                            if (latestValue >= 0 && latestValue <= 100) {
-                                cbbiRaw = latestValue;
-                                console.log(`Using timestamp ${latestTimestamp} value: ${latestValue}`);
-                            } else {
-                                console.warn(`Timestamp value ${latestValue} is out of expected CBBI range (0-100), ignoring.`);
-                            }
-                        }
-                    }
-                }
-
-                // If we got a valid raw value, convert to 0-100 score
-                if (cbbiRaw !== null && !isNaN(cbbiRaw)) {
-                    // CBBI can be either decimal (0-1) or already 0-100. Detect.
-                    let cbbiScore;
-                    if (cbbiRaw >= 0 && cbbiRaw <= 1) {
-                        cbbiScore = Math.round(cbbiRaw * 100);
-                    } else if (cbbiRaw >= 0 && cbbiRaw <= 100) {
-                        cbbiScore = Math.round(cbbiRaw);
+                if (confidenceData) {
+                    // Get all numeric timestamps
+                    const timestamps = Object.keys(confidenceData).map(Number).filter(k => !isNaN(k));
+                    if (timestamps.length === 0) throw new Error("No numeric timestamps in Confidence block");
+                    const latestTimestamp = Math.max(...timestamps);
+                    const latestValue = confidenceData[latestTimestamp];
+                    if (typeof latestValue === 'number' && !isNaN(latestValue)) {
+                        // Confidence values are typically between 0 and 1
+                        const cbbiScore = Math.round(latestValue * 100);
+                        cbbiSpan.innerText = cbbiScore;
+                        cbbiScoreSpan.innerText = `(score: ${cbbiScore})`;
+                        localStorage.setItem("cbbiValue", cbbiScore);
+                        console.log(`CBBI fetched from Confidence block: ${cbbiScore} (raw ${latestValue})`);
+                        return;
                     } else {
-                        throw new Error(`Value ${cbbiRaw} not in expected range (0-1 or 0-100)`);
+                        throw new Error(`Invalid value in Confidence: ${latestValue}`);
                     }
-                    cbbiSpan.innerText = cbbiScore;
-                    cbbiScoreSpan.innerText = `(score: ${cbbiScore})`;
-                    localStorage.setItem("cbbiValue", cbbiScore);
-                    console.log(`CBBI set to ${cbbiScore} (raw ${cbbiRaw})`);
-                    return;
                 }
 
-                throw new Error("No valid CBBI value found in JSON");
+                // Fallback: if no Confidence block, try other common keys (like "cbbi" or "value")
+                const fallbackKeys = ["cbbi", "value", "index"];
+                for (let key of fallbackKeys) {
+                    if (data[key] !== undefined && typeof data[key] === 'number') {
+                        let raw = data[key];
+                        let score;
+                        if (raw >= 0 && raw <= 1) score = Math.round(raw * 100);
+                        else if (raw >= 0 && raw <= 100) score = Math.round(raw);
+                        else continue;
+                        cbbiSpan.innerText = score;
+                        cbbiScoreSpan.innerText = `(score: ${score})`;
+                        localStorage.setItem("cbbiValue", score);
+                        console.log(`CBBI fetched from key "${key}": ${score} (raw ${raw})`);
+                        return;
+                    }
+                }
+
+                throw new Error("No Confidence block or valid CBBI key found in JSON");
             } catch (err) {
                 console.warn("CBBI fetch failed:", err.message);
-                // Fallback: use cached value only if it's reasonable (between 0 and 100)
                 const cached = localStorage.getItem("cbbiValue");
                 const cachedNum = parseInt(cached, 10);
                 if (cached && !isNaN(cachedNum) && cachedNum >= 0 && cachedNum <= 100) {
@@ -764,7 +741,6 @@
                     cbbiScoreSpan.innerText = `(score: ${cached})`;
                     console.warn("Using cached CBBI value:", cached);
                 } else {
-                    // Default to neutral 50
                     cbbiSpan.innerText = "50";
                     cbbiScoreSpan.innerText = "(score: 50)";
                     console.warn("No valid CBBI data, using default 50");
@@ -1393,7 +1369,7 @@
             window._financeRank = await fetchCoinbaseRank();
             window._dominance = await fetchBTCDominance();
             await fetchFearGreed();
-            await fetchCBBI();   // Improved version
+            await fetchCBBI();   // Now targets Confidence block
             await fetchGoogleTrends();
             
             await updateSummary();
