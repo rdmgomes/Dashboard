@@ -543,12 +543,11 @@
                         });
                         const top10 = filtered.slice(0, 10);
                         if (top10.length === 0) throw new Error("No coins from CoinPaprika");
-                        // CoinPaprika doesn't provide image in this endpoint, use placeholder
                         return top10.map(coin => ({
                             symbol: coin.symbol.toUpperCase(),
                             price: coin.quotes.USD.price,
                             change24h: coin.quotes.USD.percent_change_24h,
-                            image: "https://www.coinpaprika.com/coin/" + coin.id + "/logo.png" // fallback
+                            image: "https://www.coinpaprika.com/coin/" + coin.id + "/logo.png"
                         }));
                     }
                 } catch (err) {
@@ -786,58 +785,53 @@
             return (idx / 7) * 100;
         }
 
-        // --- Fetch Google Trends score for Bitcoin ---
+        // --- Fetch Google Trends score for Bitcoin (scrape page data) ---
         async function fetchGoogleTrends() {
-            // Use a reliable proxy to fetch the Google Trends widget JSON
-            const widgetUrl = "https://trends.google.com/trends/api/widgetdata/multiline?req=%7B%22comparisonItem%22%3A%5B%7B%22keyword%22%3A%22bitcoin%22%2C%22geo%22%3A%22%22%2C%22time%22%3A%22today%205-y%22%7D%5D%2C%22category%22%3A0%2C%22property%22%3A%22%22%7D&tz=0";
-            const fallbackUrl = "https://trends.google.com/trends/explore?date=today%205-y&q=bitcoin";
-            let success = false;
+            const url = "https://trends.google.com/trends/explore?date=today%205-y&q=bitcoin";
             let score = null;
 
-            // Try to get the widget data (JSON)
             for (const proxy of PROXIES) {
                 try {
-                    const text = await fetchWithProxy(widgetUrl, proxy);
-                    // Google Trends returns a JSONP-like response: )]}',\n{...}
-                    const jsonStart = text.indexOf('{');
-                    if (jsonStart !== -1) {
-                        const jsonStr = text.substring(jsonStart);
-                        const data = JSON.parse(jsonStr);
-                        if (data.default && data.default.timelineData && data.default.timelineData.length > 0) {
-                            // Get the last value (most recent)
-                            const lastPoint = data.default.timelineData[data.default.timelineData.length - 1];
-                            const value = lastPoint.value[0];
-                            if (value !== undefined && value !== null) {
-                                score = value;
-                                success = true;
+                    const html = await fetchWithProxy(url, proxy);
+                    // Look for the data embedded in the page
+                    const match = html.match(/window\.INITIAL_DATA\s*=\s*({.+?});/);
+                    if (match) {
+                        const data = JSON.parse(match[1]);
+                        // The structure varies; we need to find the timeline data
+                        if (data.widgets && data.widgets[0] && data.widgets[0].data && data.widgets[0].data.timelineData) {
+                            const timeline = data.widgets[0].data.timelineData;
+                            const last = timeline[timeline.length - 1];
+                            if (last && last.value && last.value[0] !== undefined) {
+                                score = last.value[0];
+                                break;
+                            }
+                        }
+                        // Alternative: look for a different structure
+                        if (data.data && data.data.timelineData) {
+                            const timeline = data.data.timelineData;
+                            const last = timeline[timeline.length - 1];
+                            if (last && last.value && last.value[0] !== undefined) {
+                                score = last.value[0];
                                 break;
                             }
                         }
                     }
-                } catch (err) {
-                    console.warn(`Failed to fetch Google Trends widget via ${proxy}:`, err.message);
-                }
-            }
-
-            if (!success) {
-                // Fallback: try to scrape the page for the chart data (simpler, but may be blocked)
-                for (const proxy of PROXIES) {
-                    try {
-                        const html = await fetchWithProxy(fallbackUrl, proxy);
-                        // Look for the first number that looks like an interest score in the JSON data
-                        const match = html.match(/"value":\[(\d+)\]/);
-                        if (match) {
-                            score = parseInt(match[1], 10);
-                            success = true;
+                    // If no structured data, try a regex for the chart JSON
+                    const chartMatch = html.match(/"timelineData":\s*(\[.*?\]),/s);
+                    if (chartMatch) {
+                        const timelineData = JSON.parse(chartMatch[1]);
+                        const last = timelineData[timelineData.length - 1];
+                        if (last && last.value && last.value[0] !== undefined) {
+                            score = last.value[0];
                             break;
                         }
-                    } catch (err) {
-                        console.warn(`Failed to scrape Google Trends page via ${proxy}:`, err.message);
                     }
+                } catch (err) {
+                    console.warn(`Failed to scrape Google Trends via ${proxy}:`, err.message);
                 }
             }
 
-            if (success && score !== null) {
+            if (score !== null && !isNaN(score)) {
                 trendScoreSpan.innerText = score;
                 trendSourceSpan.innerText = "Google Trends (auto)";
                 localStorage.setItem("searchTrendScore", score);
@@ -961,8 +955,8 @@
                 const DEFAULT_200W_MA = btcPrice ? btcPrice * 0.85 : 60700;
                 const DEFAULT_2Y_MA = btcPrice ? btcPrice * 1.22 : 87000;
                 const DEFAULT_2Y_MA_X5 = DEFAULT_2Y_MA * 5;
-                const DEFAULT_PI_SMA111 = btcPrice ? btcPrice * 0.9 : 64000; // rough placeholder
-                const DEFAULT_PI_SMA350x2 = btcPrice ? btcPrice * 2.2 : 150000; // rough
+                const DEFAULT_PI_SMA111 = btcPrice ? btcPrice * 0.9 : 64000;
+                const DEFAULT_PI_SMA350x2 = btcPrice ? btcPrice * 2.2 : 150000;
 
                 piSMA471Span.innerText = formatUSDNoDecimals(DEFAULT_PI_SMA);
                 piEMA150Span.innerText = formatUSDNoDecimals(DEFAULT_PI_EMA);
@@ -974,7 +968,6 @@
                 athDrawdownSpan.innerText = btcPrice ? ((btcPrice - 69000)/69000*100).toFixed(2) + "%" : "N/A";
                 dataSource = "static approximations";
 
-                // Use cached rainbow or fallback
                 const cachedRainbow = localStorage.getItem("rainbowClassification");
                 if (cachedRainbow) {
                     rainbowClassificationSpan.innerText = cachedRainbow;
@@ -1017,7 +1010,6 @@
                         console.warn(`Proxy ${proxy} failed:`, proxyErr.message);
                     }
                 }
-                // Fallback to cached values
                 const cachedAll = localStorage.getItem("coinbaseAllRank");
                 const cachedFinance = localStorage.getItem("coinbaseFinanceRank");
                 const cachedTime = localStorage.getItem("coinbaseRankTime");
@@ -1200,7 +1192,7 @@
             window._dominance = await fetchBTCDominance();
             await fetchFearGreed();
             await fetchCBBI();
-            await fetchGoogleTrends();  // automatically update trends
+            await fetchGoogleTrends();
             
             await updateSummary();
         }
