@@ -188,9 +188,10 @@
         }
         .footer-area {
             display: flex;
-            justify-content: space-between;
+            justify-content: flex-end;
             align-items: center;
             margin-top: 24px;
+            gap: 12px;
         }
         .glossary-btn {
             background: #331e0e;
@@ -222,7 +223,7 @@
         @keyframes subtle-flicker { 0% { opacity: 0.99; } 100% { opacity: 1; } }
         .screen { animation: subtle-flicker 0.2s infinite; }
 
-        /* Modal styles (desert/orange) */
+        /* Modal styles */
         .modal {
             display: none;
             position: fixed;
@@ -232,7 +233,7 @@
             width: 100%;
             height: 100%;
             overflow: auto;
-            background-color: rgba(0,0,0,0.8);
+            background-color: rgba(0,0,0,0.7);
         }
         .modal-content {
             background-color: #2a1a0c;
@@ -357,12 +358,12 @@
             <div class="indicator-card"><label>📉 ATH DRAWDOWN</label><div><span id="athDrawdown">--</span> <span style="font-size:1rem;">(%)</span></div><div class="small-note" id="athSource">From CSV (ATH)</div><div class="small-note">Source: CSV</div></div>
         </div>
 
-        <!-- Footer: glossary button left, auto-refresh message right -->
+        <!-- Footer area: glossary button and auto-refresh message on the right -->
         <div class="footer-area">
-            <div class="glossary-btn" id="glossaryBtn">ℹ️</div>
             <div class="footer-note" id="dataSourceFooter">
                 ⟳ AUTO-REFRESH EVERY 15 MIN  |  DATA: <span id="dataSourceText">—</span>
             </div>
+            <div class="glossary-btn" id="glossaryBtn">ℹ️</div>
         </div>
     </div>
 </div>
@@ -1080,7 +1081,7 @@
             }
         }
 
-        // --- Summary score calculation with weighted average ---
+        // --- Summary score calculation (including new indicators) ---
         async function updateSummary() {
             let btcPrice = window._btcPrice;
             let wma200 = window._wma200;
@@ -1096,62 +1097,29 @@
             let fng = parseFloat(fngSpan.innerText);
             let cbbi = parseFloat(cbbiSpan.innerText);
             let trend = parseFloat(trendScoreSpan.innerText);
-            let drawdown = parseFloat(athDrawdownSpan.innerText);
 
             if (btcPrice === undefined || wma200 === undefined || ma2y === undefined || ma2y5 === undefined ||
                 piSMA === undefined || piEMA === undefined || piSMA111 === undefined || piSMA350x2 === undefined ||
-                rainbow === undefined || dominance === undefined || financeRank === undefined || isNaN(trend) || isNaN(drawdown)) {
+                rainbow === undefined || dominance === undefined || financeRank === undefined || isNaN(trend)) {
                 console.warn("Summary values not ready");
                 return;
             }
 
-            // Weights as given (sum = 115)
-            const weights = {
-                fng: 10,
-                cbbi: 10,
-                wma: 15,
-                y2ma: 15,
-                piBottom: 15,
-                piTop: 15,
-                coinbase: 5,
-                trends: 5,
-                dominance: 5,
-                rainbow: 10,
-                drawdown: 10
-            };
-            const totalWeight = weights.fng + weights.cbbi + weights.wma + weights.y2ma + weights.piBottom + weights.piTop +
-                                weights.coinbase + weights.trends + weights.dominance + weights.rainbow + weights.drawdown; // 115
-
-            const scores = {
-                fng: scoreFearGreed(fng),
-                cbbi: scoreCBBI(cbbi),
-                wma: score200WMA(btcPrice, wma200),
-                y2ma: score2YMA(btcPrice, ma2y, ma2y5),
-                piBottom: scorePiCycleBottom(piSMA, piEMA),
-                piTop: scorePiCycleTop(piSMA111, piSMA350x2),
-                coinbase: scoreCoinbase(financeRank),
-                trends: scoreSearchTrend(trend),
-                dominance: scoreDominance(dominance),
-                rainbow: scoreRainbow(rainbow),
-                drawdown: scoreSearchTrend(drawdown)  // drawdown is already a percentage 0-100? Actually drawdown is % negative or positive? We'll use the same 0-100 mapping: 0% drawdown = 0, larger drawdown (worse) = higher score? But we need a rule for drawdown. Currently score for drawdown is not defined; we'll map drawdown directly as a score (0% = 0, -50% = 50? Actually we want 0 = good? Let's assume ATH drawdown is worse when larger, so higher drawdown -> higher score. So we can use raw drawdown value (negative or positive? Usually drawdown is negative percentage; we'll take absolute and clamp to 0-100). Let's define: if drawdown <= -100% it's 100, if drawdown >= 0 it's 0. But drawdown is typically negative. We'll use absolute value up to 100. For now, let's use the raw absolute value of drawdown (positive) capped at 100. So scoreDrawdown = min(100, abs(drawdown)). Since drawdown is already negative, we can use -drawdown capped at 100.
-                drawdownScore = Math.min(100, Math.max(0, -drawdown))
-            };
-
-            const weightedSum = 
-                scores.fng * weights.fng +
-                scores.cbbi * weights.cbbi +
-                scores.wma * weights.wma +
-                scores.y2ma * weights.y2ma +
-                scores.piBottom * weights.piBottom +
-                scores.piTop * weights.piTop +
-                scores.coinbase * weights.coinbase +
-                scores.trends * weights.trends +
-                scores.dominance * weights.dominance +
-                scores.rainbow * weights.rainbow +
-                drawdownScore * weights.drawdown;
-            
-            const weightedAvg = weightedSum / totalWeight;
-            const score = Math.round(weightedAvg);
+            const scores = [
+                scoreFearGreed(fng),
+                scoreCBBI(cbbi),
+                score200WMA(btcPrice, wma200),
+                score2YMA(btcPrice, ma2y, ma2y5),
+                scorePiCycleBottom(piSMA, piEMA),
+                scorePiCycleTop(piSMA111, piSMA350x2),
+                scoreCoinbase(financeRank),
+                scoreDominance(dominance),
+                scoreRainbow(rainbow),
+                scoreSearchTrend(trend)
+            ];
+            const total = scores.reduce((a,b) => a + b, 0);
+            const avg = total / scores.length;
+            const score = Math.round(avg);
             summaryScoreSpan.innerText = score;
 
             if (score <= 50) {
