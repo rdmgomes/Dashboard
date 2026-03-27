@@ -1,0 +1,41 @@
+{
+  "weights": {
+    "fng": 10,
+    "cbbi": 10,
+    "wma": 15,
+    "y2ma": 15,
+    "piBottom": 15,
+    "piTop": 15,
+    "coinbase": 5,
+    "trends": 5,
+    "dominance": 5,
+    "rainbow": 10,
+    "drawdown": 10
+  },
+  "scoring": {
+    "fng": { "type": "raw" },
+    "cbbi": { "type": "raw" },
+    "wma": { "type": "ratio", "lower": 0.85, "upper": 2.20 },
+    "y2ma": { "type": "ratio", "lower": 0.6, "upper": 2.0 },
+    "piBottom": { "type": "ratio", "lower": 1.0, "upper": 2.0 },
+    "piTop": { "type": "ratio", "lower": 0.3333333333333333, "upper": 1.0 },
+    "coinbase": { "type": "inverse_linear", "min": 1, "max": 50 },
+    "trends": { "type": "linear", "min": 20, "max": 90 },
+    "dominance": { "type": "inverse_linear", "min": 40, "max": 66 },
+    "rainbow": {
+      "type": "categorical",
+      "categories": [
+        { "name": "Basically a Fire Sale", "score": 0 },
+        { "name": "BUY!", "score": 14 },
+        { "name": "Accumulate", "score": 28 },
+        { "name": "Still cheap", "score": 42 },
+        { "name": "HODL!", "score": 56 },
+        { "name": "Is this a bubble?", "score": 70 },
+        { "name": "FOMO intensifies", "score": 84 },
+        { "name": "Sell. Seriously, SELL!", "score": 100 },
+        { "name": "Maximum Bubble Territory", "score": 100 }
+      ]
+    },
+    "drawdown": { "type": "ratio", "lower": 0.30, "upper": 1.0 }
+  }
+}
