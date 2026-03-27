@@ -219,8 +219,6 @@
         }
         .refresh-btn { background: #331e0e; border: 1px solid #ffaa66; color: #ffaa66; font-family: monospace; font-size: 0.7rem; padding: 4px 12px; border-radius: 20px; cursor: pointer; transition: all 0.2s; }
         .refresh-btn:hover { background: #5e3a1f; text-shadow: 0 0 4px #ffaa66; }
-        .edit-btn { background: #331e0e; border: 1px solid #ffaa66; color: #ffaa66; font-family: monospace; font-size: 0.6rem; padding: 2px 8px; border-radius: 12px; cursor: pointer; margin-left: 8px; transition: all 0.2s; }
-        .edit-btn:hover { background: #5e3a1f; }
         @keyframes subtle-flicker { 0% { opacity: 0.99; } 100% { opacity: 1; } }
         .screen { animation: subtle-flicker 0.2s infinite; }
 
@@ -369,7 +367,7 @@
                 <div class="small-note" id="athSource">From CSV (ATH)</div>
             </div>
             <div class="indicator-card">
-                <label>🔍 BITCOIN SEARCH TREND <span class="edit-btn" id="editTrendBtn">✎</span></label>
+                <label>🔍 BITCOIN SEARCH TREND</label>
                 <div><span id="trendScore">--</span> <span style="font-size:1rem;">/ 100</span></div>
                 <div class="small-note" id="trendSource">—</div>
             </div>
@@ -431,6 +429,9 @@
             "usds"
         ]);
 
+        // --- SerpAPI configuration (your API key) ---
+        const SERPAPI_KEY = 'ce4b6816e4a12d169c44ddacca183171df991232e896db58c1d8253834e5519b';
+
         // DOM elements
         const updateTimestampSpan = document.getElementById("updateTimestamp");
         const tickerPrimaryDiv = document.getElementById("tickerContentPrimary");
@@ -471,7 +472,6 @@
         const athDrawdownSpan = document.getElementById("athDrawdown");
         const trendScoreSpan = document.getElementById("trendScore");
         const trendSourceSpan = document.getElementById("trendSource");
-        const editTrendBtn = document.getElementById("editTrendBtn");
 
         // Modal elements
         const modal = document.getElementById("glossaryModal");
@@ -785,30 +785,40 @@
             return (idx / 7) * 100;
         }
 
-        // --- Manual update for search trend (replaces automatic) ---
-        function updateSearchTrend() {
-            const current = localStorage.getItem("searchTrendScore") || "";
-            const newVal = prompt("Enter current Bitcoin Google Trends score (0-100):", current);
-            if (newVal !== null && !isNaN(parseFloat(newVal))) {
-                const val = Math.min(100, Math.max(0, parseFloat(newVal)));
-                trendScoreSpan.innerText = Math.round(val);
-                trendSourceSpan.innerText = "manual";
-                localStorage.setItem("searchTrendScore", val);
-            } else if (newVal !== null) {
-                alert("Please enter a number between 0 and 100.");
+        // --- Fetch Google Trends score using SerpAPI (automatic) ---
+        async function fetchGoogleTrends() {
+            const url = `https://serpapi.com/search?engine=google_trends&q=bitcoin&data_type=TIMESERIES&date=today%205-y&api_key=${SERPAPI_KEY}`;
+            try {
+                const response = await fetch(url);
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                const data = await response.json();
+                if (data.interest_over_time && data.interest_over_time.timeline_data) {
+                    const timeline = data.interest_over_time.timeline_data;
+                    // The last entry is the most recent
+                    const last = timeline[timeline.length - 1];
+                    if (last && last.values && last.values[0] && last.values[0].value !== undefined) {
+                        const score = parseInt(last.values[0].value, 10);
+                        if (!isNaN(score)) {
+                            trendScoreSpan.innerText = score;
+                            trendSourceSpan.innerText = "Google Trends (SerpAPI)";
+                            localStorage.setItem("searchTrendScore", score);
+                            return;
+                        }
+                    }
+                }
+                throw new Error("No valid data in response");
+            } catch (err) {
+                console.warn("SerpAPI fetch failed:", err.message);
+                // Fallback to cached value
+                const cached = localStorage.getItem("searchTrendScore");
+                if (cached !== null) {
+                    trendScoreSpan.innerText = Math.round(parseFloat(cached));
+                    trendSourceSpan.innerText = "cached";
+                } else {
+                    trendScoreSpan.innerText = "--";
+                    trendSourceSpan.innerText = "offline";
+                }
             }
-        }
-
-        editTrendBtn.addEventListener("click", updateSearchTrend);
-
-        // Load stored trend score
-        const storedTrend = localStorage.getItem("searchTrendScore");
-        if (storedTrend !== null) {
-            trendScoreSpan.innerText = Math.round(parseFloat(storedTrend));
-            trendSourceSpan.innerText = "manual";
-        } else {
-            trendScoreSpan.innerText = "--";
-            trendSourceSpan.innerText = "click ✎ to set";
         }
 
         // --- Bitcoin indicators: CSV first, then CryptoCompare, then static ---
@@ -1146,6 +1156,7 @@
             window._dominance = await fetchBTCDominance();
             await fetchFearGreed();
             await fetchCBBI();
+            await fetchGoogleTrends();
             
             await updateSummary();
         }
