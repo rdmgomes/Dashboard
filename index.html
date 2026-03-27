@@ -354,7 +354,7 @@
                 <div class="small-note" id="rainbowSource">—</div>
                 <div class="small-note">Source: CSV</div>
             </div>
-            <div class="indicator-card"><label>📊 CBBI INDEX</label><span id="cbbiValue">--.--</span> <span id="cbbiScore" class="score-badge">(score: --)</span><div class="small-note">Crypto Bitcoin Bull Run Index</div><div class="small-note">Source: static (33)</div></div>
+            <div class="indicator-card"><label>📊 CBBI INDEX</label><span id="cbbiValue">--</span> <span id="cbbiScore" class="score-badge">(score: --)</span><div class="small-note">Crypto Bitcoin Bull Run Index</div><div class="small-note">Source: colintalkscrypto.com</div></div>
             <div class="indicator-card"><label>⛓️ BTC 200W MA</label><span id="btc200wma">--</span> <span id="wmaScore" class="score-badge">(score: --)</span><div class="small-note">200 Week Moving Average</div><div class="small-note">Source: CSV</div></div>
             <div class="indicator-card"><label>📈 2Y MA MULTIPLIER</label><span id="twoYMA">--</span><span style="font-size:1rem;"> / </span><span id="twoYMAX5">--</span> <span id="y2maScore" class="score-badge">(score: --)</span><div class="small-note">2Y MA  |  2Y MA x5</div><div class="small-note">Source: CSV</div></div>
             <div class="indicator-card"><label>🌀 PI CYCLE BOTTOM</label><span id="piSMA471">--</span><span style="font-size:1rem;"> (471d SMA) </span><br/><span id="piEMA150">--</span><span style="font-size:1rem;"> (150d EMA) </span> <span id="piBottomScore" class="score-badge">(score: --)</span><div class="small-note">Bitcoin bottom indicators</div><div class="small-note">Source: CSV</div></div>
@@ -641,10 +641,45 @@
             }
         }
 
-        // --- CBBI: static 33 (correct value) ---
+        // --- CBBI: fetch live from colintalkscrypto.com ---
         async function fetchCBBI() {
-            cbbiSpan.innerText = "33";
-            cbbiScoreSpan.innerText = "(score: 33)";
+            const url = "https://colintalkscrypto.com/cbbi/index.html";
+            let cbbiValue = null;
+            for (const proxy of PROXIES) {
+                try {
+                    const html = await fetchWithProxy(url, proxy);
+                    // Look for <h1 class="title confidence-score-value">... number ...</h1>
+                    const match = html.match(/<h1[^>]*class="[^"]*confidence-score-value[^"]*"[^>]*>\s*#?\s*(\d+)\s*<\/h1>/i);
+                    if (match && match[1]) {
+                        cbbiValue = parseInt(match[1], 10);
+                        if (!isNaN(cbbiValue)) break;
+                    }
+                    // Fallback: look for "# 33" pattern
+                    const fallbackMatch = html.match(/#\s*(\d+)/);
+                    if (fallbackMatch && fallbackMatch[1]) {
+                        cbbiValue = parseInt(fallbackMatch[1], 10);
+                        if (!isNaN(cbbiValue)) break;
+                    }
+                } catch (err) {
+                    console.warn(`CBBI fetch via ${proxy} failed:`, err.message);
+                }
+            }
+
+            if (cbbiValue !== null && !isNaN(cbbiValue)) {
+                cbbiSpan.innerText = cbbiValue;
+                cbbiScoreSpan.innerText = `(score: ${cbbiValue})`;
+                localStorage.setItem("cbbiValue", cbbiValue);
+            } else {
+                // Fallback to cached or static 33
+                const cached = localStorage.getItem("cbbiValue");
+                if (cached) {
+                    cbbiSpan.innerText = cached;
+                    cbbiScoreSpan.innerText = `(score: ${cached})`;
+                } else {
+                    cbbiSpan.innerText = "33";
+                    cbbiScoreSpan.innerText = "(score: 33)";
+                }
+            }
         }
 
         // --- Load CSV file and extract prices and latest date ---
