@@ -6,7 +6,6 @@
     <title>RETRO CRYPTO TERMINAL • 1980s MONITOR</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <style>
-        /* (Same as previous, no changes needed) */
         * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
         body { background: #000000; min-height: 100vh; display: flex; justify-content: center; align-items: center; padding: 24px; font-family: 'Courier New', 'VT323', 'IBM EGA', 'Fira Code', monospace; }
         .crt { max-width: 1400px; width: 100%; background: #1a0f06; border-radius: 28px 28px 32px 32px; padding: 24px 28px 32px 28px; box-shadow: 0 0 0 4px #b87c4f, 0 0 0 8px #5e3a1f, 0 10px 30px rgba(255,140,0,0.2); border-bottom: 6px solid #c47c3e; }
@@ -651,14 +650,17 @@
                     const html = await fetchWithProxy(url, proxy);
                     // Remove HTML tags to get plain text
                     const plainText = html.replace(/<[^>]*>/g, ' ');
-                    // Look for the confidence phrase (case-insensitive) and capture the next number that is not 0,50,100
+                    // Look for the confidence phrase and capture the number
                     const confidenceMatch = plainText.match(/CONFIDENCE\s+WE\s+ARE\s+AT\s+THE\s+PEAK\s*:?\s*#?\s*(\d+)/i);
                     if (confidenceMatch && confidenceMatch[1]) {
                         let candidate = parseInt(confidenceMatch[1], 10);
+                        // Exclude scale numbers (0, 50, 100) but keep others
                         if (candidate !== 0 && candidate !== 50 && candidate !== 100 && candidate >= 1 && candidate <= 100) {
                             cbbiValue = candidate;
                             console.log("CBBI from confidence phrase:", candidate);
                             break;
+                        } else {
+                            console.log("Confidence phrase matched but candidate", candidate, "is a scale number, ignoring.");
                         }
                     }
                     // Fallback: look for the specific h1 element with class
@@ -671,18 +673,13 @@
                             break;
                         }
                     }
-                    // If still nothing, try to find any number after a hash that is not 0,50,100
-                    const hashMatches = plainText.match(/#\s*(\d+)/g);
-                    if (hashMatches) {
-                        for (let m of hashMatches) {
-                            let num = parseInt(m.match(/\d+/)[0], 10);
-                            if (num !== 0 && num !== 50 && num !== 100 && num >= 1 && num <= 100) {
-                                cbbiValue = num;
-                                console.log("CBBI from hash fallback:", num);
-                                break;
-                            }
-                        }
-                        if (cbbiValue) break;
+                    // If still nothing, print a snippet for debugging
+                    const confidenceIndex = plainText.toLowerCase().indexOf("confidence we are at the peak");
+                    if (confidenceIndex !== -1) {
+                        console.log("Confidence phrase found at index", confidenceIndex);
+                        console.log("Snippet:", plainText.substring(confidenceIndex, confidenceIndex + 100));
+                    } else {
+                        console.log("Confidence phrase not found in plain text");
                     }
                 } catch (err) {
                     console.warn(`CBBI fetch via ${proxy} failed:`, err.message);
