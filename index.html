@@ -218,6 +218,8 @@
         }
         .refresh-btn { background: #331e0e; border: 1px solid #ffaa66; color: #ffaa66; font-family: monospace; font-size: 0.7rem; padding: 4px 12px; border-radius: 20px; cursor: pointer; transition: all 0.2s; }
         .refresh-btn:hover { background: #5e3a1f; text-shadow: 0 0 4px #ffaa66; }
+        .edit-btn { background: #331e0e; border: 1px solid #ffaa66; color: #ffaa66; font-family: monospace; font-size: 0.6rem; padding: 2px 8px; border-radius: 12px; cursor: pointer; margin-left: 8px; transition: all 0.2s; }
+        .edit-btn:hover { background: #5e3a1f; }
         @keyframes subtle-flicker { 0% { opacity: 0.99; } 100% { opacity: 1; } }
         .screen { animation: subtle-flicker 0.2s infinite; }
 
@@ -331,7 +333,7 @@
                 <div class="small-note">Weighted average of all indicators</div>
             </div>
 
-            <!-- Other 8 cards -->
+            <!-- Existing 8 cards -->
             <div class="indicator-card"><label>😨 FEAR & GREED INDEX</label><span id="fngValue">--</span><div class="small-note" id="fngClassification">—</div></div>
             <div class="indicator-card"><label>📊 CBBI INDEX</label><span id="cbbiValue">--.--</span><div class="small-note">Crypto Bitcoin Bull Run Index</div></div>
             <div class="indicator-card"><label>⛓️ BTC 200W MA</label><span id="btc200wma">--</span><div class="small-note">200 Week Moving Average</div></div>
@@ -351,6 +353,24 @@
                 <label>🌈 BITCOIN RAINBOW CHART</label>
                 <div><span id="rainbowClassification">--</span></div>
                 <div class="small-note" id="rainbowSource">Calculated from CSV</div>
+            </div>
+
+            <!-- New cards -->
+            <div class="indicator-card">
+                <label>🔺 PI CYCLE TOP</label>
+                <div><span id="piSMA111">--</span> <span style="font-size:1rem;">(111d SMA)</span></div>
+                <div><span id="piSMA350x2">--</span> <span style="font-size:1rem;">(350d MA x 2)</span></div>
+                <div class="small-note">Bitcoin top indicators</div>
+            </div>
+            <div class="indicator-card">
+                <label>📉 ATH DRAWDOWN</label>
+                <div><span id="athDrawdown">--</span> <span style="font-size:1rem;">(%)</span></div>
+                <div class="small-note" id="athSource">From CSV (ATH)</div>
+            </div>
+            <div class="indicator-card">
+                <label>🔍 BITCOIN SEARCH TREND <span class="edit-btn" id="editTrendBtn">✎</span></label>
+                <div><span id="trendScore">--</span> <span style="font-size:1rem;">/ 100</span></div>
+                <div class="small-note" id="trendSource">Manual (Google Trends)</div>
             </div>
         </div>
         <div class="footer-note" id="dataSourceFooter">
@@ -443,6 +463,13 @@
         const fillRight = document.getElementById("fillRight");
         const scoreMarker = document.getElementById("scoreMarker");
         const tickMarks = document.getElementById("tickMarks");
+
+        // New elements
+        const piSMA111Span = document.getElementById("piSMA111");
+        const piSMA350x2Span = document.getElementById("piSMA350x2");
+        const athDrawdownSpan = document.getElementById("athDrawdown");
+        const trendScoreSpan = document.getElementById("trendScore");
+        const editTrendBtn = document.getElementById("editTrendBtn");
 
         // Modal elements
         const modal = document.getElementById("glossaryModal");
@@ -617,10 +644,11 @@
                             rows.sort((a,b) => new Date(a.date) - new Date(b.date));
                             const prices = rows.map(row => row.price);
                             const lastDate = rows[rows.length-1]?.date;
+                            const ath = Math.max(...prices);
                             if (prices.length < 1400) {
                                 reject(new Error(`Only ${prices.length} rows, need at least 1400`));
                             } else {
-                                resolve({ prices, lastDate });
+                                resolve({ prices, lastDate, ath });
                             }
                         },
                         error: (err) => reject(err)
@@ -692,22 +720,22 @@
             return "Maximum Bubble Territory";
         }
 
-        // --- Scoring functions (updated) ---
+        // --- Scoring functions (unchanged) ---
         function scoreFearGreed(value) { return parseFloat(value) || 0; }
         function scoreCBBI(value) { return parseFloat(value) || 0; }
         function score200WMA(btcPrice, wma200) {
             if (!btcPrice || !wma200) return 50;
             let ratio = btcPrice / wma200;
-            let lower = 0.85;   // 85% of 200W MA
-            let upper = 2.20;   // 220% of 200W MA
+            let lower = 0.85;
+            let upper = 2.20;
             if (ratio <= lower) return 0;
             if (ratio >= upper) return 100;
             return (ratio - lower) / (upper - lower) * 100;
         }
         function score2YMA(btcPrice, ma2y, ma2y5) {
             if (!btcPrice || !ma2y || !ma2y5) return 50;
-            let lowerBound = ma2y * 0.66;  // 66% of 2Y MA
-            let upperBound = ma2y5 * 1.5;   // 150% of (2Y MA x5)
+            let lowerBound = ma2y * 0.66;
+            let upperBound = ma2y5 * 1.5;
             if (btcPrice <= lowerBound) return 0;
             if (btcPrice >= upperBound) return 100;
             return (btcPrice - lowerBound) / (upperBound - lowerBound) * 100;
@@ -755,13 +783,15 @@
             let prices = null;
             let dataSource = "";
             let lastDate = "";
+            let ath = null;
 
             const csvData = await loadPricesFromCSV();
             if (csvData && csvData.prices && csvData.prices.length >= 1400) {
                 prices = csvData.prices;
                 lastDate = csvData.lastDate;
+                ath = csvData.ath;
                 dataSource = `CSV (${lastDate})`;
-                console.log(`Using CSV: ${prices.length} days, last date ${lastDate}`);
+                console.log(`Using CSV: ${prices.length} days, last date ${lastDate}, ATH: ${ath}`);
             } else {
                 // Fallback to CryptoCompare
                 try {
@@ -771,6 +801,7 @@
                     const data = await response.json();
                     if (data.Data && data.Data.Data) {
                         prices = data.Data.Data.map(d => d.close);
+                        ath = Math.max(...prices);
                         dataSource = "CryptoCompare (live)";
                         console.log(`Using CryptoCompare: ${prices.length} days`);
                     } else {
@@ -784,6 +815,7 @@
 
             let btcPrice = null;
             let sma200W = null, sma2Y = null, sma2Yx5 = null, piSMA = null, piEMA = null, rainbow = null;
+            let piSMA111 = null, piSMA350x2 = null;
             if (prices && prices.length >= 1400) {
                 const rawSMA471 = sma(prices, 471);
                 piSMA = rawSMA471 * 0.745;
@@ -793,13 +825,26 @@
                 sma2Yx5 = sma2Y * 5;
                 btcPrice = prices[prices.length - 1];
 
-                // Format without decimals for cards
+                // Pi Cycle Top
+                piSMA111 = sma(prices, 111);
+                const sma350 = sma(prices, 350);
+                piSMA350x2 = sma350 * 2;
+
+                // ATH Drawdown
+                let drawdown = ((btcPrice - ath) / ath) * 100;
+                athDrawdownSpan.innerText = drawdown.toFixed(2) + "%";
+
+                // Display Pi Cycle Top values
+                piSMA111Span.innerText = formatUSDNoDecimals(piSMA111);
+                piSMA350x2Span.innerText = formatUSDNoDecimals(piSMA350x2);
+
+                // Existing indicators
                 piSMA471Span.innerText = formatUSDNoDecimals(piSMA);
                 piEMA150Span.innerText = formatUSDNoDecimals(piEMA);
                 btc200wmaSpan.innerText = formatUSDNoDecimals(sma200W);
                 twoYMASpan.innerText = formatUSDNoDecimals(sma2Y);
                 twoYMAX5Span.innerText = formatUSDNoDecimals(sma2Yx5);
-                console.log("Indicators from historical data:", { piSMA, piEMA, sma200W, sma2Y, sma2Yx5, btcPrice });
+                console.log("Indicators from historical data:", { piSMA, piEMA, sma200W, sma2Y, sma2Yx5, btcPrice, piSMA111, piSMA350x2, drawdown });
 
                 // Rainbow
                 rainbow = computeRainbowFromPrices(prices);
@@ -831,12 +876,17 @@
                 const DEFAULT_200W_MA = btcPrice ? btcPrice * 0.85 : 60700;
                 const DEFAULT_2Y_MA = btcPrice ? btcPrice * 1.22 : 87000;
                 const DEFAULT_2Y_MA_X5 = DEFAULT_2Y_MA * 5;
+                const DEFAULT_PI_SMA111 = btcPrice ? btcPrice * 0.9 : 64000; // rough placeholder
+                const DEFAULT_PI_SMA350x2 = btcPrice ? btcPrice * 2.2 : 150000; // rough
 
                 piSMA471Span.innerText = formatUSDNoDecimals(DEFAULT_PI_SMA);
                 piEMA150Span.innerText = formatUSDNoDecimals(DEFAULT_PI_EMA);
                 btc200wmaSpan.innerText = formatUSDNoDecimals(DEFAULT_200W_MA);
                 twoYMASpan.innerText = formatUSDNoDecimals(DEFAULT_2Y_MA);
                 twoYMAX5Span.innerText = formatUSDNoDecimals(DEFAULT_2Y_MA_X5);
+                piSMA111Span.innerText = formatUSDNoDecimals(DEFAULT_PI_SMA111);
+                piSMA350x2Span.innerText = formatUSDNoDecimals(DEFAULT_PI_SMA350x2);
+                athDrawdownSpan.innerText = btcPrice ? ((btcPrice - 69000)/69000*100).toFixed(2) + "%" : "N/A";
                 dataSource = "static approximations";
 
                 // Use cached rainbow or fallback
@@ -978,7 +1028,7 @@
             }
         }
 
-        // --- Summary score calculation with marker at score position and tick marks ---
+        // --- Summary score calculation (unchanged) ---
         async function updateSummary() {
             let btcPrice = window._btcPrice;
             let wma200 = window._wma200;
@@ -1013,7 +1063,6 @@
             const score = Math.round(avg);
             summaryScoreSpan.innerText = score;
 
-            // Update center-expanding bar
             if (score <= 50) {
                 const leftPercent = ((50 - score) / 50) * 100;
                 fillLeft.style.width = leftPercent + "%";
@@ -1024,11 +1073,9 @@
                 fillRight.style.width = rightPercent + "%";
             }
 
-            // Update marker position
             const markerLeft = (score / 100) * 100;
             scoreMarker.style.left = markerLeft + "%";
 
-            // Draw tick marks every 10 points from 10 to 90
             tickMarks.innerHTML = "";
             for (let i = 10; i <= 90; i += 10) {
                 const tick = document.createElement("div");
@@ -1036,6 +1083,29 @@
                 tick.style.left = i + "%";
                 tickMarks.appendChild(tick);
             }
+        }
+
+        // --- Manual update for search trend ---
+        function updateSearchTrend() {
+            const current = localStorage.getItem("searchTrendScore") || "";
+            const newVal = prompt("Enter Bitcoin Google Trends score (0-100):", current);
+            if (newVal !== null && !isNaN(parseFloat(newVal))) {
+                const val = Math.min(100, Math.max(0, parseFloat(newVal)));
+                trendScoreSpan.innerText = Math.round(val);
+                localStorage.setItem("searchTrendScore", val);
+            } else if (newVal !== null) {
+                alert("Please enter a number between 0 and 100.");
+            }
+        }
+
+        editTrendBtn.addEventListener("click", updateSearchTrend);
+
+        // Load stored trend score
+        const storedTrend = localStorage.getItem("searchTrendScore");
+        if (storedTrend !== null) {
+            trendScoreSpan.innerText = Math.round(parseFloat(storedTrend));
+        } else {
+            trendScoreSpan.innerText = "--";
         }
 
         // --- Main refresh ---
