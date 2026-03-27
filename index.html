@@ -684,28 +684,24 @@
             for (const proxy of PROXIES) {
                 try {
                     const html = await fetchWithProxy(url, proxy);
-                    // Remove HTML tags to get plain text
-                    const plainText = html.replace(/<[^>]*>/g, ' ');
-                    // Look for the confidence phrase and capture the number
-                    const confidenceMatch = plainText.match(/CONFIDENCE\s+WE\s+ARE\s+AT\s+THE\s+PEAK\s*:?\s*#?\s*(\d+)/i);
-                    if (confidenceMatch && confidenceMatch[1]) {
-                        let candidate = parseInt(confidenceMatch[1], 10);
-                        // Exclude scale numbers (0, 50, 100) but keep others
-                        if (candidate !== 0 && candidate !== 50 && candidate !== 100 && candidate >= 1 && candidate <= 100) {
-                            cbbiValue = candidate;
-                            console.log("CBBI from confidence phrase:", candidate);
-                            break;
-                        } else {
-                            console.log("Confidence phrase matched but candidate", candidate, "is a scale number, ignoring.");
-                        }
-                    }
-                    // Fallback: look for the specific h1 element with class
-                    const tagMatch = html.match(/<h1[^>]*class="[^"]*confidence-score-value[^"]*"[^>]*>\s*#?\s*(\d+)\s*<\/h1>/i);
+                    // Look for the exact h1 tag with class "title confidence-score-value"
+                    const tagMatch = html.match(/<h1[^>]*class="[^"]*confidence-score-value[^"]*"[^>]*>\s*(\d+)\s*<\/h1>/i);
                     if (tagMatch && tagMatch[1]) {
                         let candidate = parseInt(tagMatch[1], 10);
                         if (candidate !== 0 && candidate !== 50 && candidate !== 100 && candidate >= 1 && candidate <= 100) {
                             cbbiValue = candidate;
                             console.log("CBBI from h1 tag:", candidate);
+                            break;
+                        }
+                    }
+                    // Fallback: look for the confidence phrase
+                    const plainText = html.replace(/<[^>]*>/g, ' ');
+                    const confidenceMatch = plainText.match(/CONFIDENCE\s+WE\s+ARE\s+AT\s+THE\s+PEAK\s*:?\s*#?\s*(\d+)/i);
+                    if (confidenceMatch && confidenceMatch[1]) {
+                        let candidate = parseInt(confidenceMatch[1], 10);
+                        if (candidate !== 0 && candidate !== 50 && candidate !== 100 && candidate >= 1 && candidate <= 100) {
+                            cbbiValue = candidate;
+                            console.log("CBBI from confidence phrase:", candidate);
                             break;
                         }
                     }
