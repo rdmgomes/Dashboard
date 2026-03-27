@@ -6,7 +6,6 @@
     <title>3Amigos Bitcoin Cycle Dashboard</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <style>
-        /* (all styles from previous version – unchanged) */
         * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
         body { background: #000000; min-height: 100vh; display: flex; justify-content: center; align-items: center; padding: 24px; font-family: 'Courier New', 'VT323', 'IBM EGA', 'Fira Code', monospace; }
         .crt { max-width: 1400px; width: 100%; background: #1a0f06; border-radius: 28px 28px 32px 32px; padding: 24px 28px 32px 28px; box-shadow: 0 0 0 4px #b87c4f, 0 0 0 8px #5e3a1f, 0 10px 30px rgba(255,140,0,0.2); border-bottom: 6px solid #c47c3e; }
@@ -68,6 +67,7 @@
         .weights-section h3 { color: #e69854; font-size: 1.2rem; margin-bottom: 10px; }
         .weights-list { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 20px; font-size: 0.85rem; }
         .weights-list span { color: #ffcc88; }
+        .config-note { font-size: 0.7rem; margin-top: 10px; text-align: center; color: #b87c4f; }
     </style>
 </head>
 <body>
@@ -140,7 +140,8 @@
         <div class="footer-area">
             <div class="glossary-btn" id="glossaryBtn">ℹ️</div>
             <div class="footer-note" id="dataSourceFooter">
-                ⟳ AUTO-REFRESH EVERY 15 MIN  |  DATA: <span id="dataSourceText">—</span>
+                ⟳ AUTO-REFRESH EVERY 15 MIN  |  DATA: <span id="dataSourceText">—</span><br>
+                <span id="configStatus" style="font-size:0.6rem; color:#b87c4f;"></span>
             </div>
         </div>
     </div>
@@ -149,127 +150,112 @@
     <div class="modal-content">
         <span class="close">&times;</span>
         <div id="glossaryContent">Loading...</div>
+        <div class="config-note">Scoring rules can be customized by placing a config.json file in the same folder.</div>
     </div>
 </div>
 
 <script>
     (function() {
         const REFRESH_INTERVAL_MS = 15 * 60 * 1000;
-        const STABLE_COINS = new Set([
-            "usdt", "usdc", "dai", "busd", "tusd", "ust", "usdd", "frax", "eurs", 
-            "paxg", "gusd", "usdp", "pyusd", "cdai", "lusd", "sUSD", "mim", "alUSD",
-            "usds"
-        ]);
-
-        // --- SerpAPI configuration ---
+        const STABLE_COINS = new Set(["usdt","usdc","dai","busd","tusd","ust","usdd","frax","eurs","paxg","gusd","usdp","pyusd","cdai","lusd","sUSD","mim","alUSD","usds"]);
         const SERPAPI_KEY = 'ce4b6816e4a12d169c44ddacca183171df991232e896db58c1d8253834e5519b';
+        const PROXIES = ["https://corsproxy.io/","https://api.allorigins.win/raw?url=","https://cors-anywhere.herokuapp.com/","https://thingproxy.freeboard.io/fetch/"];
 
-        // --- PROXIES ---
-        const PROXIES = [
-            "https://corsproxy.io/",
-            "https://api.allorigins.win/raw?url=",
-            "https://cors-anywhere.herokuapp.com/",
-            "https://thingproxy.freeboard.io/fetch/"
-        ];
-
-        // ==================== DOM ELEMENTS ====================
-        const updateTimestampSpan = document.getElementById("updateTimestamp");
-        const tickerPrimaryDiv = document.getElementById("tickerContentPrimary");
-        const tickerDuplicateDiv = document.getElementById("tickerContentDuplicate");
-        const tickerTrack = document.getElementById("tickerTrack");
-        const manualRefreshBtn = document.getElementById("manualRefresh");
-
-        const fngSpan = document.getElementById("fngValue");
-        const fngClassSpan = document.getElementById("fngClassification");
-        const fngScoreSpan = document.getElementById("fngScore");
-        const cbbiSpan = document.getElementById("cbbiValue");
-        const cbbiScoreSpan = document.getElementById("cbbiScore");
-        const btc200wmaSpan = document.getElementById("btc200wma");
-        const wmaScoreSpan = document.getElementById("wmaScore");
-        const twoYMASpan = document.getElementById("twoYMA");
-        const twoYMAX5Span = document.getElementById("twoYMAX5");
-        const y2maScoreSpan = document.getElementById("y2maScore");
-        const piSMA471Span = document.getElementById("piSMA471");
-        const piEMA150Span = document.getElementById("piEMA150");
-        const piBottomScoreSpan = document.getElementById("piBottomScore");
-        const piSMA111Span = document.getElementById("piSMA111");
-        const piSMA350x2Span = document.getElementById("piSMA350x2");
-        const piTopScoreSpan = document.getElementById("piTopScore");
-        const coinbaseAllRankSpan = document.getElementById("coinbaseAllRank");
-        const coinbaseFinanceRankSpan = document.getElementById("coinbaseFinanceRank");
-        const coinbaseRankTimeSpan = document.getElementById("coinbaseRankTime");
-        const coinbaseScoreSpan = document.getElementById("coinbaseScore");
-        const btcDominanceSpan = document.getElementById("btcDominance");
-        const dominanceSourceSpan = document.getElementById("dominanceSource");
-        const dominanceScoreSpan = document.getElementById("dominanceScore");
-        const rainbowClassificationSpan = document.getElementById("rainbowClassification");
-        const rainbowSourceSpan = document.getElementById("rainbowSource");
-        const rainbowScoreSpan = document.getElementById("rainbowScore");
-        const dataSourceTextSpan = document.getElementById("dataSourceText");
-        const trendScoreSpan = document.getElementById("trendScore");
-        const trendSourceSpan = document.getElementById("trendSource");
-        const trendScoreValSpan = document.getElementById("trendScoreVal");
-        const athDrawdownSpan = document.getElementById("athDrawdown");
-        const drawdownScoreSpan = document.getElementById("drawdownScore");
-
-        const summaryScoreSpan = document.getElementById("summaryScore");
-        const fillLeft = document.getElementById("fillLeft");
-        const fillRight = document.getElementById("fillRight");
-        const scoreMarker = document.getElementById("scoreMarker");
-        const tickMarks = document.getElementById("tickMarks");
+        // DOM elements
+        const elements = {
+            updateTimestamp: document.getElementById("updateTimestamp"),
+            tickerPrimary: document.getElementById("tickerContentPrimary"),
+            tickerDuplicate: document.getElementById("tickerContentDuplicate"),
+            tickerTrack: document.getElementById("tickerTrack"),
+            manualRefresh: document.getElementById("manualRefresh"),
+            fngValue: document.getElementById("fngValue"),
+            fngClassification: document.getElementById("fngClassification"),
+            fngScore: document.getElementById("fngScore"),
+            cbbiValue: document.getElementById("cbbiValue"),
+            cbbiScore: document.getElementById("cbbiScore"),
+            btc200wma: document.getElementById("btc200wma"),
+            wmaScore: document.getElementById("wmaScore"),
+            twoYMA: document.getElementById("twoYMA"),
+            twoYMAX5: document.getElementById("twoYMAX5"),
+            y2maScore: document.getElementById("y2maScore"),
+            piSMA471: document.getElementById("piSMA471"),
+            piEMA150: document.getElementById("piEMA150"),
+            piBottomScore: document.getElementById("piBottomScore"),
+            piSMA111: document.getElementById("piSMA111"),
+            piSMA350x2: document.getElementById("piSMA350x2"),
+            piTopScore: document.getElementById("piTopScore"),
+            coinbaseAllRank: document.getElementById("coinbaseAllRank"),
+            coinbaseFinanceRank: document.getElementById("coinbaseFinanceRank"),
+            coinbaseRankTime: document.getElementById("coinbaseRankTime"),
+            coinbaseScore: document.getElementById("coinbaseScore"),
+            btcDominance: document.getElementById("btcDominance"),
+            dominanceSource: document.getElementById("dominanceSource"),
+            dominanceScore: document.getElementById("dominanceScore"),
+            rainbowClassification: document.getElementById("rainbowClassification"),
+            rainbowSource: document.getElementById("rainbowSource"),
+            rainbowScore: document.getElementById("rainbowScore"),
+            dataSourceText: document.getElementById("dataSourceText"),
+            trendScore: document.getElementById("trendScore"),
+            trendSource: document.getElementById("trendSource"),
+            trendScoreVal: document.getElementById("trendScoreVal"),
+            athDrawdown: document.getElementById("athDrawdown"),
+            drawdownScore: document.getElementById("drawdownScore"),
+            summaryScore: document.getElementById("summaryScore"),
+            fillLeft: document.getElementById("fillLeft"),
+            fillRight: document.getElementById("fillRight"),
+            scoreMarker: document.getElementById("scoreMarker"),
+            tickMarks: document.getElementById("tickMarks"),
+            configStatus: document.getElementById("configStatus")
+        };
 
         // Modal
         const modal = document.getElementById("glossaryModal");
-        const btn = document.getElementById("glossaryBtn");
-        const spanClose = document.getElementsByClassName("close")[0];
-        btn.onclick = function() { modal.style.display = "block"; }
-        spanClose.onclick = function() { modal.style.display = "none"; }
-        window.onclick = function(event) { if (event.target == modal) modal.style.display = "none"; }
+        const glossaryBtn = document.getElementById("glossaryBtn");
+        const closeSpan = document.querySelector(".close");
+        glossaryBtn.onclick = () => modal.style.display = "block";
+        closeSpan.onclick = () => modal.style.display = "none";
+        window.onclick = e => { if (e.target == modal) modal.style.display = "none"; };
 
         // ==================== CONFIGURATION ====================
         const DEFAULT_CONFIG = {
             weights: {
-                fng: 10, cbbi: 10, wma: 15, y2ma: 15, piBottom: 15, piTop: 15,
-                coinbase: 5, trends: 5, dominance: 5, rainbow: 10, drawdown: 10
+                fng:10, cbbi:10, wma:15, y2ma:15, piBottom:15, piTop:15,
+                coinbase:5, trends:5, dominance:5, rainbow:10, drawdown:10
             },
             scoring: {
-                fng: { type: "raw" },
-                cbbi: { type: "raw" },
-                wma: { type: "ratio", lower: 0.85, upper: 2.20 },
-                y2ma: { type: "ratio", lower: 0.6, upper: 2.0 },
-                piBottom: { type: "ratio", lower: 1.0, upper: 2.0 },
-                piTop: { type: "ratio", lower: 1/3, upper: 1.0 },
-                coinbase: { type: "inverse_linear", min: 1, max: 50 },
-                trends: { type: "linear", min: 20, max: 90 },
-                dominance: { type: "inverse_linear", min: 40, max: 66 },
-                rainbow: { type: "categorical", categories: [
-                    { name: "Basically a Fire Sale", score: 0 },
-                    { name: "BUY!", score: 14 },
-                    { name: "Accumulate", score: 28 },
-                    { name: "Still cheap", score: 42 },
-                    { name: "HODL!", score: 56 },
-                    { name: "Is this a bubble?", score: 70 },
-                    { name: "FOMO intensifies", score: 84 },
-                    { name: "Sell. Seriously, SELL!", score: 100 },
-                    { name: "Maximum Bubble Territory", score: 100 }
-                ] },
-                drawdown: { type: "ratio", lower: 0.30, upper: 1.0 }
+                fng: { type:"raw" },
+                cbbi: { type:"raw" },
+                wma: { type:"ratio", lower:0.85, upper:2.20 },
+                y2ma: { type:"ratio", lower:0.6, upper:2.0 },
+                piBottom: { type:"ratio", lower:1.0, upper:2.0 },
+                piTop: { type:"ratio", lower:1/3, upper:1.0 },
+                coinbase: { type:"inverse_linear", min:1, max:50 },
+                trends: { type:"linear", min:20, max:90 },
+                dominance: { type:"inverse_linear", min:40, max:66 },
+                rainbow: {
+                    type:"categorical",
+                    categories: [
+                        { name:"Basically a Fire Sale", score:0 },
+                        { name:"BUY!", score:14 },
+                        { name:"Accumulate", score:28 },
+                        { name:"Still cheap", score:42 },
+                        { name:"HODL!", score:56 },
+                        { name:"Is this a bubble?", score:70 },
+                        { name:"FOMO intensifies", score:84 },
+                        { name:"Sell. Seriously, SELL!", score:100 },
+                        { name:"Maximum Bubble Territory", score:100 }
+                    ]
+                },
+                drawdown: { type:"ratio", lower:0.30, upper:1.0 }
             }
         };
-
         let config = { ...DEFAULT_CONFIG };
 
-        function linearScore(value, minVal, maxVal) {
-            if (value <= minVal) return 0;
-            if (value >= maxVal) return 100;
-            return ((value - minVal) / (maxVal - minVal)) * 100;
-        }
-        function inverseLinearScore(value, minVal, maxVal) {
-            if (value >= maxVal) return 0;
-            if (value <= minVal) return 100;
-            return ((maxVal - value) / (maxVal - minVal)) * 100;
-        }
-        function applyScoring(indicatorId, rawValue, extraParams = {}) {
+        // Scoring helpers
+        const linearScore = (v, min, max) => v<=min ? 0 : v>=max ? 100 : ((v-min)/(max-min))*100;
+        const inverseLinearScore = (v, min, max) => v>=max ? 0 : v<=min ? 100 : ((max-v)/(max-min))*100;
+
+        function applyScoring(indicatorId, rawValue, extra = {}) {
             const sc = config.scoring[indicatorId];
             if (!sc) return 50;
             switch (sc.type) {
@@ -277,24 +263,26 @@
                 case "linear": return linearScore(rawValue, sc.min, sc.max);
                 case "ratio": return linearScore(rawValue, sc.lower, sc.upper);
                 case "inverse_linear": return inverseLinearScore(rawValue, sc.min, sc.max);
-                case "categorical":
-                    const cat = sc.categories.find(c => c.name === (extraParams.category || rawValue));
+                case "categorical": {
+                    const cat = sc.categories.find(c => c.name === (extra.category || rawValue));
                     return cat ? cat.score : 50;
+                }
                 default: return 50;
             }
         }
 
-        function scoreFearGreed(v) { return applyScoring("fng", v); }
-        function scoreCBBI(v) { return applyScoring("cbbi", v); }
-        function score200WMA(price, ma) { if (!price || !ma) return 50; return applyScoring("wma", price / ma); }
-        function score2YMA(price, ma2y, ma2y5) { if (!price || !ma2y) return 50; return applyScoring("y2ma", price / ma2y); }
-        function scorePiCycleBottom(sma471, ema150) { if (!sma471 || !ema150) return 50; return applyScoring("piBottom", ema150 / sma471); }
-        function scorePiCycleTop(sma111, sma350x2) { if (!sma111 || !sma350x2) return 50; return applyScoring("piTop", sma111 / sma350x2); }
-        function scoreCoinbase(rank) { if (rank === undefined) return 50; return applyScoring("coinbase", rank); }
-        function scoreDominance(dom) { if (dom === undefined) return 50; return applyScoring("dominance", dom); }
-        function scoreRainbow(band) { return applyScoring("rainbow", band, { category: band }); }
-        function scoreSearchTrend(t) { if (t === undefined || isNaN(t)) return 50; return applyScoring("trends", t); }
-        function scoreDrawdown(price, ath) { if (!price || !ath) return 50; return applyScoring("drawdown", price / ath); }
+        // Wrapper scoring functions
+        const scoreFearGreed = v => applyScoring("fng", v);
+        const scoreCBBI = v => applyScoring("cbbi", v);
+        const score200WMA = (price, ma) => price && ma ? applyScoring("wma", price/ma) : 50;
+        const score2YMA = (price, ma2y) => price && ma2y ? applyScoring("y2ma", price/ma2y) : 50;
+        const scorePiCycleBottom = (sma471, ema150) => sma471 && ema150 ? applyScoring("piBottom", ema150/sma471) : 50;
+        const scorePiCycleTop = (sma111, sma350x2) => sma111 && sma350x2 ? applyScoring("piTop", sma111/sma350x2) : 50;
+        const scoreCoinbase = rank => rank !== undefined ? applyScoring("coinbase", rank) : 50;
+        const scoreDominance = dom => dom !== undefined ? applyScoring("dominance", dom) : 50;
+        const scoreRainbow = band => applyScoring("rainbow", band, { category: band });
+        const scoreSearchTrend = t => (t !== undefined && !isNaN(t)) ? applyScoring("trends", t) : 50;
+        const scoreDrawdown = (price, ath) => price && ath ? applyScoring("drawdown", price/ath) : 50;
 
         function loadConfig(cfg) {
             if (cfg.weights) config.weights = { ...DEFAULT_CONFIG.weights, ...cfg.weights };
@@ -302,19 +290,19 @@
             for (let k in config.scoring) if (!config.scoring[k].type) config.scoring[k].type = "raw";
             localStorage.setItem("customConfig", JSON.stringify({ weights: config.weights, scoring: config.scoring }));
             updateGlossaryContent();
-            console.log("Config loaded:", config);
+            elements.configStatus.innerText = "✓ Custom config loaded";
         }
 
         function updateGlossaryContent() {
             const container = document.getElementById("glossaryContent");
             if (!container) return;
-            let html = `<h2>KPI Scoring Criteria & Weights</h2><ul>`;
             const indicatorNames = {
-                fng: "Fear & Greed Index", cbbi: "CBBI Index", wma: "BTC 200‑Week MA",
-                y2ma: "2‑Year MA Multiplier", piBottom: "Pi Cycle Bottom", piTop: "Pi Cycle Top",
-                coinbase: "Coinbase App Rank", trends: "Bitcoin Search Trend",
-                dominance: "BTC Market Dominance", rainbow: "Bitcoin Rainbow Chart", drawdown: "ATH Drawdown"
+                fng:"Fear & Greed Index", cbbi:"CBBI Index", wma:"BTC 200‑Week MA",
+                y2ma:"2‑Year MA Multiplier", piBottom:"Pi Cycle Bottom", piTop:"Pi Cycle Top",
+                coinbase:"Coinbase App Rank", trends:"Bitcoin Search Trend",
+                dominance:"BTC Market Dominance", rainbow:"Bitcoin Rainbow Chart", drawdown:"ATH Drawdown"
             };
+            let html = `<h2>KPI Scoring Criteria & Weights</h2><ul>`;
             for (let id in config.scoring) {
                 const name = indicatorNames[id] || id.toUpperCase();
                 const weight = config.weights[id] || 0;
@@ -324,7 +312,7 @@
                 else if (sc.type === "linear") html += `linear from ${sc.min} (score 0) to ${sc.max} (score 100).`;
                 else if (sc.type === "ratio") html += `linear from ratio ${sc.lower} (score 0) to ${sc.upper} (score 100).`;
                 else if (sc.type === "inverse_linear") html += `inverse linear from ${sc.max} (score 0) to ${sc.min} (score 100).`;
-                else if (sc.type === "categorical") html += `categorical: ${sc.categories.map(c => `${c.name} → ${c.score}`).join(", ")}.`;
+                else if (sc.type === "categorical") html += `categorical mapping: ${sc.categories.map(c => `${c.name} → ${c.score}`).join(", ")}.`;
                 html += `</p></li>`;
             }
             html += `</ul><div class="weights-section"><h3>📊 Summary Score Weights</h3><div class="weights-list">`;
@@ -335,29 +323,13 @@
             container.innerHTML = html;
         }
 
-        // --- Helper functions (unchanged from original) ---
-        function formatUSD(value) {
-            if (value === undefined || value === null) return "$---";
-            if (value >= 1) return "$" + value.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
-            return "$" + value.toLocaleString(undefined, {minimumFractionDigits: 4, maximumFractionDigits: 6});
-        }
-        function formatUSDNoDecimals(value) {
-            if (value === undefined || value === null) return "$---";
-            return "$" + Math.round(value).toLocaleString();
-        }
-        function formatPercent(pct) {
-            if (pct === undefined || pct === null) return "--%";
-            let val = parseFloat(pct).toFixed(2);
-            return (pct >= 0 ? `+${val}` : `${val}`) + "%";
-        }
-        async function fetchWithProxy(url, proxy) {
-            const fullUrl = proxy + url;
-            const response = await fetch(fullUrl);
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
-            return await response.text();
-        }
+        // ==================== UTILITIES ====================
+        function formatUSD(v) { return v===undefined||v===null ? "$---" : (v>=1 ? "$"+v.toLocaleString(undefined,{minimumFractionDigits:2}) : "$"+v.toLocaleString(undefined,{minimumFractionDigits:4,maximumFractionDigits:6})); }
+        function formatUSDNoDecimals(v) { return v===undefined||v===null ? "$---" : "$"+Math.round(v).toLocaleString(); }
+        function formatPercent(p) { return p===undefined||p===null ? "--%" : (p>=0?`+${p.toFixed(2)}`: `${p.toFixed(2)}`)+"%"; }
+        async function fetchWithProxy(url, proxy) { const r = await fetch(proxy+url); if (!r.ok) throw new Error(`HTTP ${r.status}`); return await r.text(); }
 
-        // --- TOP 10 CRYPTO ---
+        // ==================== DATA FETCHERS ====================
         async function fetchTop10Crypto() {
             const urls = [
                 "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=150&page=1&sparkline=false&price_change_percentage=24h",
@@ -365,613 +337,396 @@
             ];
             for (const url of urls) {
                 try {
-                    let response = await fetch(url);
-                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-                    let data = await response.json();
+                    let res = await fetch(url);
+                    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                    let data = await res.json();
                     if (url.includes("coingecko")) {
-                        let filtered = data.filter(coin => !STABLE_COINS.has(coin.symbol.toLowerCase()));
-                        const top10 = filtered.slice(0, 10);
-                        if (top10.length === 0) throw new Error("No coins after filter");
-                        return top10.map(coin => ({
-                            symbol: coin.symbol.toUpperCase(),
-                            price: coin.current_price,
-                            change24h: coin.price_change_percentage_24h,
-                            image: coin.image
-                        }));
-                    } else if (url.includes("coinpaprika")) {
-                        let filtered = data.filter(coin => {
-                            const sym = coin.symbol.toLowerCase();
-                            return !STABLE_COINS.has(sym) && coin.quotes?.USD?.price;
-                        });
-                        const top10 = filtered.slice(0, 10);
-                        if (top10.length === 0) throw new Error("No coins from CoinPaprika");
-                        return top10.map(coin => ({
-                            symbol: coin.symbol.toUpperCase(),
-                            price: coin.quotes.USD.price,
-                            change24h: coin.quotes.USD.percent_change_24h,
-                            image: "https://www.coinpaprika.com/coin/" + coin.id + "/logo.png"
-                        }));
+                        let filtered = data.filter(c => !STABLE_COINS.has(c.symbol.toLowerCase()));
+                        const top10 = filtered.slice(0,10);
+                        if (!top10.length) throw new Error("No coins");
+                        return top10.map(c => ({ symbol:c.symbol.toUpperCase(), price:c.current_price, change24h:c.price_change_percentage_24h, image:c.image }));
+                    } else {
+                        let filtered = data.filter(c => !STABLE_COINS.has(c.symbol.toLowerCase()) && c.quotes?.USD?.price);
+                        const top10 = filtered.slice(0,10);
+                        if (!top10.length) throw new Error("No coins");
+                        return top10.map(c => ({ symbol:c.symbol.toUpperCase(), price:c.quotes.USD.price, change24h:c.quotes.USD.percent_change_24h, image:"https://www.coinpaprika.com/coin/"+c.id+"/logo.png" }));
                     }
                 } catch (err) {
-                    console.warn(`Direct fetch for ${url} failed, trying proxy:`, err.message);
                     for (const proxy of PROXIES) {
                         try {
                             const text = await fetchWithProxy(url, proxy);
                             const data = JSON.parse(text);
                             if (url.includes("coingecko")) {
-                                let filtered = data.filter(coin => !STABLE_COINS.has(coin.symbol.toLowerCase()));
-                                const top10 = filtered.slice(0, 10);
-                                if (top10.length === 0) throw new Error("No coins after filter");
-                                return top10.map(coin => ({
-                                    symbol: coin.symbol.toUpperCase(),
-                                    price: coin.current_price,
-                                    change24h: coin.price_change_percentage_24h,
-                                    image: coin.image
-                                }));
-                            } else if (url.includes("coinpaprika")) {
-                                let filtered = data.filter(coin => {
-                                    const sym = coin.symbol.toLowerCase();
-                                    return !STABLE_COINS.has(sym) && coin.quotes?.USD?.price;
-                                });
-                                const top10 = filtered.slice(0, 10);
-                                if (top10.length === 0) throw new Error("No coins from CoinPaprika");
-                                return top10.map(coin => ({
-                                    symbol: coin.symbol.toUpperCase(),
-                                    price: coin.quotes.USD.price,
-                                    change24h: coin.quotes.USD.percent_change_24h,
-                                    image: "https://www.coinpaprika.com/coin/" + coin.id + "/logo.png"
-                                }));
+                                let filtered = data.filter(c => !STABLE_COINS.has(c.symbol.toLowerCase()));
+                                const top10 = filtered.slice(0,10);
+                                if (top10.length) return top10.map(c => ({ symbol:c.symbol.toUpperCase(), price:c.current_price, change24h:c.price_change_percentage_24h, image:c.image }));
+                            } else {
+                                let filtered = data.filter(c => !STABLE_COINS.has(c.symbol.toLowerCase()) && c.quotes?.USD?.price);
+                                const top10 = filtered.slice(0,10);
+                                if (top10.length) return top10.map(c => ({ symbol:c.symbol.toUpperCase(), price:c.quotes.USD.price, change24h:c.quotes.USD.percent_change_24h, image:"https://www.coinpaprika.com/coin/"+c.id+"/logo.png" }));
                             }
-                        } catch (proxyErr) {
-                            console.warn(`Proxy ${proxy} failed for ${url}:`, proxyErr.message);
-                        }
+                        } catch(e) {}
                     }
                 }
             }
             return null;
         }
-        function buildTickerItemsHTML(coinsList) {
-            if (!coinsList || coinsList.length === 0) return `<span class="ticker-item">⚠️ NO DATA ⚠️</span>`;
-            let html = "";
-            for (let coin of coinsList) {
-                let priceFormatted = formatUSD(coin.price);
-                let changeFormatted = formatPercent(coin.change24h);
-                let changeClass = (coin.change24h >= 0) ? "positive" : "negative";
-                let imgHtml = coin.image ? `<img src="${coin.image}" alt="${coin.symbol}">` : "";
-                html += `<div class="ticker-item">${imgHtml}<span>${coin.symbol}</span> ${priceFormatted} <span class="${changeClass}">${changeFormatted}</span></div>`;
-            }
-            return html;
+
+        function buildTickerHTML(coins) {
+            if (!coins?.length) return `<span class="ticker-item">⚠️ NO DATA ⚠️</span>`;
+            return coins.map(c => `<div class="ticker-item"><img src="${c.image}" alt="${c.symbol}"><span>${c.symbol}</span> ${formatUSD(c.price)} <span class="${c.change24h>=0?'positive':'negative'}">${formatPercent(c.change24h)}</span></div>`).join('');
         }
-        function updateTicker(top10Coins) {
-            const itemsHtml = buildTickerItemsHTML(top10Coins);
-            tickerPrimaryDiv.innerHTML = itemsHtml;
-            tickerDuplicateDiv.innerHTML = itemsHtml;
-            tickerTrack.style.animation = "none";
-            tickerTrack.offsetHeight;
-            tickerTrack.style.animation = "scrollTicker 38s linear infinite";
+        function updateTicker(coins) {
+            const html = buildTickerHTML(coins);
+            elements.tickerPrimary.innerHTML = html;
+            elements.tickerDuplicate.innerHTML = html;
+            elements.tickerTrack.style.animation = "none";
+            elements.tickerTrack.offsetHeight;
+            elements.tickerTrack.style.animation = "scrollTicker 38s linear infinite";
         }
 
-        // --- Fear & Greed ---
         async function fetchFearGreed() {
             try {
                 const res = await fetch("https://api.alternative.me/fng/?limit=1");
-                if (!res.ok) throw new Error("FNG fetch failed");
                 const data = await res.json();
-                if (data && data.data && data.data[0]) {
-                    const value = parseInt(data.data[0].value);
-                    fngSpan.innerText = value;
-                    fngClassSpan.innerText = data.data[0].value_classification || "neutral";
-                    fngScoreSpan.innerText = `(score: ${Math.round(scoreFearGreed(value))})`;
-                } else throw new Error("Invalid FNG response");
-            } catch (err) {
-                console.warn("Fear&Greed error:", err);
-                fngSpan.innerText = "ERR";
-                fngClassSpan.innerText = "offline";
-                fngScoreSpan.innerText = "(score: --)";
+                if (data?.data?.[0]) {
+                    const val = parseInt(data.data[0].value);
+                    elements.fngValue.innerText = val;
+                    elements.fngClassification.innerText = data.data[0].value_classification;
+                    elements.fngScore.innerText = `(score: ${Math.round(scoreFearGreed(val))})`;
+                } else throw new Error();
+            } catch(e) {
+                elements.fngValue.innerText = "ERR";
+                elements.fngClassification.innerText = "offline";
+                elements.fngScore.innerText = "(score: --)";
             }
         }
 
-        // --- CBBI ---
         async function fetchCBBI() {
-            const url = "https://colintalkscrypto.com/cbbi/data/latest.json";
             try {
-                const response = await fetch(url);
-                if (!response.ok) throw new Error(`HTTP ${response.status}`);
-                const data = await response.json();
-                let confidenceData = null;
-                if (data.Confidence && typeof data.Confidence === 'object') confidenceData = data.Confidence;
-                else if (data.confidence && typeof data.confidence === 'object') confidenceData = data.confidence;
-                if (confidenceData) {
-                    const timestamps = Object.keys(confidenceData).map(Number).filter(k => !isNaN(k));
-                    if (timestamps.length === 0) throw new Error("No numeric timestamps");
-                    const latestTimestamp = Math.max(...timestamps);
-                    const latestValue = confidenceData[latestTimestamp];
-                    if (typeof latestValue === 'number' && !isNaN(latestValue)) {
-                        const rawScore = latestValue * 100;
-                        const cbbiScore = Math.round(rawScore);
-                        cbbiSpan.innerText = cbbiScore;
-                        const scoreVal = scoreCBBI(cbbiScore);
-                        cbbiScoreSpan.innerText = `(score: ${Math.round(scoreVal)})`;
-                        localStorage.setItem("cbbiValue", cbbiScore);
-                        return;
+                const res = await fetch("https://colintalkscrypto.com/cbbi/data/latest.json");
+                const data = await res.json();
+                let confidence = data.Confidence || data.confidence;
+                if (confidence && typeof confidence === 'object') {
+                    const timestamps = Object.keys(confidence).map(Number).filter(k=>!isNaN(k));
+                    if (timestamps.length) {
+                        const latest = Math.max(...timestamps);
+                        const val = confidence[latest];
+                        if (typeof val === 'number' && !isNaN(val)) {
+                            const score = Math.round(val * 100);
+                            elements.cbbiValue.innerText = score;
+                            elements.cbbiScore.innerText = `(score: ${Math.round(scoreCBBI(score))})`;
+                            localStorage.setItem("cbbiValue", score);
+                            return;
+                        }
                     }
                 }
-                throw new Error("No Confidence block");
-            } catch (err) {
-                console.warn("CBBI fetch failed:", err.message);
+                throw new Error();
+            } catch(e) {
                 const cached = localStorage.getItem("cbbiValue");
-                const cachedNum = parseInt(cached, 10);
-                if (cached && !isNaN(cachedNum) && cachedNum >= 0 && cachedNum <= 100) {
-                    cbbiSpan.innerText = cached;
-                    cbbiScoreSpan.innerText = `(score: ${Math.round(scoreCBBI(cachedNum))})`;
+                if (cached && !isNaN(parseInt(cached)) && parseInt(cached)>=0 && parseInt(cached)<=100) {
+                    elements.cbbiValue.innerText = cached;
+                    elements.cbbiScore.innerText = `(score: ${Math.round(scoreCBBI(parseInt(cached)))})`;
                 } else {
-                    cbbiSpan.innerText = "50";
-                    cbbiScoreSpan.innerText = "(score: 50)";
+                    elements.cbbiValue.innerText = "50";
+                    elements.cbbiScore.innerText = "(score: 50)";
                 }
             }
         }
 
-        // --- Load CSV ---
         async function loadPricesFromCSV() {
-            const csvUrl = "btc_data.csv";
             try {
-                const response = await fetch(csvUrl);
-                if (!response.ok) throw new Error(`HTTP ${response.status}`);
-                const csvText = await response.text();
-                return new Promise((resolve, reject) => {
-                    Papa.parse(csvText, {
-                        header: true,
-                        dynamicTyping: true,
-                        skipEmptyLines: true,
-                        complete: (results) => {
-                            if (results.errors.length) console.warn("CSV parsing warnings:", results.errors);
-                            const rows = results.data;
-                            rows.sort((a,b) => new Date(a.date) - new Date(b.date));
-                            const prices = rows.map(row => row.price);
-                            const lastDate = rows[rows.length-1]?.date;
-                            const ath = Math.max(...prices);
-                            if (prices.length < 1400) reject(new Error(`Only ${prices.length} rows`));
-                            else resolve({ prices, lastDate, ath });
-                        },
-                        error: (err) => reject(err)
-                    });
+                const res = await fetch("btc_data.csv");
+                if (!res.ok) throw new Error();
+                const text = await res.text();
+                return new Promise((resolve,reject) => {
+                    Papa.parse(text, { header:true, dynamicTyping:true, skipEmptyLines:true, complete: r => {
+                        if (r.errors.length) console.warn(r.errors);
+                        const rows = r.data;
+                        rows.sort((a,b)=>new Date(a.date)-new Date(b.date));
+                        const prices = rows.map(r=>r.price);
+                        const lastDate = rows[rows.length-1]?.date;
+                        const ath = Math.max(...prices);
+                        if (prices.length<1400) reject(new Error("Not enough rows"));
+                        else resolve({ prices, lastDate, ath });
+                    }, error: reject });
                 });
-            } catch (err) {
-                console.warn("CSV load failed:", err);
-                return null;
-            }
+            } catch(e) { return null; }
         }
 
-        function sma(prices, days) {
-            if (prices.length < days) return null;
-            const slice = prices.slice(-days);
-            return slice.reduce((a, b) => a + b, 0) / days;
-        }
-        function ema(prices, days) {
-            if (prices.length < days) return null;
-            const k = 2 / (days + 1);
-            const smaFirst = sma(prices.slice(0, days), days);
-            let emaVal = smaFirst;
-            for (let i = days; i < prices.length; i++) emaVal = prices[i] * k + emaVal * (1 - k);
-            return emaVal;
-        }
-        function computeRainbowFromPrices(prices) {
-            if (!prices || prices.length < 500) return null;
-            const n = prices.length;
-            const x = Array.from({ length: n }, (_, i) => i / 365.25);
-            const y = prices.map(p => Math.log(p));
-            let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;
-            for (let i = 0; i < n; i++) {
-                sumX += x[i];
-                sumY += y[i];
-                sumXY += x[i] * y[i];
-                sumX2 += x[i] * x[i];
-            }
-            const b = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
-            const a = (sumY - b * sumX) / n;
-            const residuals = [];
-            for (let i = 0; i < n; i++) {
-                const pred = a + b * x[i];
-                residuals.push(y[i] - pred);
-            }
-            const stdDev = Math.sqrt(residuals.reduce((sum, r) => sum + r * r, 0) / n);
-            const currentX = (n - 1) / 365.25;
-            const predicted = a + b * currentX;
-            const currentResidual = Math.log(prices[n-1]) - predicted;
-            const zScore = currentResidual / stdDev;
-            if (zScore < -2) return "Basically a Fire Sale";
-            if (zScore < -1) return "BUY!";
-            if (zScore < -0.5) return "Accumulate";
-            if (zScore < 0) return "Still cheap";
-            if (zScore < 0.5) return "HODL!";
-            if (zScore < 1) return "Is this a bubble?";
-            if (zScore < 2) return "FOMO intensifies";
-            if (zScore < 3) return "Sell. Seriously, SELL!";
+        function sma(arr, days) { if(arr.length<days) return null; const slice=arr.slice(-days); return slice.reduce((a,b)=>a+b,0)/days; }
+        function ema(arr, days) { if(arr.length<days) return null; const k=2/(days+1); let emaVal = sma(arr.slice(0,days),days); for(let i=days;i<arr.length;i++) emaVal = arr[i]*k + emaVal*(1-k); return emaVal; }
+        function computeRainbow(prices) {
+            if (!prices || prices.length<500) return null;
+            const n=prices.length;
+            const x=Array.from({length:n},(_,i)=>i/365.25);
+            const y=prices.map(p=>Math.log(p));
+            let sumX=0,sumY=0,sumXY=0,sumX2=0;
+            for(let i=0;i<n;i++) { sumX+=x[i]; sumY+=y[i]; sumXY+=x[i]*y[i]; sumX2+=x[i]*x[i]; }
+            const b=(n*sumXY-sumX*sumY)/(n*sumX2-sumX*sumX);
+            const a=(sumY-b*sumX)/n;
+            const residuals=[];
+            for(let i=0;i<n;i++) residuals.push(y[i]-(a+b*x[i]));
+            const stdDev=Math.sqrt(residuals.reduce((s,r)=>s+r*r,0)/n);
+            const z=(Math.log(prices[n-1])-(a+b*((n-1)/365.25)))/stdDev;
+            if(z<-2) return "Basically a Fire Sale";
+            if(z<-1) return "BUY!";
+            if(z<-0.5) return "Accumulate";
+            if(z<0) return "Still cheap";
+            if(z<0.5) return "HODL!";
+            if(z<1) return "Is this a bubble?";
+            if(z<2) return "FOMO intensifies";
+            if(z<3) return "Sell. Seriously, SELL!";
             return "Maximum Bubble Territory";
         }
 
-        // --- Bitcoin indicators ---
         async function fetchBitcoinIndicators() {
-            let prices = null, dataSource = "", lastDate = "", ath = null;
-            const csvData = await loadPricesFromCSV();
-            if (csvData && csvData.prices && csvData.prices.length >= 1400) {
-                prices = csvData.prices;
-                lastDate = csvData.lastDate;
-                ath = csvData.ath;
-                dataSource = `CSV (${lastDate})`;
-                console.log(`Using CSV: ${prices.length} days, last date ${lastDate}, ATH: ${ath}`);
-            } else {
+            let prices=null, dataSource="", ath=null;
+            const csv = await loadPricesFromCSV();
+            if (csv && csv.prices.length>=1400) { prices=csv.prices; ath=csv.ath; dataSource=`CSV (${csv.lastDate})`; }
+            else {
                 try {
-                    const url = "https://min-api.cryptocompare.com/data/v2/histoday?fsym=BTC&tsym=USD&limit=1400";
-                    const response = await fetch(url);
-                    if (!response.ok) throw new Error(`CryptoCompare HTTP ${response.status}`);
-                    const data = await response.json();
-                    if (data.Data && data.Data.Data) {
-                        prices = data.Data.Data.map(d => d.close);
-                        ath = Math.max(...prices);
-                        dataSource = "CryptoCompare (live)";
-                        console.log(`Using CryptoCompare: ${prices.length} days`);
-                    } else throw new Error("Invalid CryptoCompare response");
-                } catch (err) {
-                    console.warn("CryptoCompare failed, using static approximations:", err);
-                    dataSource = "static approximations";
-                }
+                    const url="https://min-api.cryptocompare.com/data/v2/histoday?fsym=BTC&tsym=USD&limit=1400";
+                    const res=await fetch(url);
+                    const data=await res.json();
+                    if(data.Data?.Data) { prices=data.Data.Data.map(d=>d.close); ath=Math.max(...prices); dataSource="CryptoCompare (live)"; }
+                } catch(e) { dataSource="static approximations"; }
             }
-            let btcPrice = null, sma200W = null, sma2Y = null, sma2Yx5 = null, piSMA = null, piEMA = null, rainbow = null;
-            let piSMA111 = null, piSMA350x2 = null;
-            if (prices && prices.length >= 1400) {
-                const rawSMA471 = sma(prices, 471);
-                piSMA = rawSMA471 * 0.745;
-                piEMA = ema(prices, 150);
-                sma200W = sma(prices, 1400);
-                sma2Y = sma(prices, 730);
-                sma2Yx5 = sma2Y * 5;
-                btcPrice = prices[prices.length - 1];
-                piSMA111 = sma(prices, 111);
-                const sma350 = sma(prices, 350);
-                piSMA350x2 = sma350 * 2;
-                let drawdown = ((btcPrice - ath) / ath) * 100;
-                athDrawdownSpan.innerText = drawdown.toFixed(2) + "%";
-                piSMA111Span.innerText = formatUSDNoDecimals(piSMA111);
-                piSMA350x2Span.innerText = formatUSDNoDecimals(piSMA350x2);
-                piSMA471Span.innerText = formatUSDNoDecimals(piSMA);
-                piEMA150Span.innerText = formatUSDNoDecimals(piEMA);
-                btc200wmaSpan.innerText = formatUSDNoDecimals(sma200W);
-                twoYMASpan.innerText = formatUSDNoDecimals(sma2Y);
-                twoYMAX5Span.innerText = formatUSDNoDecimals(sma2Yx5);
-                rainbow = computeRainbowFromPrices(prices);
-                if (rainbow) {
-                    rainbowClassificationSpan.innerText = rainbow;
-                    rainbowSourceSpan.innerText = "Calculated from CSV";
-                    localStorage.setItem("rainbowClassification", rainbow);
-                }
-                wmaScoreSpan.innerText = `(score: ${Math.round(score200WMA(btcPrice, sma200W))})`;
-                y2maScoreSpan.innerText = `(score: ${Math.round(score2YMA(btcPrice, sma2Y, sma2Yx5))})`;
-                piBottomScoreSpan.innerText = `(score: ${Math.round(scorePiCycleBottom(piSMA, piEMA))})`;
-                piTopScoreSpan.innerText = `(score: ${Math.round(scorePiCycleTop(piSMA111, piSMA350x2))})`;
-                drawdownScoreSpan.innerText = `(score: ${Math.round(scoreDrawdown(btcPrice, ath))})`;
-                const rainbowScore = scoreRainbow(rainbow);
-                rainbowScoreSpan.innerText = `(score: ${Math.round(rainbowScore)})`;
+            let btcPrice, sma200W, sma2Y, sma2Yx5, piSMA, piEMA, piSMA111, piSMA350x2, rainbow;
+            if (prices && prices.length>=1400) {
+                const rawSMA471 = sma(prices,471);
+                piSMA = rawSMA471*0.745;
+                piEMA = ema(prices,150);
+                sma200W = sma(prices,1400);
+                sma2Y = sma(prices,730);
+                sma2Yx5 = sma2Y*5;
+                btcPrice = prices[prices.length-1];
+                piSMA111 = sma(prices,111);
+                piSMA350x2 = sma(prices,350)*2;
+                elements.athDrawdown.innerText = ((btcPrice-ath)/ath*100).toFixed(2)+"%";
+                elements.piSMA111.innerText = formatUSDNoDecimals(piSMA111);
+                elements.piSMA350x2.innerText = formatUSDNoDecimals(piSMA350x2);
+                elements.piSMA471.innerText = formatUSDNoDecimals(piSMA);
+                elements.piEMA150.innerText = formatUSDNoDecimals(piEMA);
+                elements.btc200wma.innerText = formatUSDNoDecimals(sma200W);
+                elements.twoYMA.innerText = formatUSDNoDecimals(sma2Y);
+                elements.twoYMAX5.innerText = formatUSDNoDecimals(sma2Yx5);
+                rainbow = computeRainbow(prices);
+                if(rainbow) { elements.rainbowClassification.innerText=rainbow; elements.rainbowSource.innerText="Calculated from CSV"; localStorage.setItem("rainbowClassification",rainbow); }
+                elements.wmaScore.innerText = `(score: ${Math.round(score200WMA(btcPrice,sma200W))})`;
+                elements.y2maScore.innerText = `(score: ${Math.round(score2YMA(btcPrice,sma2Y))})`;
+                elements.piBottomScore.innerText = `(score: ${Math.round(scorePiCycleBottom(piSMA,piEMA))})`;
+                elements.piTopScore.innerText = `(score: ${Math.round(scorePiCycleTop(piSMA111,piSMA350x2))})`;
+                elements.drawdownScore.innerText = `(score: ${Math.round(scoreDrawdown(btcPrice,ath))})`;
+                elements.rainbowScore.innerText = `(score: ${Math.round(scoreRainbow(rainbow))})`;
             } else {
-                try {
-                    const priceRes = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd");
-                    if (priceRes.ok) {
-                        const priceData = await priceRes.json();
-                        btcPrice = priceData.bitcoin.usd;
-                    } else {
-                        const priceRes2 = await fetch("https://api.coinpaprika.com/v1/tickers/btc-bitcoin");
-                        if (priceRes2.ok) {
-                            const tickerData = await priceRes2.json();
-                            btcPrice = tickerData.quotes.USD.price;
-                        }
-                    }
-                } catch (err) { console.warn("Could not fetch Bitcoin price:", err); }
-                const DEFAULT_PI_SMA = 72400 * 0.745;
-                const DEFAULT_PI_EMA = 83000;
-                const DEFAULT_200W_MA = btcPrice ? btcPrice * 0.85 : 60700;
-                const DEFAULT_2Y_MA = btcPrice ? btcPrice * 1.22 : 87000;
-                const DEFAULT_2Y_MA_X5 = DEFAULT_2Y_MA * 5;
-                const DEFAULT_PI_SMA111 = btcPrice ? btcPrice * 0.9 : 64000;
-                const DEFAULT_PI_SMA350x2 = btcPrice ? btcPrice * 2.2 : 150000;
-                const DEFAULT_ATH = 124752.53;
-                piSMA471Span.innerText = formatUSDNoDecimals(DEFAULT_PI_SMA);
-                piEMA150Span.innerText = formatUSDNoDecimals(DEFAULT_PI_EMA);
-                btc200wmaSpan.innerText = formatUSDNoDecimals(DEFAULT_200W_MA);
-                twoYMASpan.innerText = formatUSDNoDecimals(DEFAULT_2Y_MA);
-                twoYMAX5Span.innerText = formatUSDNoDecimals(DEFAULT_2Y_MA_X5);
-                piSMA111Span.innerText = formatUSDNoDecimals(DEFAULT_PI_SMA111);
-                piSMA350x2Span.innerText = formatUSDNoDecimals(DEFAULT_PI_SMA350x2);
-                athDrawdownSpan.innerText = btcPrice ? ((btcPrice - DEFAULT_ATH)/DEFAULT_ATH*100).toFixed(2) + "%" : "N/A";
-                dataSource = "static approximations";
-                wmaScoreSpan.innerText = `(score: ${Math.round(score200WMA(btcPrice, DEFAULT_200W_MA))})`;
-                y2maScoreSpan.innerText = `(score: ${Math.round(score2YMA(btcPrice, DEFAULT_2Y_MA, DEFAULT_2Y_MA_X5))})`;
-                piBottomScoreSpan.innerText = `(score: ${Math.round(scorePiCycleBottom(DEFAULT_PI_SMA, DEFAULT_PI_EMA))})`;
-                piTopScoreSpan.innerText = `(score: ${Math.round(scorePiCycleTop(DEFAULT_PI_SMA111, DEFAULT_PI_SMA350x2))})`;
-                drawdownScoreSpan.innerText = `(score: ${Math.round(scoreDrawdown(btcPrice, DEFAULT_ATH))})`;
-                const cachedRainbow = localStorage.getItem("rainbowClassification");
-                if (cachedRainbow) {
-                    rainbowClassificationSpan.innerText = cachedRainbow;
-                    rainbowSourceSpan.innerText = "cached";
-                    rainbowScoreSpan.innerText = `(score: ${Math.round(scoreRainbow(cachedRainbow))})`;
-                } else {
-                    rainbowClassificationSpan.innerText = "N/A";
-                    rainbowSourceSpan.innerText = "offline";
-                    rainbowScoreSpan.innerText = "(score: --)";
-                }
+                // static fallback
+                try { let r=await fetch("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd"); if(r.ok) btcPrice=(await r.json()).bitcoin.usd; }
+                catch(e) { try { let r2=await fetch("https://api.coinpaprika.com/v1/tickers/btc-bitcoin"); if(r2.ok) btcPrice=(await r2.json()).quotes.USD.price; } catch(e2){} }
+                const DEF_PI_SMA=72400*0.745, DEF_PI_EMA=83000, DEF_200W_MA=btcPrice?btcPrice*0.85:60700, DEF_2Y_MA=btcPrice?btcPrice*1.22:87000, DEF_2Y_MA_X5=DEF_2Y_MA*5, DEF_PI_SMA111=btcPrice?btcPrice*0.9:64000, DEF_PI_SMA350x2=btcPrice?btcPrice*2.2:150000, DEF_ATH=124752.53;
+                elements.piSMA471.innerText=formatUSDNoDecimals(DEF_PI_SMA);
+                elements.piEMA150.innerText=formatUSDNoDecimals(DEF_PI_EMA);
+                elements.btc200wma.innerText=formatUSDNoDecimals(DEF_200W_MA);
+                elements.twoYMA.innerText=formatUSDNoDecimals(DEF_2Y_MA);
+                elements.twoYMAX5.innerText=formatUSDNoDecimals(DEF_2Y_MA_X5);
+                elements.piSMA111.innerText=formatUSDNoDecimals(DEF_PI_SMA111);
+                elements.piSMA350x2.innerText=formatUSDNoDecimals(DEF_PI_SMA350x2);
+                elements.athDrawdown.innerText=btcPrice?((btcPrice-DEF_ATH)/DEF_ATH*100).toFixed(2)+"%":"N/A";
+                elements.wmaScore.innerText=`(score: ${Math.round(score200WMA(btcPrice,DEF_200W_MA))})`;
+                elements.y2maScore.innerText=`(score: ${Math.round(score2YMA(btcPrice,DEF_2Y_MA))})`;
+                elements.piBottomScore.innerText=`(score: ${Math.round(scorePiCycleBottom(DEF_PI_SMA,DEF_PI_EMA))})`;
+                elements.piTopScore.innerText=`(score: ${Math.round(scorePiCycleTop(DEF_PI_SMA111,DEF_PI_SMA350x2))})`;
+                elements.drawdownScore.innerText=`(score: ${Math.round(scoreDrawdown(btcPrice,DEF_ATH))})`;
+                const cachedRainbow=localStorage.getItem("rainbowClassification");
+                if(cachedRainbow) { elements.rainbowClassification.innerText=cachedRainbow; elements.rainbowSource.innerText="cached"; elements.rainbowScore.innerText=`(score: ${Math.round(scoreRainbow(cachedRainbow))})`; }
+                else { elements.rainbowClassification.innerText="N/A"; elements.rainbowSource.innerText="offline"; elements.rainbowScore.innerText="(score: --)"; }
             }
-            dataSourceTextSpan.innerText = dataSource;
+            elements.dataSourceText.innerText = dataSource;
             return { btcPrice, sma200W, sma2Y, sma2Yx5, piSMA, piEMA, rainbow, piSMA111, piSMA350x2, ath };
         }
 
-        // --- Coinbase Rank ---
         async function fetchCoinbaseRank() {
-            const feedUrl = "https://rss.app/feeds/XRpkIErFDjKyhSMo.xml";
+            const url="https://rss.app/feeds/XRpkIErFDjKyhSMo.xml";
+            const parseRSS = (xml) => {
+                const doc=new DOMParser().parseFromString(xml,"text/xml");
+                const item=doc.querySelector("item");
+                if(!item) return null;
+                const desc=item.querySelector("description")?.textContent||"";
+                const allMatch=desc.match(/All Apps[^\d]*(\d+)/i);
+                const finMatch=desc.match(/Finance Apps[^\d]*(\d+)/i);
+                if(allMatch && finMatch) return { allRank:parseInt(allMatch[1]), financeRank:parseInt(finMatch[1]), timeStr:item.querySelector("pubDate")?.textContent };
+                return null;
+            };
             try {
-                let response = await fetch(feedUrl);
-                if (!response.ok) throw new Error(`HTTP ${response.status}`);
-                let xmlText = await response.text();
-                let parsed = parseRSS(xmlText);
-                if (parsed) {
-                    updateCoinbaseUI(parsed);
-                    const score = scoreCoinbase(parsed.financeRank);
-                    coinbaseScoreSpan.innerText = `(score: ${Math.round(score)})`;
-                    return parsed.financeRank;
-                }
-                throw new Error("Parsing failed");
-            } catch (err) {
-                console.warn("Direct RSS fetch failed, trying proxies:", err.message);
-                for (const proxy of PROXIES) {
+                let res=await fetch(url);
+                if(!res.ok) throw new Error();
+                let xml=await res.text();
+                let parsed=parseRSS(xml);
+                if(parsed) { updateCoinbaseUI(parsed); return parsed.financeRank; }
+                throw new Error();
+            } catch(e) {
+                for(let proxy of PROXIES) {
                     try {
-                        const xmlText = await fetchWithProxy(feedUrl, proxy);
-                        const parsed = parseRSS(xmlText);
-                        if (parsed) {
-                            updateCoinbaseUI(parsed);
-                            const score = scoreCoinbase(parsed.financeRank);
-                            coinbaseScoreSpan.innerText = `(score: ${Math.round(score)})`;
-                            return parsed.financeRank;
-                        }
-                    } catch (proxyErr) { console.warn(`Proxy ${proxy} failed:`, proxyErr.message); }
+                        let xml=await fetchWithProxy(url,proxy);
+                        let parsed=parseRSS(xml);
+                        if(parsed) { updateCoinbaseUI(parsed); return parsed.financeRank; }
+                    } catch(e2) {}
                 }
-                const cachedAll = localStorage.getItem("coinbaseAllRank");
-                const cachedFinance = localStorage.getItem("coinbaseFinanceRank");
-                const cachedTime = localStorage.getItem("coinbaseRankTime");
-                if (cachedAll && cachedFinance) {
-                    coinbaseAllRankSpan.innerText = cachedAll;
-                    coinbaseFinanceRankSpan.innerText = cachedFinance;
-                    coinbaseRankTimeSpan.innerText = cachedTime || "cached";
-                    const score = scoreCoinbase(parseInt(cachedFinance));
-                    coinbaseScoreSpan.innerText = `(score: ${Math.round(score)})`;
-                    return parseInt(cachedFinance);
+                const cachedAll=localStorage.getItem("coinbaseAllRank");
+                const cachedFin=localStorage.getItem("coinbaseFinanceRank");
+                const cachedTime=localStorage.getItem("coinbaseRankTime");
+                if(cachedAll && cachedFin) {
+                    elements.coinbaseAllRank.innerText=cachedAll;
+                    elements.coinbaseFinanceRank.innerText=cachedFin;
+                    elements.coinbaseRankTime.innerText=cachedTime||"cached";
+                    elements.coinbaseScore.innerText=`(score: ${Math.round(scoreCoinbase(parseInt(cachedFin)))})`;
+                    return parseInt(cachedFin);
                 } else {
-                    coinbaseAllRankSpan.innerText = "N/A";
-                    coinbaseFinanceRankSpan.innerText = "N/A";
-                    coinbaseRankTimeSpan.innerText = "offline";
-                    coinbaseScoreSpan.innerText = "(score: --)";
+                    elements.coinbaseAllRank.innerText="N/A";
+                    elements.coinbaseFinanceRank.innerText="N/A";
+                    elements.coinbaseRankTime.innerText="offline";
+                    elements.coinbaseScore.innerText="(score: --)";
                     return null;
                 }
             }
-        }
-        function parseRSS(xmlText) {
-            const parser = new DOMParser();
-            const xmlDoc = parser.parseFromString(xmlText, "text/xml");
-            const items = xmlDoc.querySelectorAll("item");
-            if (items.length === 0) return null;
-            const item = items[0];
-            const title = item.querySelector("title")?.textContent || "";
-            if (!title.includes("$COIN App Rank")) return null;
-            const pubDate = item.querySelector("pubDate")?.textContent || "";
-            const description = item.querySelector("description")?.textContent || "";
-            const allMatch = description.match(/All Apps[^\d]*(\d+)/i);
-            const financeMatch = description.match(/Finance Apps[^\d]*(\d+)/i);
-            if (allMatch && financeMatch) {
-                return {
-                    allRank: parseInt(allMatch[1], 10),
-                    financeRank: parseInt(financeMatch[1], 10),
-                    timeStr: pubDate
-                };
+            function updateCoinbaseUI(p) {
+                elements.coinbaseAllRank.innerText=p.allRank;
+                elements.coinbaseFinanceRank.innerText=p.financeRank;
+                const t=p.timeStr?new Date(p.timeStr).toLocaleString():"latest";
+                elements.coinbaseRankTime.innerText=t;
+                localStorage.setItem("coinbaseAllRank",p.allRank);
+                localStorage.setItem("coinbaseFinanceRank",p.financeRank);
+                localStorage.setItem("coinbaseRankTime",t);
+                elements.coinbaseScore.innerText=`(score: ${Math.round(scoreCoinbase(p.financeRank))})`;
             }
-            return null;
-        }
-        function updateCoinbaseUI(parsed) {
-            coinbaseAllRankSpan.innerText = parsed.allRank.toString();
-            coinbaseFinanceRankSpan.innerText = parsed.financeRank.toString();
-            const displayTime = parsed.timeStr ? new Date(parsed.timeStr).toLocaleString() : "latest";
-            coinbaseRankTimeSpan.innerText = displayTime;
-            localStorage.setItem("coinbaseAllRank", parsed.allRank.toString());
-            localStorage.setItem("coinbaseFinanceRank", parsed.financeRank.toString());
-            localStorage.setItem("coinbaseRankTime", displayTime);
         }
 
-        // --- BTC Dominance ---
         async function fetchBTCDominance() {
-            const url = "https://api.coingecko.com/api/v3/global";
+            const url="https://api.coingecko.com/api/v3/global";
             try {
-                let response = await fetch(url);
-                if (!response.ok) throw new Error(`HTTP ${response.status}`);
-                const data = await response.json();
-                const dominance = data.data.market_cap_percentage.btc;
-                if (dominance) {
-                    btcDominanceSpan.innerText = dominance.toFixed(1) + "%";
-                    dominanceSourceSpan.innerText = "CoinGecko (live)";
-                    const score = scoreDominance(dominance);
-                    dominanceScoreSpan.innerText = `(score: ${Math.round(score)})`;
-                    localStorage.setItem("btcDominance", dominance.toFixed(1));
-                    return dominance;
+                let res=await fetch(url);
+                if(!res.ok) throw new Error();
+                let data=await res.json();
+                let dom=data.data.market_cap_percentage.btc;
+                if(dom) {
+                    elements.btcDominance.innerText=dom.toFixed(1)+"%";
+                    elements.dominanceSource.innerText="CoinGecko (live)";
+                    elements.dominanceScore.innerText=`(score: ${Math.round(scoreDominance(dom))})`;
+                    localStorage.setItem("btcDominance",dom.toFixed(1));
+                    return dom;
                 }
-                throw new Error("No dominance data");
-            } catch (err) {
-                console.warn("Direct dominance fetch failed, trying proxy:", err.message);
-                for (const proxy of PROXIES) {
+                throw new Error();
+            } catch(e) {
+                for(let proxy of PROXIES) {
                     try {
-                        const text = await fetchWithProxy(url, proxy);
-                        const data = JSON.parse(text);
-                        const dominance = data.data.market_cap_percentage.btc;
-                        if (dominance) {
-                            btcDominanceSpan.innerText = dominance.toFixed(1) + "%";
-                            dominanceSourceSpan.innerText = "CoinGecko (live via proxy)";
-                            const score = scoreDominance(dominance);
-                            dominanceScoreSpan.innerText = `(score: ${Math.round(score)})`;
-                            localStorage.setItem("btcDominance", dominance.toFixed(1));
-                            return dominance;
+                        let text=await fetchWithProxy(url,proxy);
+                        let data=JSON.parse(text);
+                        let dom=data.data.market_cap_percentage.btc;
+                        if(dom) {
+                            elements.btcDominance.innerText=dom.toFixed(1)+"%";
+                            elements.dominanceSource.innerText="CoinGecko (live via proxy)";
+                            elements.dominanceScore.innerText=`(score: ${Math.round(scoreDominance(dom))})`;
+                            localStorage.setItem("btcDominance",dom.toFixed(1));
+                            return dom;
                         }
-                    } catch (proxyErr) { console.warn(`Proxy ${proxy} failed for dominance:`, proxyErr.message); }
+                    } catch(e2) {}
                 }
-                const cached = localStorage.getItem("btcDominance");
-                if (cached) {
-                    const dominanceVal = parseFloat(cached);
-                    btcDominanceSpan.innerText = cached + "%";
-                    dominanceSourceSpan.innerText = "cached";
-                    const score = scoreDominance(dominanceVal);
-                    dominanceScoreSpan.innerText = `(score: ${Math.round(score)})`;
-                    return dominanceVal;
+                let cached=localStorage.getItem("btcDominance");
+                if(cached) {
+                    let dom=parseFloat(cached);
+                    elements.btcDominance.innerText=cached+"%";
+                    elements.dominanceSource.innerText="cached";
+                    elements.dominanceScore.innerText=`(score: ${Math.round(scoreDominance(dom))})`;
+                    return dom;
                 } else {
-                    btcDominanceSpan.innerText = "N/A";
-                    dominanceSourceSpan.innerText = "offline";
-                    dominanceScoreSpan.innerText = "(score: --)";
+                    elements.btcDominance.innerText="N/A";
+                    elements.dominanceSource.innerText="offline";
+                    elements.dominanceScore.innerText="(score: --)";
                     return null;
                 }
             }
         }
 
-        // --- Google Trends ---
         async function fetchGoogleTrends() {
-            const apiUrl = `https://serpapi.com/search?engine=google_trends&q=bitcoin&data_type=TIMESERIES&date=today%205-y&api_key=${SERPAPI_KEY}`;
-            let score = null;
-            for (const proxy of PROXIES) {
+            const apiUrl=`https://serpapi.com/search?engine=google_trends&q=bitcoin&data_type=TIMESERIES&date=today%205-y&api_key=${SERPAPI_KEY}`;
+            let score=null;
+            for(let proxy of PROXIES) {
                 try {
-                    const text = await fetchWithProxy(apiUrl, proxy);
-                    const data = JSON.parse(text);
-                    if (data.interest_over_time && data.interest_over_time.timeline_data) {
-                        const timeline = data.interest_over_time.timeline_data;
-                        const last = timeline[timeline.length - 1];
-                        if (last && last.values && last.values[0] && last.values[0].value !== undefined) {
-                            score = parseInt(last.values[0].value, 10);
-                            if (!isNaN(score)) break;
+                    let text=await fetchWithProxy(apiUrl,proxy);
+                    let data=JSON.parse(text);
+                    let timeline=data.interest_over_time?.timeline_data;
+                    if(timeline && timeline.length) {
+                        let last=timeline[timeline.length-1];
+                        if(last?.values?.[0]?.value!==undefined) {
+                            score=parseInt(last.values[0].value);
+                            if(!isNaN(score)) break;
                         }
                     }
-                } catch (err) { console.warn(`SerpAPI fetch via ${proxy} failed:`, err.message); }
+                } catch(e) {}
             }
-            if (score !== null && !isNaN(score)) {
-                trendScoreSpan.innerText = score;
-                trendSourceSpan.innerText = "Google Trends (SerpAPI)";
-                const trendScoreValue = scoreSearchTrend(score);
-                trendScoreValSpan.innerText = `(score: ${Math.round(trendScoreValue)})`;
-                localStorage.setItem("searchTrendScore", score);
+            if(score!==null && !isNaN(score)) {
+                elements.trendScore.innerText=score;
+                elements.trendSource.innerText="Google Trends (SerpAPI)";
+                elements.trendScoreVal.innerText=`(score: ${Math.round(scoreSearchTrend(score))})`;
+                localStorage.setItem("searchTrendScore",score);
             } else {
-                const cached = localStorage.getItem("searchTrendScore");
-                if (cached !== null) {
-                    const scoreVal = parseInt(cached);
-                    trendScoreSpan.innerText = scoreVal;
-                    trendSourceSpan.innerText = "cached";
-                    trendScoreValSpan.innerText = `(score: ${Math.round(scoreSearchTrend(scoreVal))})`;
+                let cached=localStorage.getItem("searchTrendScore");
+                if(cached) {
+                    let sv=parseInt(cached);
+                    elements.trendScore.innerText=sv;
+                    elements.trendSource.innerText="cached";
+                    elements.trendScoreVal.innerText=`(score: ${Math.round(scoreSearchTrend(sv))})`;
                 } else {
-                    trendScoreSpan.innerText = "--";
-                    trendSourceSpan.innerText = "offline";
-                    trendScoreValSpan.innerText = "(score: --)";
+                    elements.trendScore.innerText="--";
+                    elements.trendSource.innerText="offline";
+                    elements.trendScoreVal.innerText="(score: --)";
                 }
             }
         }
 
-        // --- Summary ---
         async function updateSummary() {
-            let btcPrice = window._btcPrice;
-            let wma200 = window._wma200;
-            let ma2y = window._ma2y;
-            let ma2y5 = window._ma2y5;
-            let piSMA = window._piSMA;
-            let piEMA = window._piEMA;
-            let piSMA111 = window._piSMA111;
-            let piSMA350x2 = window._piSMA350x2;
-            let rainbow = window._rainbow;
-            let dominance = window._dominance;
-            let financeRank = window._financeRank;
-            let fng = parseFloat(fngSpan.innerText);
-            let cbbi = parseFloat(cbbiSpan.innerText);
-            let trend = parseFloat(trendScoreSpan.innerText);
-            let ath = window._ath;
-            if (btcPrice === undefined || wma200 === undefined || ma2y === undefined || ma2y5 === undefined ||
-                piSMA === undefined || piEMA === undefined || piSMA111 === undefined || piSMA350x2 === undefined ||
-                rainbow === undefined || dominance === undefined || financeRank === undefined || isNaN(trend) || ath === undefined) {
-                console.warn("Summary values not ready");
-                return;
-            }
-            const weights = config.weights;
-            const totalWeight = Object.values(weights).reduce((a,b)=>a+b,0);
-            const scores = {
-                fng: scoreFearGreed(fng),
-                cbbi: scoreCBBI(cbbi),
-                wma: score200WMA(btcPrice, wma200),
-                y2ma: score2YMA(btcPrice, ma2y, ma2y5),
-                piBottom: scorePiCycleBottom(piSMA, piEMA),
-                piTop: scorePiCycleTop(piSMA111, piSMA350x2),
-                coinbase: scoreCoinbase(financeRank),
-                trends: scoreSearchTrend(trend),
-                dominance: scoreDominance(dominance),
-                rainbow: scoreRainbow(rainbow),
-                drawdown: scoreDrawdown(btcPrice, ath)
+            let { _btcPrice, _wma200, _ma2y, _ma2y5, _piSMA, _piEMA, _piSMA111, _piSMA350x2, _rainbow, _dominance, _financeRank, _ath } = window;
+            let fng=parseFloat(elements.fngValue.innerText);
+            let cbbi=parseFloat(elements.cbbiValue.innerText);
+            let trend=parseFloat(elements.trendScore.innerText);
+            if(!_btcPrice || !_wma200 || !_ma2y || !_ma2y5 || !_piSMA || !_piEMA || !_piSMA111 || !_piSMA350x2 || !_rainbow || _dominance===undefined || _financeRank===undefined || isNaN(trend) || !_ath) { console.warn("Summary not ready"); return; }
+            const w=config.weights;
+            const total=Object.values(w).reduce((a,b)=>a+b,0);
+            const scores={
+                fng: scoreFearGreed(fng), cbbi: scoreCBBI(cbbi),
+                wma: score200WMA(_btcPrice,_wma200), y2ma: score2YMA(_btcPrice,_ma2y),
+                piBottom: scorePiCycleBottom(_piSMA,_piEMA), piTop: scorePiCycleTop(_piSMA111,_piSMA350x2),
+                coinbase: scoreCoinbase(_financeRank), trends: scoreSearchTrend(trend),
+                dominance: scoreDominance(_dominance), rainbow: scoreRainbow(_rainbow),
+                drawdown: scoreDrawdown(_btcPrice,_ath)
             };
-            const weightedSum = 
-                scores.fng * weights.fng +
-                scores.cbbi * weights.cbbi +
-                scores.wma * weights.wma +
-                scores.y2ma * weights.y2ma +
-                scores.piBottom * weights.piBottom +
-                scores.piTop * weights.piTop +
-                scores.coinbase * weights.coinbase +
-                scores.trends * weights.trends +
-                scores.dominance * weights.dominance +
-                scores.rainbow * weights.rainbow +
-                scores.drawdown * weights.drawdown;
-            const weightedAvg = weightedSum / totalWeight;
-            const score = Math.round(weightedAvg);
-            summaryScoreSpan.innerText = score;
-            if (score <= 50) {
-                const leftPercent = ((50 - score) / 50) * 100;
-                fillLeft.style.width = leftPercent + "%";
-                fillRight.style.width = "0%";
-            } else {
-                const rightPercent = ((score - 50) / 50) * 100;
-                fillLeft.style.width = "100%";
-                fillRight.style.width = rightPercent + "%";
-            }
-            const markerLeft = (score / 100) * 100;
-            scoreMarker.style.left = markerLeft + "%";
-            tickMarks.innerHTML = "";
-            for (let i = 10; i <= 90; i += 10) {
-                const tick = document.createElement("div");
-                tick.className = "tick";
-                tick.style.left = i + "%";
-                tickMarks.appendChild(tick);
-            }
+            let weightedSum = scores.fng*w.fng + scores.cbbi*w.cbbi + scores.wma*w.wma + scores.y2ma*w.y2ma +
+                              scores.piBottom*w.piBottom + scores.piTop*w.piTop + scores.coinbase*w.coinbase +
+                              scores.trends*w.trends + scores.dominance*w.dominance + scores.rainbow*w.rainbow +
+                              scores.drawdown*w.drawdown;
+            let finalScore=Math.round(weightedSum/total);
+            elements.summaryScore.innerText=finalScore;
+            if(finalScore<=50) { elements.fillLeft.style.width=((50-finalScore)/50*100)+"%"; elements.fillRight.style.width="0%"; }
+            else { elements.fillLeft.style.width="100%"; elements.fillRight.style.width=((finalScore-50)/50*100)+"%"; }
+            elements.scoreMarker.style.left=(finalScore)+"%";
+            elements.tickMarks.innerHTML="";
+            for(let i=10;i<=90;i+=10) { let t=document.createElement("div"); t.className="tick"; t.style.left=i+"%"; elements.tickMarks.appendChild(t); }
         }
 
-        // --- Main refresh ---
-        let currentTop10 = null;
-        async function refreshAllData() {
-            const now = new Date();
-            updateTimestampSpan.innerText = now.toUTCString().slice(0, -4) + " UTC";
-            const top10Coins = await fetchTop10Crypto();
-            if (top10Coins && top10Coins.length > 0) {
-                currentTop10 = top10Coins;
-                updateTicker(currentTop10);
-            } else if (!currentTop10) {
-                updateTicker(null);
-            } else {
-                updateTicker(currentTop10);
-            }
-            const btcData = await fetchBitcoinIndicators();
-            if (btcData) {
-                window._btcPrice = btcData.btcPrice;
-                window._wma200 = btcData.sma200W;
-                window._ma2y = btcData.sma2Y;
-                window._ma2y5 = btcData.sma2Yx5;
-                window._piSMA = btcData.piSMA;
-                window._piEMA = btcData.piEMA;
-                window._piSMA111 = btcData.piSMA111;
-                window._piSMA350x2 = btcData.piSMA350x2;
-                window._rainbow = btcData.rainbow;
-                window._ath = btcData.ath;
-            }
+        // ==================== MAIN REFRESH ====================
+        let currentTop10=null;
+        async function refreshAll() {
+            elements.updateTimestamp.innerText = new Date().toUTCString().slice(0,-4)+" UTC";
+            let top10=await fetchTop10Crypto();
+            if(top10 && top10.length) { currentTop10=top10; updateTicker(currentTop10); }
+            else if(!currentTop10) updateTicker(null);
+            else updateTicker(currentTop10);
+            let btcData=await fetchBitcoinIndicators();
+            if(btcData) Object.assign(window, {
+                _btcPrice:btcData.btcPrice, _wma200:btcData.sma200W, _ma2y:btcData.sma2Y, _ma2y5:btcData.sma2Yx5,
+                _piSMA:btcData.piSMA, _piEMA:btcData.piEMA, _piSMA111:btcData.piSMA111, _piSMA350x2:btcData.piSMA350x2,
+                _rainbow:btcData.rainbow, _ath:btcData.ath
+            });
             window._financeRank = await fetchCoinbaseRank();
             window._dominance = await fetchBTCDominance();
             await fetchFearGreed();
@@ -980,41 +735,28 @@
             await updateSummary();
         }
 
-        let refreshIntervalId = null;
+        let intervalId;
         async function startAutoRefresh() {
-            if (refreshIntervalId) clearInterval(refreshIntervalId);
-            await refreshAllData();
-            refreshIntervalId = setInterval(refreshAllData, REFRESH_INTERVAL_MS);
+            if(intervalId) clearInterval(intervalId);
+            await refreshAll();
+            intervalId = setInterval(refreshAll, REFRESH_INTERVAL_MS);
         }
 
-        manualRefreshBtn.addEventListener("click", async () => {
-            manualRefreshBtn.disabled = true;
-            manualRefreshBtn.textContent = "⟳ REFRESHING...";
-            await refreshAllData();
-            manualRefreshBtn.textContent = "⟳ REFRESH";
-            manualRefreshBtn.disabled = false;
-        });
+        elements.manualRefresh.onclick = async () => {
+            elements.manualRefresh.disabled=true;
+            elements.manualRefresh.textContent="⟳ REFRESHING...";
+            await refreshAll();
+            elements.manualRefresh.textContent="⟳ REFRESH";
+            elements.manualRefresh.disabled=false;
+        };
 
-        document.addEventListener("visibilitychange", () => {
-            if (!document.hidden && tickerTrack && currentTop10) {
-                tickerTrack.style.animation = "none";
-                tickerTrack.offsetHeight;
-                tickerTrack.style.animation = "scrollTicker 38s linear infinite";
-            }
-        });
+        document.addEventListener("visibilitychange",()=>{ if(!document.hidden && elements.tickerTrack && currentTop10) { elements.tickerTrack.style.animation="none"; elements.tickerTrack.offsetHeight; elements.tickerTrack.style.animation="scrollTicker 38s linear infinite"; } });
 
-        // Load config from localStorage or default, then try external config.json
-        const stored = localStorage.getItem("customConfig");
-        if (stored) {
-            try { loadConfig(JSON.parse(stored)); } catch(e) { loadConfig(DEFAULT_CONFIG); }
-        } else {
-            loadConfig(DEFAULT_CONFIG);
-        }
-        fetch('config.json')
-            .then(res => res.ok ? res.json() : Promise.reject())
-            .then(cfg => { loadConfig(cfg); console.log('Loaded external config.json'); })
-            .catch(() => console.log('No external config.json, using stored/default'))
-            .finally(() => startAutoRefresh().catch(e => console.error("Init error:", e)));
+        // Load config
+        let stored=localStorage.getItem("customConfig");
+        if(stored) try { loadConfig(JSON.parse(stored)); } catch(e){ loadConfig(DEFAULT_CONFIG); }
+        else loadConfig(DEFAULT_CONFIG);
+        fetch('config.json').then(r=>r.ok?r.json():Promise.reject()).then(cfg=>{ loadConfig(cfg); elements.configStatus.innerText="✓ Custom config loaded from file"; }).catch(()=>{ elements.configStatus.innerText="Default config (no config.json)"; }).finally(()=>startAutoRefresh());
     })();
 </script>
 </body>
