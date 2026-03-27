@@ -400,13 +400,17 @@
                 0 → EMA150 ≤ SMA471 (ratio ≤ 1).<br>
                 100 → EMA150 ≥ 2 × SMA471 (ratio ≥ 2).<br>
                 Linear scaling in between.</p></li>
-            <li><strong>6. Coinbase App Rank (Finance Apps)</strong><p>0 → Finance rank ≥ 50 (worst).<br>
+            <li><strong>6. Pi Cycle Top</strong><p>Compares 111‑day SMA to 350‑day MA ×2.<br>
+                0 → 111d SMA ≤ (350d MA ×2) / 3.<br>
+                100 → 111d SMA ≥ 350d MA ×2.<br>
+                Linear scaling in between.</p></li>
+            <li><strong>7. Coinbase App Rank (Finance Apps)</strong><p>0 → Finance rank ≥ 50 (worst).<br>
                 100 → Finance rank ≤ 1 (best).<br>
                 Linear scaling: (50 – rank) / 49 × 100.</p></li>
-            <li><strong>7. BTC Market Dominance</strong><p>0 → Dominance ≥ 66% (most dominance).<br>
+            <li><strong>8. BTC Market Dominance</strong><p>0 → Dominance ≥ 66% (most dominance).<br>
                 100 → Dominance ≤ 40% (least dominance).<br>
                 Linear scaling: (66 – dominance) / (66 – 40) × 100.</p></li>
-            <li><strong>8. Bitcoin Rainbow Chart</strong><p>Maps the 9 bands to a 0–100 scale:<br>
+            <li><strong>9. Bitcoin Rainbow Chart</strong><p>Maps the 9 bands to a 0–100 scale:<br>
                 Basically a Fire Sale → 0<br>
                 BUY! → ~14<br>
                 Accumulate → ~28<br>
@@ -416,6 +420,10 @@
                 FOMO intensifies → ~84<br>
                 Sell. Seriously, SELL! → 100<br>
                 Maximum Bubble Territory → 100</p></li>
+            <li><strong>10. Bitcoin Search Trend</strong><p>Google Trends score (0–100) for “bitcoin”.<br>
+                0 → score &lt; 20.<br>
+                100 → score &gt; 90.<br>
+                Linear scaling between 20 and 90.</p></li>
         </ul>
     </div>
 </div>
@@ -727,7 +735,7 @@
             return "Maximum Bubble Territory";
         }
 
-        // --- Scoring functions (unchanged) ---
+        // --- Scoring functions (including new ones) ---
         function scoreFearGreed(value) { return parseFloat(value) || 0; }
         function scoreCBBI(value) { return parseFloat(value) || 0; }
         function score200WMA(btcPrice, wma200) {
@@ -747,12 +755,20 @@
             if (btcPrice >= upperBound) return 100;
             return (btcPrice - lowerBound) / (upperBound - lowerBound) * 100;
         }
-        function scorePiCycle(sma471, ema150) {
+        function scorePiCycleBottom(sma471, ema150) {
             if (!sma471 || !ema150) return 50;
             let ratio = ema150 / sma471;
             if (ratio <= 1) return 0;
             if (ratio >= 2) return 100;
             return (ratio - 1) / (2 - 1) * 100;
+        }
+        function scorePiCycleTop(sma111, sma350x2) {
+            if (!sma111 || !sma350x2) return 50;
+            let lowerBound = sma350x2 / 3;   // (350d MA x2) / 3
+            let upperBound = sma350x2;
+            if (sma111 <= lowerBound) return 0;
+            if (sma111 >= upperBound) return 100;
+            return (sma111 - lowerBound) / (upperBound - lowerBound) * 100;
         }
         function scoreCoinbase(financeRank) {
             if (financeRank === undefined) return 50;
@@ -784,6 +800,12 @@
             if (idx >= 7) return 100;
             return (idx / 7) * 100;
         }
+        function scoreSearchTrend(trendValue) {
+            if (trendValue === undefined || isNaN(trendValue)) return 50;
+            if (trendValue <= 20) return 0;
+            if (trendValue >= 90) return 100;
+            return (trendValue - 20) / (90 - 20) * 100;
+        }
 
         // --- Fetch Google Trends score using SerpAPI (via proxy to avoid CORS) ---
         async function fetchGoogleTrends() {
@@ -793,11 +815,9 @@
             for (const proxy of PROXIES) {
                 try {
                     const text = await fetchWithProxy(apiUrl, proxy);
-                    // The response is JSON; parse it
                     const data = JSON.parse(text);
                     if (data.interest_over_time && data.interest_over_time.timeline_data) {
                         const timeline = data.interest_over_time.timeline_data;
-                        // The last entry is the most recent
                         const last = timeline[timeline.length - 1];
                         if (last && last.values && last.values[0] && last.values[0].value !== undefined) {
                             score = parseInt(last.values[0].value, 10);
@@ -814,7 +834,6 @@
                 trendSourceSpan.innerText = "Google Trends (SerpAPI)";
                 localStorage.setItem("searchTrendScore", score);
             } else {
-                // Fallback to cached value
                 const cached = localStorage.getItem("searchTrendScore");
                 if (cached !== null) {
                     trendScoreSpan.innerText = Math.round(parseFloat(cached));
@@ -949,7 +968,7 @@
             }
             dataSourceTextSpan.innerText = dataSource;
 
-            return { btcPrice, sma200W, sma2Y, sma2Yx5, piSMA, piEMA, rainbow };
+            return { btcPrice, sma200W, sma2Y, sma2Yx5, piSMA, piEMA, rainbow, piSMA111, piSMA350x2 };
         }
 
         // --- Coinbase App Rank: fetch from your personal RSS feed ---
@@ -1074,7 +1093,7 @@
             }
         }
 
-        // --- Summary score calculation (unchanged) ---
+        // --- Summary score calculation (including new indicators) ---
         async function updateSummary() {
             let btcPrice = window._btcPrice;
             let wma200 = window._wma200;
@@ -1082,14 +1101,18 @@
             let ma2y5 = window._ma2y5;
             let piSMA = window._piSMA;
             let piEMA = window._piEMA;
+            let piSMA111 = window._piSMA111;
+            let piSMA350x2 = window._piSMA350x2;
             let rainbow = window._rainbow;
             let dominance = window._dominance;
             let financeRank = window._financeRank;
             let fng = parseFloat(fngSpan.innerText);
             let cbbi = parseFloat(cbbiSpan.innerText);
+            let trend = parseFloat(trendScoreSpan.innerText);
 
             if (btcPrice === undefined || wma200 === undefined || ma2y === undefined || ma2y5 === undefined ||
-                piSMA === undefined || piEMA === undefined || rainbow === undefined || dominance === undefined || financeRank === undefined) {
+                piSMA === undefined || piEMA === undefined || piSMA111 === undefined || piSMA350x2 === undefined ||
+                rainbow === undefined || dominance === undefined || financeRank === undefined || isNaN(trend)) {
                 console.warn("Summary values not ready");
                 return;
             }
@@ -1099,10 +1122,12 @@
                 scoreCBBI(cbbi),
                 score200WMA(btcPrice, wma200),
                 score2YMA(btcPrice, ma2y, ma2y5),
-                scorePiCycle(piSMA, piEMA),
+                scorePiCycleBottom(piSMA, piEMA),
+                scorePiCycleTop(piSMA111, piSMA350x2),
                 scoreCoinbase(financeRank),
                 scoreDominance(dominance),
-                scoreRainbow(rainbow)
+                scoreRainbow(rainbow),
+                scoreSearchTrend(trend)
             ];
             const total = scores.reduce((a,b) => a + b, 0);
             const avg = total / scores.length;
@@ -1155,6 +1180,8 @@
                 window._ma2y5 = btcData.sma2Yx5;
                 window._piSMA = btcData.piSMA;
                 window._piEMA = btcData.piEMA;
+                window._piSMA111 = btcData.piSMA111;
+                window._piSMA350x2 = btcData.piSMA350x2;
                 window._rainbow = btcData.rainbow;
             }
             window._financeRank = await fetchCoinbaseRank();
