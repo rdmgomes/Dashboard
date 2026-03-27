@@ -678,7 +678,7 @@
             }
         }
 
-        // --- FIXED CBBI: fetch latest.json, handle nested "Price" key, reject invalid cached values ---
+        // --- IMPROVED CBBI: robust JSON parsing with sanity checks ---
         async function fetchCBBI() {
             const url = "https://colintalkscrypto.com/cbbi/data/latest.json";
             try {
@@ -686,32 +686,80 @@
                 if (!response.ok) throw new Error(`HTTP ${response.status}`);
                 const data = await response.json();
 
-                // The JSON may be directly an object with timestamp keys, or nested under a "Price" key
-                let priceData = data;
-                if (data.Price && typeof data.Price === 'object') {
-                    priceData = data.Price;
+                // Log the full data for debugging (will appear in console)
+                console.log("CBBI JSON received:", data);
+
+                // Strategy 1: Look for a dedicated property named "cbbi", "value", or "cbbi"
+                let cbbiRaw = null;
+                const possibleKeys = ["cbbi", "value", "cbbi", "index"];
+                for (let key of possibleKeys) {
+                    if (data[key] !== undefined && typeof data[key] === 'number') {
+                        cbbiRaw = data[key];
+                        console.log(`Found CBBI under key "${key}": ${cbbiRaw}`);
+                        break;
+                    }
                 }
 
-                const timestamps = Object.keys(priceData).map(Number).filter(k => !isNaN(k));
-                if (timestamps.length === 0) throw new Error("No numeric timestamps in JSON");
-                const latestTimestamp = Math.max(...timestamps);
-                const latestValue = priceData[latestTimestamp];
+                // Strategy 2: If data has a "Price" object, maybe CBBI is inside it?
+                if (cbbiRaw === null && data.Price && typeof data.Price === 'object') {
+                    for (let key of possibleKeys) {
+                        if (data.Price[key] !== undefined && typeof data.Price[key] === 'number') {
+                            cbbiRaw = data.Price[key];
+                            console.log(`Found CBBI under Price.${key}: ${cbbiRaw}`);
+                            break;
+                        }
+                    }
+                }
 
-                if (typeof latestValue === 'number' && !isNaN(latestValue)) {
-                    const cbbiScore = Math.round(latestValue * 100);
+                // Strategy 3: Fallback to timestamp-based extraction, but only accept values between 0 and 1 (CBBI in decimal)
+                if (cbbiRaw === null) {
+                    // Try to find numeric keys (timestamps) and get the latest value
+                    let priceData = data;
+                    if (data.Price && typeof data.Price === 'object') {
+                        priceData = data.Price;
+                    }
+                    const timestamps = Object.keys(priceData).map(Number).filter(k => !isNaN(k));
+                    if (timestamps.length > 0) {
+                        const latestTimestamp = Math.max(...timestamps);
+                        const latestValue = priceData[latestTimestamp];
+                        if (typeof latestValue === 'number' && !isNaN(latestValue)) {
+                            // Sanity: CBBI should be between 0 and 1 (or 0-100 raw, but we multiply by 100 later)
+                            // If value is > 100, it's likely price data, ignore
+                            if (latestValue >= 0 && latestValue <= 100) {
+                                cbbiRaw = latestValue;
+                                console.log(`Using timestamp ${latestTimestamp} value: ${latestValue}`);
+                            } else {
+                                console.warn(`Timestamp value ${latestValue} is out of expected CBBI range (0-100), ignoring.`);
+                            }
+                        }
+                    }
+                }
+
+                // If we got a valid raw value, convert to 0-100 score
+                if (cbbiRaw !== null && !isNaN(cbbiRaw)) {
+                    // CBBI can be either decimal (0-1) or already 0-100. Detect.
+                    let cbbiScore;
+                    if (cbbiRaw >= 0 && cbbiRaw <= 1) {
+                        cbbiScore = Math.round(cbbiRaw * 100);
+                    } else if (cbbiRaw >= 0 && cbbiRaw <= 100) {
+                        cbbiScore = Math.round(cbbiRaw);
+                    } else {
+                        throw new Error(`Value ${cbbiRaw} not in expected range (0-1 or 0-100)`);
+                    }
                     cbbiSpan.innerText = cbbiScore;
                     cbbiScoreSpan.innerText = `(score: ${cbbiScore})`;
                     localStorage.setItem("cbbiValue", cbbiScore);
-                    console.log(`CBBI fetched from API: ${cbbiScore} (raw ${latestValue})`);
+                    console.log(`CBBI set to ${cbbiScore} (raw ${cbbiRaw})`);
                     return;
                 }
-                throw new Error(`Invalid value: ${latestValue} (type ${typeof latestValue})`);
+
+                throw new Error("No valid CBBI value found in JSON");
             } catch (err) {
-                console.warn("CBBI API fetch failed:", err.message);
-                // Fallback to cached or default – but ignore obviously wrong values like 3
+                console.warn("CBBI fetch failed:", err.message);
+                // Fallback: use cached value only if it's reasonable (between 0 and 100)
                 const cached = localStorage.getItem("cbbiValue");
                 const cachedNum = parseInt(cached, 10);
-                if (cached && !isNaN(cachedNum) && cachedNum >= 10 && cachedNum <= 100) {
+                if (cached && !isNaN(cachedNum) && cachedNum >= 0 && cachedNum <= 100) {
                     cbbiSpan.innerText = cached;
                     cbbiScoreSpan.innerText = `(score: ${cached})`;
                     console.warn("Using cached CBBI value:", cached);
@@ -720,7 +768,6 @@
                     cbbiSpan.innerText = "50";
                     cbbiScoreSpan.innerText = "(score: 50)";
                     console.warn("No valid CBBI data, using default 50");
-                    // Clear invalid cached value
                     if (cached) localStorage.removeItem("cbbiValue");
                 }
             }
@@ -1346,7 +1393,7 @@
             window._financeRank = await fetchCoinbaseRank();
             window._dominance = await fetchBTCDominance();
             await fetchFearGreed();
-            await fetchCBBI();   // Fixed version
+            await fetchCBBI();   // Improved version
             await fetchGoogleTrends();
             
             await updateSummary();
