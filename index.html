@@ -411,10 +411,10 @@
                 0 → score &lt; 20.<br>
                 100 → score &gt; 90.<br>
                 Linear scaling between 20 and 90.</p></li>
-            <li><strong>11. ATH Drawdown</strong><p>Percentage decline from the all‑time high.<br>
-                0 → 0% drawdown (at ATH).<br>
-                100 → 100% drawdown (price at $0).<br>
-                Linear scaling: score = drawdown percentage (clamped 0–100).</p></li>
+            <li><strong>11. ATH Drawdown</strong><p>Compares current BTC price to the all‑time high and to the minimum price over the last 4 years.<br>
+                0 → BTC price ≤ 30% of ATH (i.e., 70% below ATH).<br>
+                100 → BTC price ≥ 325% of the 4‑year minimum price (i.e., 225% above that minimum).<br>
+                Linear scaling in between.</p></li>
         </ul>
     </div>
 </div>
@@ -651,10 +651,14 @@
                             const prices = rows.map(row => row.price);
                             const lastDate = rows[rows.length-1]?.date;
                             const ath = Math.max(...prices);
+                            // Compute min price over the last 4 years (approx 1460 days)
+                            const nowIndex = prices.length - 1;
+                            const fourYearsAgoIndex = Math.max(0, nowIndex - 1460);
+                            const minPrice4y = Math.min(...prices.slice(fourYearsAgoIndex));
                             if (prices.length < 1400) {
                                 reject(new Error(`Only ${prices.length} rows, need at least 1400`));
                             } else {
-                                resolve({ prices, lastDate, ath });
+                                resolve({ prices, lastDate, ath, minPrice4y });
                             }
                         },
                         error: (err) => reject(err)
@@ -726,7 +730,7 @@
             return "Maximum Bubble Territory";
         }
 
-        // --- Scoring functions (including drawdown) ---
+        // --- Scoring functions (including drawdown with new rule) ---
         function scoreFearGreed(value) { return parseFloat(value) || 0; }
         function scoreCBBI(value) { return parseFloat(value) || 0; }
         function score200WMA(btcPrice, wma200) {
@@ -797,13 +801,17 @@
             if (trendValue >= 90) return 100;
             return (trendValue - 20) / (90 - 20) * 100;
         }
-        function scoreDrawdown(drawdownPercent) {
-            // drawdownPercent is negative (e.g., -25.5 for 25.5% drawdown)
-            let absDrawdown = Math.abs(drawdownPercent);
-            if (isNaN(absDrawdown)) return 50;
-            if (absDrawdown >= 100) return 100;
-            if (absDrawdown <= 0) return 0;
-            return absDrawdown;
+        function scoreDrawdown(btcPrice, ath, minPrice4y) {
+            // New rule:
+            // Score 0 when BTC price <= 30% of ATH (i.e., 70% below ATH)
+            // Score 100 when BTC price >= 325% of min price last 4 years (i.e., 225% above min)
+            // Linear scaling in between.
+            if (!btcPrice || !ath || !minPrice4y) return 50;
+            const lower = ath * 0.30;
+            const upper = minPrice4y * 3.25;
+            if (btcPrice <= lower) return 0;
+            if (btcPrice >= upper) return 100;
+            return (btcPrice - lower) / (upper - lower) * 100;
         }
 
         // --- Fetch Google Trends score using SerpAPI (via proxy to avoid CORS) ---
@@ -850,14 +858,16 @@
             let dataSource = "";
             let lastDate = "";
             let ath = null;
+            let minPrice4y = null;
 
             const csvData = await loadPricesFromCSV();
             if (csvData && csvData.prices && csvData.prices.length >= 1400) {
                 prices = csvData.prices;
                 lastDate = csvData.lastDate;
                 ath = csvData.ath;
+                minPrice4y = csvData.minPrice4y;
                 dataSource = `CSV (${lastDate})`;
-                console.log(`Using CSV: ${prices.length} days, last date ${lastDate}, ATH: ${ath}`);
+                console.log(`Using CSV: ${prices.length} days, last date ${lastDate}, ATH: ${ath}, min last 4y: ${minPrice4y}`);
             } else {
                 // Fallback to CryptoCompare
                 try {
@@ -868,6 +878,9 @@
                     if (data.Data && data.Data.Data) {
                         prices = data.Data.Data.map(d => d.close);
                         ath = Math.max(...prices);
+                        const nowIndex = prices.length - 1;
+                        const fourYearsAgoIndex = Math.max(0, nowIndex - 1460);
+                        minPrice4y = Math.min(...prices.slice(fourYearsAgoIndex));
                         dataSource = "CryptoCompare (live)";
                         console.log(`Using CryptoCompare: ${prices.length} days`);
                     } else {
@@ -896,7 +909,7 @@
                 const sma350 = sma(prices, 350);
                 piSMA350x2 = sma350 * 2;
 
-                // ATH Drawdown
+                // ATH Drawdown (display percentage)
                 let drawdown = ((btcPrice - ath) / ath) * 100;
                 athDrawdownSpan.innerText = drawdown.toFixed(2) + "%";
 
@@ -944,6 +957,8 @@
                 const DEFAULT_2Y_MA_X5 = DEFAULT_2Y_MA * 5;
                 const DEFAULT_PI_SMA111 = btcPrice ? btcPrice * 0.9 : 64000;
                 const DEFAULT_PI_SMA350x2 = btcPrice ? btcPrice * 2.2 : 150000;
+                const DEFAULT_ATH = 124752.53; // approximate from CSV
+                const DEFAULT_MIN_4Y = btcPrice ? btcPrice * 0.5 : 35000; // rough
 
                 piSMA471Span.innerText = formatUSDNoDecimals(DEFAULT_PI_SMA);
                 piEMA150Span.innerText = formatUSDNoDecimals(DEFAULT_PI_EMA);
@@ -952,7 +967,7 @@
                 twoYMAX5Span.innerText = formatUSDNoDecimals(DEFAULT_2Y_MA_X5);
                 piSMA111Span.innerText = formatUSDNoDecimals(DEFAULT_PI_SMA111);
                 piSMA350x2Span.innerText = formatUSDNoDecimals(DEFAULT_PI_SMA350x2);
-                athDrawdownSpan.innerText = btcPrice ? ((btcPrice - 69000)/69000*100).toFixed(2) + "%" : "N/A";
+                athDrawdownSpan.innerText = btcPrice ? ((btcPrice - DEFAULT_ATH)/DEFAULT_ATH*100).toFixed(2) + "%" : "N/A";
                 dataSource = "static approximations";
 
                 const cachedRainbow = localStorage.getItem("rainbowClassification");
@@ -964,10 +979,13 @@
                     rainbowClassificationSpan.innerText = "N/A";
                     rainbowSourceSpan.innerText = "offline";
                 }
+                // For fallback, set minPrice4y to default
+                minPrice4y = DEFAULT_MIN_4Y;
+                ath = DEFAULT_ATH;
             }
             dataSourceTextSpan.innerText = dataSource;
 
-            return { btcPrice, sma200W, sma2Y, sma2Yx5, piSMA, piEMA, rainbow, piSMA111, piSMA350x2, drawdown: parseFloat(athDrawdownSpan.innerText) };
+            return { btcPrice, sma200W, sma2Y, sma2Yx5, piSMA, piEMA, rainbow, piSMA111, piSMA350x2, ath, minPrice4y };
         }
 
         // --- Coinbase App Rank: fetch from your personal RSS feed ---
@@ -1108,11 +1126,12 @@
             let fng = parseFloat(fngSpan.innerText);
             let cbbi = parseFloat(cbbiSpan.innerText);
             let trend = parseFloat(trendScoreSpan.innerText);
-            let drawdown = window._drawdown; // raw negative percentage
+            let ath = window._ath;
+            let minPrice4y = window._minPrice4y;
 
             if (btcPrice === undefined || wma200 === undefined || ma2y === undefined || ma2y5 === undefined ||
                 piSMA === undefined || piEMA === undefined || piSMA111 === undefined || piSMA350x2 === undefined ||
-                rainbow === undefined || dominance === undefined || financeRank === undefined || isNaN(trend) || drawdown === undefined) {
+                rainbow === undefined || dominance === undefined || financeRank === undefined || isNaN(trend) || ath === undefined || minPrice4y === undefined) {
                 console.warn("Summary values not ready");
                 return;
             }
@@ -1144,7 +1163,7 @@
                 trends: scoreSearchTrend(trend),
                 dominance: scoreDominance(dominance),
                 rainbow: scoreRainbow(rainbow),
-                drawdown: scoreDrawdown(drawdown)
+                drawdown: scoreDrawdown(btcPrice, ath, minPrice4y)
             };
 
             const weightedSum = 
@@ -1213,7 +1232,8 @@
                 window._piSMA111 = btcData.piSMA111;
                 window._piSMA350x2 = btcData.piSMA350x2;
                 window._rainbow = btcData.rainbow;
-                window._drawdown = btcData.drawdown;
+                window._ath = btcData.ath;
+                window._minPrice4y = btcData.minPrice4y;
             }
             window._financeRank = await fetchCoinbaseRank();
             window._dominance = await fetchBTCDominance();
