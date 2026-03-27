@@ -417,9 +417,9 @@
                 0 → score &lt; 20.<br>
                 100 → score &gt; 90.<br>
                 Linear scaling between 20 and 90.</p></li>
-            <li><strong>11. ATH Drawdown</strong><p>Compares current BTC price to the all‑time high and to the minimum price over the last 4 years.<br>
-                0 → BTC price ≤ 30% of ATH (i.e., 70% below ATH).<br>
-                100 → BTC price ≥ 325% of the 4‑year minimum price (i.e., 225% above that minimum).<br>
+            <li><strong>11. ATH Drawdown</strong><p>Compares current BTC price to the all‑time high.<br>
+                0 → BTC price ≤ 30% of ATH (70% below ATH).<br>
+                100 → BTC price ≥ ATH (0% drawdown).<br>
                 Linear scaling in between.</p></li>
         </ul>
     </div>
@@ -666,13 +666,10 @@
                             const prices = rows.map(row => row.price);
                             const lastDate = rows[rows.length-1]?.date;
                             const ath = Math.max(...prices);
-                            const nowIndex = prices.length - 1;
-                            const fourYearsAgoIndex = Math.max(0, nowIndex - 1460);
-                            const minPrice4y = Math.min(...prices.slice(fourYearsAgoIndex));
                             if (prices.length < 1400) {
                                 reject(new Error(`Only ${prices.length} rows, need at least 1400`));
                             } else {
-                                resolve({ prices, lastDate, ath, minPrice4y });
+                                resolve({ prices, lastDate, ath });
                             }
                         },
                         error: (err) => reject(err)
@@ -743,7 +740,7 @@
             return "Maximum Bubble Territory";
         }
 
-        // --- Scoring functions ---
+        // --- Scoring functions (updated ATH Drawdown) ---
         function scoreFearGreed(value) { return parseFloat(value) || 0; }
         function scoreCBBI(value) { return parseFloat(value) || 0; }
         function score200WMA(btcPrice, wma200) {
@@ -814,13 +811,12 @@
             if (trendValue >= 90) return 100;
             return (trendValue - 20) / (90 - 20) * 100;
         }
-        function scoreDrawdown(btcPrice, ath, minPrice4y) {
-            if (!btcPrice || !ath || !minPrice4y) return 50;
-            const lower = ath * 0.30;
-            const upper = minPrice4y * 3.25;
+        function scoreDrawdown(btcPrice, ath) {
+            if (!btcPrice || !ath) return 50;
+            const lower = ath * 0.30;   // 30% of ATH
             if (btcPrice <= lower) return 0;
-            if (btcPrice >= upper) return 100;
-            return (btcPrice - lower) / (upper - lower) * 100;
+            if (btcPrice >= ath) return 100;
+            return (btcPrice - lower) / (ath - lower) * 100;
         }
 
         // --- Fetch Google Trends score using SerpAPI (via proxy to avoid CORS) ---
@@ -872,16 +868,14 @@
             let dataSource = "";
             let lastDate = "";
             let ath = null;
-            let minPrice4y = null;
 
             const csvData = await loadPricesFromCSV();
             if (csvData && csvData.prices && csvData.prices.length >= 1400) {
                 prices = csvData.prices;
                 lastDate = csvData.lastDate;
                 ath = csvData.ath;
-                minPrice4y = csvData.minPrice4y;
                 dataSource = `CSV (${lastDate})`;
-                console.log(`Using CSV: ${prices.length} days, last date ${lastDate}, ATH: ${ath}, min last 4y: ${minPrice4y}`);
+                console.log(`Using CSV: ${prices.length} days, last date ${lastDate}, ATH: ${ath}`);
             } else {
                 // Fallback to CryptoCompare
                 try {
@@ -892,9 +886,6 @@
                     if (data.Data && data.Data.Data) {
                         prices = data.Data.Data.map(d => d.close);
                         ath = Math.max(...prices);
-                        const nowIndex = prices.length - 1;
-                        const fourYearsAgoIndex = Math.max(0, nowIndex - 1460);
-                        minPrice4y = Math.min(...prices.slice(fourYearsAgoIndex));
                         dataSource = "CryptoCompare (live)";
                         console.log(`Using CryptoCompare: ${prices.length} days`);
                     } else {
@@ -952,7 +943,7 @@
                 y2maScoreSpan.innerText = `(score: ${Math.round(score2YMA(btcPrice, sma2Y, sma2Yx5))})`;
                 piBottomScoreSpan.innerText = `(score: ${Math.round(scorePiCycleBottom(piSMA, piEMA))})`;
                 piTopScoreSpan.innerText = `(score: ${Math.round(scorePiCycleTop(piSMA111, piSMA350x2))})`;
-                drawdownScoreSpan.innerText = `(score: ${Math.round(scoreDrawdown(btcPrice, ath, minPrice4y))})`;
+                drawdownScoreSpan.innerText = `(score: ${Math.round(scoreDrawdown(btcPrice, ath))})`;
                 const rainbowScore = scoreRainbow(rainbow);
                 rainbowScoreSpan.innerText = `(score: ${Math.round(rainbowScore)})`;
             } else {
@@ -981,7 +972,6 @@
                 const DEFAULT_PI_SMA111 = btcPrice ? btcPrice * 0.9 : 64000;
                 const DEFAULT_PI_SMA350x2 = btcPrice ? btcPrice * 2.2 : 150000;
                 const DEFAULT_ATH = 124752.53;
-                const DEFAULT_MIN_4Y = btcPrice ? btcPrice * 0.5 : 35000;
 
                 piSMA471Span.innerText = formatUSDNoDecimals(DEFAULT_PI_SMA);
                 piEMA150Span.innerText = formatUSDNoDecimals(DEFAULT_PI_EMA);
@@ -997,7 +987,7 @@
                 y2maScoreSpan.innerText = `(score: ${Math.round(score2YMA(btcPrice, DEFAULT_2Y_MA, DEFAULT_2Y_MA_X5))})`;
                 piBottomScoreSpan.innerText = `(score: ${Math.round(scorePiCycleBottom(DEFAULT_PI_SMA, DEFAULT_PI_EMA))})`;
                 piTopScoreSpan.innerText = `(score: ${Math.round(scorePiCycleTop(DEFAULT_PI_SMA111, DEFAULT_PI_SMA350x2))})`;
-                drawdownScoreSpan.innerText = `(score: ${Math.round(scoreDrawdown(btcPrice, DEFAULT_ATH, DEFAULT_MIN_4Y))})`;
+                drawdownScoreSpan.innerText = `(score: ${Math.round(scoreDrawdown(btcPrice, DEFAULT_ATH))})`;
 
                 const cachedRainbow = localStorage.getItem("rainbowClassification");
                 if (cachedRainbow) {
@@ -1012,7 +1002,7 @@
             }
             dataSourceTextSpan.innerText = dataSource;
 
-            return { btcPrice, sma200W, sma2Y, sma2Yx5, piSMA, piEMA, rainbow, piSMA111, piSMA350x2, ath, minPrice4y };
+            return { btcPrice, sma200W, sma2Y, sma2Yx5, piSMA, piEMA, rainbow, piSMA111, piSMA350x2, ath };
         }
 
         // --- Coinbase App Rank: fetch from your personal RSS feed ---
@@ -1169,11 +1159,10 @@
             let cbbi = parseFloat(cbbiSpan.innerText);
             let trend = parseFloat(trendScoreSpan.innerText);
             let ath = window._ath;
-            let minPrice4y = window._minPrice4y;
 
             if (btcPrice === undefined || wma200 === undefined || ma2y === undefined || ma2y5 === undefined ||
                 piSMA === undefined || piEMA === undefined || piSMA111 === undefined || piSMA350x2 === undefined ||
-                rainbow === undefined || dominance === undefined || financeRank === undefined || isNaN(trend) || ath === undefined || minPrice4y === undefined) {
+                rainbow === undefined || dominance === undefined || financeRank === undefined || isNaN(trend) || ath === undefined) {
                 console.warn("Summary values not ready");
                 return;
             }
@@ -1204,7 +1193,7 @@
                 trends: scoreSearchTrend(trend),
                 dominance: scoreDominance(dominance),
                 rainbow: scoreRainbow(rainbow),
-                drawdown: scoreDrawdown(btcPrice, ath, minPrice4y)
+                drawdown: scoreDrawdown(btcPrice, ath)
             };
 
             const weightedSum = 
@@ -1274,7 +1263,6 @@
                 window._piSMA350x2 = btcData.piSMA350x2;
                 window._rainbow = btcData.rainbow;
                 window._ath = btcData.ath;
-                window._minPrice4y = btcData.minPrice4y;
             }
             window._financeRank = await fetchCoinbaseRank();
             window._dominance = await fetchBTCDominance();
