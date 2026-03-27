@@ -386,8 +386,8 @@
                 100 → BTC price = 220% of 200W MA (120% above).<br>
                 Linear scaling in between.</p></li>
             <li><strong>4. 2‑Year MA Multiplier</strong><p>Compares current BTC price to the 2‑year MA and the 2‑year MA ×5.<br>
-                0 → BTC price &lt; 66% of 2Y MA.<br>
-                100 → BTC price &gt; 150% of (2Y MA ×5).<br>
+                0 → BTC price ≤ 60% of 2Y MA.<br>
+                100 → BTC price ≥ 40% of (2Y MA ×5) [i.e., ≥ 2× the 2Y MA].<br>
                 Linear scaling in between.</p></li>
             <li><strong>5. Pi Cycle Bottom</strong><p>Compares 150‑day EMA to 471‑day SMA (raw, before 0.745 multiplier).<br>
                 0 → EMA150 ≤ SMA471 (ratio ≤ 1).<br>
@@ -648,19 +648,19 @@
             for (const proxy of PROXIES) {
                 try {
                     const html = await fetchWithProxy(url, proxy);
-                    // 1. Try specific h1 with class
-                    const match = html.match(/<h1[^>]*class="[^"]*confidence-score-value[^"]*"[^>]*>\s*#?\s*(\d+)\s*<\/h1>/i);
-                    if (match && match[1]) {
-                        cbbiValue = parseInt(match[1], 10);
-                        if (!isNaN(cbbiValue)) break;
-                    }
-                    // 2. Look for confidence phrase
+                    // 1. Look for the confidence phrase (e.g., "CONFIDENCE WE ARE AT THE PEAK: 33")
                     const confidenceMatch = html.match(/CONFIDENCE\s+WE\s+ARE\s+AT\s+THE\s+PEAK\s*:?\s*#?\s*(\d+)/i);
                     if (confidenceMatch && confidenceMatch[1]) {
                         cbbiValue = parseInt(confidenceMatch[1], 10);
-                        if (!isNaN(cbbiValue)) break;
+                        if (!isNaN(cbbiValue) && cbbiValue >= 0 && cbbiValue <= 100) break;
                     }
-                    // 3. Generic # number, but exclude scale numbers (0, 50, 100)
+                    // 2. Look for a number inside <h1 class="title confidence-score-value">
+                    const tagMatch = html.match(/<h1[^>]*class="[^"]*confidence-score-value[^"]*"[^>]*>\s*#?\s*(\d+)\s*<\/h1>/i);
+                    if (tagMatch && tagMatch[1]) {
+                        cbbiValue = parseInt(tagMatch[1], 10);
+                        if (!isNaN(cbbiValue) && cbbiValue >= 0 && cbbiValue <= 100) break;
+                    }
+                    // 3. Generic fallback: find any number between 1 and 100 that is not 0, 50, 100 (scale)
                     const allMatches = html.match(/#\s*(\d+)/g);
                     if (allMatches) {
                         for (let m of allMatches) {
@@ -786,7 +786,7 @@
             return "Maximum Bubble Territory";
         }
 
-        // --- Scoring functions (updated ATH Drawdown) ---
+        // --- Scoring functions (updated 2Y MA rule) ---
         function scoreFearGreed(value) { return parseFloat(value) || 0; }
         function scoreCBBI(value) { return parseFloat(value) || 0; }
         function score200WMA(btcPrice, wma200) {
@@ -799,9 +799,9 @@
             return (ratio - lower) / (upper - lower) * 100;
         }
         function score2YMA(btcPrice, ma2y, ma2y5) {
-            if (!btcPrice || !ma2y || !ma2y5) return 50;
-            let lowerBound = ma2y * 0.66;
-            let upperBound = ma2y5 * 1.5;
+            if (!btcPrice || !ma2y) return 50;
+            let lowerBound = ma2y * 0.6;          // 60% of 2Y MA
+            let upperBound = ma2y5 * 0.4;          // 40% of (2Y MA ×5) = 2×2Y MA
             if (btcPrice <= lowerBound) return 0;
             if (btcPrice >= upperBound) return 100;
             return (btcPrice - lowerBound) / (upperBound - lowerBound) * 100;
