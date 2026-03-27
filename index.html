@@ -785,30 +785,35 @@
             return (idx / 7) * 100;
         }
 
-        // --- Fetch Google Trends score using SerpAPI (automatic) ---
+        // --- Fetch Google Trends score using SerpAPI (via proxy to avoid CORS) ---
         async function fetchGoogleTrends() {
-            const url = `https://serpapi.com/search?engine=google_trends&q=bitcoin&data_type=TIMESERIES&date=today%205-y&api_key=${SERPAPI_KEY}`;
-            try {
-                const response = await fetch(url);
-                if (!response.ok) throw new Error(`HTTP ${response.status}`);
-                const data = await response.json();
-                if (data.interest_over_time && data.interest_over_time.timeline_data) {
-                    const timeline = data.interest_over_time.timeline_data;
-                    // The last entry is the most recent
-                    const last = timeline[timeline.length - 1];
-                    if (last && last.values && last.values[0] && last.values[0].value !== undefined) {
-                        const score = parseInt(last.values[0].value, 10);
-                        if (!isNaN(score)) {
-                            trendScoreSpan.innerText = score;
-                            trendSourceSpan.innerText = "Google Trends (SerpAPI)";
-                            localStorage.setItem("searchTrendScore", score);
-                            return;
+            const apiUrl = `https://serpapi.com/search?engine=google_trends&q=bitcoin&data_type=TIMESERIES&date=today%205-y&api_key=${SERPAPI_KEY}`;
+            let score = null;
+
+            for (const proxy of PROXIES) {
+                try {
+                    const text = await fetchWithProxy(apiUrl, proxy);
+                    // The response is JSON; parse it
+                    const data = JSON.parse(text);
+                    if (data.interest_over_time && data.interest_over_time.timeline_data) {
+                        const timeline = data.interest_over_time.timeline_data;
+                        // The last entry is the most recent
+                        const last = timeline[timeline.length - 1];
+                        if (last && last.values && last.values[0] && last.values[0].value !== undefined) {
+                            score = parseInt(last.values[0].value, 10);
+                            if (!isNaN(score)) break;
                         }
                     }
+                } catch (err) {
+                    console.warn(`SerpAPI fetch via ${proxy} failed:`, err.message);
                 }
-                throw new Error("No valid data in response");
-            } catch (err) {
-                console.warn("SerpAPI fetch failed:", err.message);
+            }
+
+            if (score !== null && !isNaN(score)) {
+                trendScoreSpan.innerText = score;
+                trendSourceSpan.innerText = "Google Trends (SerpAPI)";
+                localStorage.setItem("searchTrendScore", score);
+            } else {
                 // Fallback to cached value
                 const cached = localStorage.getItem("searchTrendScore");
                 if (cached !== null) {
