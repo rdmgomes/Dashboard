@@ -641,24 +641,36 @@
             }
         }
 
-        // --- CBBI: fetch live from colintalkscrypto.com ---
+        // --- CBBI: fetch live from colintalkscrypto.com with improved extraction ---
         async function fetchCBBI() {
             const url = "https://colintalkscrypto.com/cbbi/index.html";
             let cbbiValue = null;
             for (const proxy of PROXIES) {
                 try {
                     const html = await fetchWithProxy(url, proxy);
-                    // Look for <h1 class="title confidence-score-value">... number ...</h1>
+                    // 1. Try specific h1 with class
                     const match = html.match(/<h1[^>]*class="[^"]*confidence-score-value[^"]*"[^>]*>\s*#?\s*(\d+)\s*<\/h1>/i);
                     if (match && match[1]) {
                         cbbiValue = parseInt(match[1], 10);
                         if (!isNaN(cbbiValue)) break;
                     }
-                    // Fallback: look for "# 33" pattern
-                    const fallbackMatch = html.match(/#\s*(\d+)/);
-                    if (fallbackMatch && fallbackMatch[1]) {
-                        cbbiValue = parseInt(fallbackMatch[1], 10);
+                    // 2. Look for confidence phrase
+                    const confidenceMatch = html.match(/CONFIDENCE\s+WE\s+ARE\s+AT\s+THE\s+PEAK\s*:?\s*#?\s*(\d+)/i);
+                    if (confidenceMatch && confidenceMatch[1]) {
+                        cbbiValue = parseInt(confidenceMatch[1], 10);
                         if (!isNaN(cbbiValue)) break;
+                    }
+                    // 3. Generic # number, but exclude scale numbers (0, 50, 100)
+                    const allMatches = html.match(/#\s*(\d+)/g);
+                    if (allMatches) {
+                        for (let m of allMatches) {
+                            let num = parseInt(m.match(/\d+/)[0], 10);
+                            if (num !== 0 && num !== 50 && num !== 100 && num >= 1 && num <= 100) {
+                                cbbiValue = num;
+                                break;
+                            }
+                        }
+                        if (cbbiValue) break;
                     }
                 } catch (err) {
                     console.warn(`CBBI fetch via ${proxy} failed:`, err.message);
@@ -670,7 +682,6 @@
                 cbbiScoreSpan.innerText = `(score: ${cbbiValue})`;
                 localStorage.setItem("cbbiValue", cbbiValue);
             } else {
-                // Fallback to cached or static 33
                 const cached = localStorage.getItem("cbbiValue");
                 if (cached) {
                     cbbiSpan.innerText = cached;
