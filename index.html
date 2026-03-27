@@ -186,18 +186,14 @@
             background: #e6b87a;
             transform: translateX(-50%);
         }
-        .footer-note {
-            text-align: right;
-            font-size: 0.6rem;
+        .footer-area {
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
             margin-top: 24px;
-            color: #b87c4f;
-            position: relative;
+            gap: 12px;
         }
-        .footer-note span { color: #e69854; }
         .glossary-btn {
-            position: absolute;
-            bottom: 10px;
-            left: 10px;
             background: #331e0e;
             border: 1px solid #ffaa66;
             color: #ffaa66;
@@ -210,13 +206,18 @@
             align-items: center;
             justify-content: center;
             transition: all 0.2s;
-            z-index: 10;
         }
         .glossary-btn:hover {
             background: #5e3a1f;
             text-shadow: 0 0 4px #ffaa66;
             transform: scale(1.05);
         }
+        .footer-note {
+            text-align: right;
+            font-size: 0.6rem;
+            color: #b87c4f;
+        }
+        .footer-note span { color: #e69854; }
         .refresh-btn { background: #331e0e; border: 1px solid #ffaa66; color: #ffaa66; font-family: monospace; font-size: 0.7rem; padding: 4px 12px; border-radius: 20px; cursor: pointer; transition: all 0.2s; }
         .refresh-btn:hover { background: #5e3a1f; text-shadow: 0 0 4px #ffaa66; }
         @keyframes subtle-flicker { 0% { opacity: 0.99; } 100% { opacity: 1; } }
@@ -332,51 +333,38 @@
                 <div class="small-note">Weighted average of all indicators</div>
             </div>
 
-            <!-- Existing 8 cards -->
-            <div class="indicator-card"><label>😨 FEAR & GREED INDEX</label><span id="fngValue">--</span><div class="small-note" id="fngClassification">—</div></div>
-            <div class="indicator-card"><label>📊 CBBI INDEX</label><span id="cbbiValue">--.--</span><div class="small-note">Crypto Bitcoin Bull Run Index</div></div>
-            <div class="indicator-card"><label>⛓️ BTC 200W MA</label><span id="btc200wma">--</span><div class="small-note">200 Week Moving Average</div></div>
-            <div class="indicator-card"><label>📈 2Y MA MULTIPLIER</label><span id="twoYMA">--</span><span style="font-size:1rem;"> / </span><span id="twoYMAX5">--</span><div class="small-note">2Y MA  |  2Y MA x5</div></div>
-            <div class="indicator-card"><label>🌀 PI CYCLE BOTTOM</label><span id="piSMA471">--</span><span style="font-size:1rem;"> (471d SMA) </span><br/><span id="piEMA150">--</span><span style="font-size:1rem;"> (150d EMA) </span><div class="small-note">Bitcoin bottom indicators</div></div>
+            <!-- Cards in specified order -->
+            <div class="indicator-card"><label>😨 FEAR & GREED INDEX</label><span id="fngValue">--</span><div class="small-note" id="fngClassification">—</div><div class="small-note">Source: alternative.me</div></div>
+            <div class="indicator-card"><label>🔍 BITCOIN SEARCH TREND</label><div><span id="trendScore">--</span> <span style="font-size:1rem;">/ 100</span></div><div class="small-note" id="trendSource">—</div><div class="small-note">Source: Google Trends (SerpAPI)</div></div>
             <div class="indicator-card">
                 <label>📱 COINBASE APP RANK</label>
                 <div><span id="coinbaseAllRank">--</span> <span style="font-size:1rem;">(All Apps)</span></div>
                 <div><span id="coinbaseFinanceRank">--</span> <span style="font-size:1rem;">(Finance)</span></div>
                 <div class="small-note" id="coinbaseRankTime">—</div>
-            </div>
-            <div class="indicator-card"><label>📊 BTC MARKET DOMINANCE</label>
-                <div><span id="btcDominance">--</span> <span style="font-size:1rem;">(of total crypto)</span></div>
-                <div class="small-note" id="dominanceSource">—</div>
+                <div class="small-note">Source: RSS feed</div>
             </div>
             <div class="indicator-card">
                 <label>🌈 BITCOIN RAINBOW CHART</label>
                 <div><span id="rainbowClassification">--</span></div>
-                <div class="small-note" id="rainbowSource">Calculated from CSV</div>
+                <div class="small-note" id="rainbowSource">—</div>
+                <div class="small-note">Source: CSV</div>
             </div>
+            <div class="indicator-card"><label>📊 CBBI INDEX</label><span id="cbbiValue">--.--</span><div class="small-note">Crypto Bitcoin Bull Run Index</div><div class="small-note">Source: static (33)</div></div>
+            <div class="indicator-card"><label>⛓️ BTC 200W MA</label><span id="btc200wma">--</span><div class="small-note">200 Week Moving Average</div><div class="small-note">Source: CSV</div></div>
+            <div class="indicator-card"><label>📈 2Y MA MULTIPLIER</label><span id="twoYMA">--</span><span style="font-size:1rem;"> / </span><span id="twoYMAX5">--</span><div class="small-note">2Y MA  |  2Y MA x5</div><div class="small-note">Source: CSV</div></div>
+            <div class="indicator-card"><label>🌀 PI CYCLE BOTTOM</label><span id="piSMA471">--</span><span style="font-size:1rem;"> (471d SMA) </span><br/><span id="piEMA150">--</span><span style="font-size:1rem;"> (150d EMA) </span><div class="small-note">Bitcoin bottom indicators</div><div class="small-note">Source: CSV</div></div>
+            <div class="indicator-card"><label>🔺 PI CYCLE TOP</label><div><span id="piSMA111">--</span> <span style="font-size:1rem;">(111d SMA)</span></div><div><span id="piSMA350x2">--</span> <span style="font-size:1rem;">(350d MA x 2)</span></div><div class="small-note">Bitcoin top indicators</div><div class="small-note">Source: CSV</div></div>
+            <div class="indicator-card"><label>📊 BTC MARKET DOMINANCE</label><div><span id="btcDominance">--</span> <span style="font-size:1rem;">(of total crypto)</span></div><div class="small-note" id="dominanceSource">—</div><div class="small-note">Source: CoinGecko</div></div>
+            <div class="indicator-card"><label>📉 ATH DRAWDOWN</label><div><span id="athDrawdown">--</span> <span style="font-size:1rem;">(%)</span></div><div class="small-note" id="athSource">From CSV (ATH)</div><div class="small-note">Source: CSV</div></div>
+        </div>
 
-            <!-- New cards -->
-            <div class="indicator-card">
-                <label>🔺 PI CYCLE TOP</label>
-                <div><span id="piSMA111">--</span> <span style="font-size:1rem;">(111d SMA)</span></div>
-                <div><span id="piSMA350x2">--</span> <span style="font-size:1rem;">(350d MA x 2)</span></div>
-                <div class="small-note">Bitcoin top indicators</div>
+        <!-- Footer area: glossary button and auto-refresh message on the right -->
+        <div class="footer-area">
+            <div class="footer-note" id="dataSourceFooter">
+                ⟳ AUTO-REFRESH EVERY 15 MIN  |  DATA: <span id="dataSourceText">—</span>
             </div>
-            <div class="indicator-card">
-                <label>📉 ATH DRAWDOWN</label>
-                <div><span id="athDrawdown">--</span> <span style="font-size:1rem;">(%)</span></div>
-                <div class="small-note" id="athSource">From CSV (ATH)</div>
-            </div>
-            <div class="indicator-card">
-                <label>🔍 BITCOIN SEARCH TREND</label>
-                <div><span id="trendScore">--</span> <span style="font-size:1rem;">/ 100</span></div>
-                <div class="small-note" id="trendSource">—</div>
-            </div>
+            <div class="glossary-btn" id="glossaryBtn">ℹ️</div>
         </div>
-        <div class="footer-note" id="dataSourceFooter">
-            ⟳ AUTO-REFRESH EVERY 15 MIN  |  DATA: <span id="dataSourceText">—</span>
-        </div>
-        <!-- Glossary button in lower left corner -->
-        <div class="glossary-btn" id="glossaryBtn">ℹ️</div>
     </div>
 </div>
 
