@@ -102,6 +102,12 @@
             line-height: 1.2;
             color: #ffaa66;
         }
+        .score-badge {
+            font-size: 0.8rem;
+            font-weight: normal;
+            color: #ffcc88;
+            margin-left: 8px;
+        }
         .small-note {
             font-size: 0.7rem;
             color: #e6b87a;
@@ -333,28 +339,28 @@
             </div>
 
             <!-- Cards in specified order -->
-            <div class="indicator-card"><label>😨 FEAR & GREED INDEX</label><span id="fngValue">--</span><div class="small-note" id="fngClassification">—</div><div class="small-note">Source: alternative.me</div></div>
-            <div class="indicator-card"><label>🔍 BITCOIN SEARCH TREND</label><div><span id="trendScore">--</span> <span style="font-size:1rem;">/ 100</span></div><div class="small-note" id="trendSource">—</div><div class="small-note">Source: Google Trends (SerpAPI)</div></div>
+            <div class="indicator-card"><label>😨 FEAR & GREED INDEX</label><span id="fngValue">--</span> <span id="fngScore" class="score-badge">(score: --)</span><div class="small-note" id="fngClassification">—</div><div class="small-note">Source: alternative.me</div></div>
+            <div class="indicator-card"><label>🔍 BITCOIN SEARCH TREND</label><div><span id="trendScore">--</span> <span style="font-size:1rem;">/ 100</span> <span id="trendScoreVal" class="score-badge">(score: --)</span></div><div class="small-note" id="trendSource">—</div><div class="small-note">Source: Google Trends (SerpAPI)</div></div>
             <div class="indicator-card">
                 <label>📱 COINBASE APP RANK</label>
                 <div><span id="coinbaseAllRank">--</span> <span style="font-size:1rem;">(All Apps)</span></div>
-                <div><span id="coinbaseFinanceRank">--</span> <span style="font-size:1rem;">(Finance)</span></div>
+                <div><span id="coinbaseFinanceRank">--</span> <span style="font-size:1rem;">(Finance)</span> <span id="coinbaseScore" class="score-badge">(score: --)</span></div>
                 <div class="small-note" id="coinbaseRankTime">—</div>
                 <div class="small-note">Source: RSS feed</div>
             </div>
             <div class="indicator-card">
                 <label>🌈 BITCOIN RAINBOW CHART</label>
-                <div><span id="rainbowClassification">--</span></div>
+                <div><span id="rainbowClassification">--</span> <span id="rainbowScore" class="score-badge">(score: --)</span></div>
                 <div class="small-note" id="rainbowSource">—</div>
                 <div class="small-note">Source: CSV</div>
             </div>
-            <div class="indicator-card"><label>📊 CBBI INDEX</label><span id="cbbiValue">--.--</span><div class="small-note">Crypto Bitcoin Bull Run Index</div><div class="small-note">Source: static (33)</div></div>
-            <div class="indicator-card"><label>⛓️ BTC 200W MA</label><span id="btc200wma">--</span><div class="small-note">200 Week Moving Average</div><div class="small-note">Source: CSV</div></div>
-            <div class="indicator-card"><label>📈 2Y MA MULTIPLIER</label><span id="twoYMA">--</span><span style="font-size:1rem;"> / </span><span id="twoYMAX5">--</span><div class="small-note">2Y MA  |  2Y MA x5</div><div class="small-note">Source: CSV</div></div>
-            <div class="indicator-card"><label>🌀 PI CYCLE BOTTOM</label><span id="piSMA471">--</span><span style="font-size:1rem;"> (471d SMA) </span><br/><span id="piEMA150">--</span><span style="font-size:1rem;"> (150d EMA) </span><div class="small-note">Bitcoin bottom indicators</div><div class="small-note">Source: CSV</div></div>
-            <div class="indicator-card"><label>🔺 PI CYCLE TOP</label><div><span id="piSMA111">--</span> <span style="font-size:1rem;">(111d SMA)</span></div><div><span id="piSMA350x2">--</span> <span style="font-size:1rem;">(350d MA x 2)</span></div><div class="small-note">Bitcoin top indicators</div><div class="small-note">Source: CSV</div></div>
-            <div class="indicator-card"><label>📊 BTC MARKET DOMINANCE</label><div><span id="btcDominance">--</span> <span style="font-size:1rem;">(of total crypto)</span></div><div class="small-note" id="dominanceSource">—</div><div class="small-note">Source: CoinGecko</div></div>
-            <div class="indicator-card"><label>📉 ATH DRAWDOWN</label><div><span id="athDrawdown">--</span> <span style="font-size:1rem;">(%)</span></div><div class="small-note" id="athSource">From CSV (ATH)</div><div class="small-note">Source: CSV</div></div>
+            <div class="indicator-card"><label>📊 CBBI INDEX</label><span id="cbbiValue">--.--</span> <span id="cbbiScore" class="score-badge">(score: --)</span><div class="small-note">Crypto Bitcoin Bull Run Index</div><div class="small-note">Source: static (33)</div></div>
+            <div class="indicator-card"><label>⛓️ BTC 200W MA</label><span id="btc200wma">--</span> <span id="wmaScore" class="score-badge">(score: --)</span><div class="small-note">200 Week Moving Average</div><div class="small-note">Source: CSV</div></div>
+            <div class="indicator-card"><label>📈 2Y MA MULTIPLIER</label><span id="twoYMA">--</span><span style="font-size:1rem;"> / </span><span id="twoYMAX5">--</span> <span id="y2maScore" class="score-badge">(score: --)</span><div class="small-note">2Y MA  |  2Y MA x5</div><div class="small-note">Source: CSV</div></div>
+            <div class="indicator-card"><label>🌀 PI CYCLE BOTTOM</label><span id="piSMA471">--</span><span style="font-size:1rem;"> (471d SMA) </span><br/><span id="piEMA150">--</span><span style="font-size:1rem;"> (150d EMA) </span> <span id="piBottomScore" class="score-badge">(score: --)</span><div class="small-note">Bitcoin bottom indicators</div><div class="small-note">Source: CSV</div></div>
+            <div class="indicator-card"><label>🔺 PI CYCLE TOP</label><div><span id="piSMA111">--</span> <span style="font-size:1rem;">(111d SMA)</span></div><div><span id="piSMA350x2">--</span> <span style="font-size:1rem;">(350d MA x 2)</span> <span id="piTopScore" class="score-badge">(score: --)</span></div><div class="small-note">Bitcoin top indicators</div><div class="small-note">Source: CSV</div></div>
+            <div class="indicator-card"><label>📊 BTC MARKET DOMINANCE</label><div><span id="btcDominance">--</span> <span style="font-size:1rem;">(of total crypto)</span> <span id="dominanceScore" class="score-badge">(score: --)</span></div><div class="small-note" id="dominanceSource">—</div><div class="small-note">Source: CoinGecko</div></div>
+            <div class="indicator-card"><label>📉 ATH DRAWDOWN</label><div><span id="athDrawdown">--</span> <span style="font-size:1rem;">(%)</span> <span id="drawdownScore" class="score-badge">(score: --)</span></div><div class="small-note" id="athSource">From CSV (ATH)</div><div class="small-note">Source: CSV</div></div>
         </div>
 
         <!-- Footer: glossary button left, auto-refresh message right -->
@@ -440,37 +446,42 @@
 
         const fngSpan = document.getElementById("fngValue");
         const fngClassSpan = document.getElementById("fngClassification");
+        const fngScoreSpan = document.getElementById("fngScore");
         const cbbiSpan = document.getElementById("cbbiValue");
+        const cbbiScoreSpan = document.getElementById("cbbiScore");
         const btc200wmaSpan = document.getElementById("btc200wma");
+        const wmaScoreSpan = document.getElementById("wmaScore");
         const twoYMASpan = document.getElementById("twoYMA");
         const twoYMAX5Span = document.getElementById("twoYMAX5");
+        const y2maScoreSpan = document.getElementById("y2maScore");
         const piSMA471Span = document.getElementById("piSMA471");
         const piEMA150Span = document.getElementById("piEMA150");
-
+        const piBottomScoreSpan = document.getElementById("piBottomScore");
+        const piSMA111Span = document.getElementById("piSMA111");
+        const piSMA350x2Span = document.getElementById("piSMA350x2");
+        const piTopScoreSpan = document.getElementById("piTopScore");
         const coinbaseAllRankSpan = document.getElementById("coinbaseAllRank");
         const coinbaseFinanceRankSpan = document.getElementById("coinbaseFinanceRank");
         const coinbaseRankTimeSpan = document.getElementById("coinbaseRankTime");
-
+        const coinbaseScoreSpan = document.getElementById("coinbaseScore");
         const btcDominanceSpan = document.getElementById("btcDominance");
         const dominanceSourceSpan = document.getElementById("dominanceSource");
-
+        const dominanceScoreSpan = document.getElementById("dominanceScore");
         const rainbowClassificationSpan = document.getElementById("rainbowClassification");
         const rainbowSourceSpan = document.getElementById("rainbowSource");
-
+        const rainbowScoreSpan = document.getElementById("rainbowScore");
         const dataSourceTextSpan = document.getElementById("dataSourceText");
+        const trendScoreSpan = document.getElementById("trendScore");
+        const trendSourceSpan = document.getElementById("trendSource");
+        const trendScoreValSpan = document.getElementById("trendScoreVal");
+        const athDrawdownSpan = document.getElementById("athDrawdown");
+        const drawdownScoreSpan = document.getElementById("drawdownScore");
 
         const summaryScoreSpan = document.getElementById("summaryScore");
         const fillLeft = document.getElementById("fillLeft");
         const fillRight = document.getElementById("fillRight");
         const scoreMarker = document.getElementById("scoreMarker");
         const tickMarks = document.getElementById("tickMarks");
-
-        // New elements
-        const piSMA111Span = document.getElementById("piSMA111");
-        const piSMA350x2Span = document.getElementById("piSMA350x2");
-        const athDrawdownSpan = document.getElementById("athDrawdown");
-        const trendScoreSpan = document.getElementById("trendScore");
-        const trendSourceSpan = document.getElementById("trendSource");
 
         // Modal elements
         const modal = document.getElementById("glossaryModal");
@@ -617,19 +628,23 @@
                 if (!res.ok) throw new Error("FNG fetch failed");
                 const data = await res.json();
                 if (data && data.data && data.data[0]) {
-                    fngSpan.innerText = data.data[0].value;
+                    const value = parseInt(data.data[0].value);
+                    fngSpan.innerText = value;
                     fngClassSpan.innerText = data.data[0].value_classification || "neutral";
+                    fngScoreSpan.innerText = `(score: ${value})`;
                 } else throw new Error("Invalid FNG response");
             } catch (err) {
                 console.warn("Fear&Greed error:", err);
                 fngSpan.innerText = "ERR";
                 fngClassSpan.innerText = "offline";
+                fngScoreSpan.innerText = "(score: --)";
             }
         }
 
         // --- CBBI: static 33 (correct value) ---
         async function fetchCBBI() {
             cbbiSpan.innerText = "33";
+            cbbiScoreSpan.innerText = "(score: 33)";
         }
 
         // --- Load CSV file and extract prices and latest date ---
@@ -651,7 +666,6 @@
                             const prices = rows.map(row => row.price);
                             const lastDate = rows[rows.length-1]?.date;
                             const ath = Math.max(...prices);
-                            // Compute min price over the last 4 years (approx 1460 days)
                             const nowIndex = prices.length - 1;
                             const fourYearsAgoIndex = Math.max(0, nowIndex - 1460);
                             const minPrice4y = Math.min(...prices.slice(fourYearsAgoIndex));
@@ -718,7 +732,6 @@
             const currentResidual = Math.log(prices[n-1]) - predicted;
             const zScore = currentResidual / stdDev;
             
-            // Map z-score to band
             if (zScore < -2) return "Basically a Fire Sale";
             if (zScore < -1) return "BUY!";
             if (zScore < -0.5) return "Accumulate";
@@ -730,7 +743,7 @@
             return "Maximum Bubble Territory";
         }
 
-        // --- Scoring functions (including drawdown with new rule) ---
+        // --- Scoring functions ---
         function scoreFearGreed(value) { return parseFloat(value) || 0; }
         function scoreCBBI(value) { return parseFloat(value) || 0; }
         function score200WMA(btcPrice, wma200) {
@@ -802,10 +815,6 @@
             return (trendValue - 20) / (90 - 20) * 100;
         }
         function scoreDrawdown(btcPrice, ath, minPrice4y) {
-            // New rule:
-            // Score 0 when BTC price <= 30% of ATH (i.e., 70% below ATH)
-            // Score 100 when BTC price >= 325% of min price last 4 years (i.e., 225% above min)
-            // Linear scaling in between.
             if (!btcPrice || !ath || !minPrice4y) return 50;
             const lower = ath * 0.30;
             const upper = minPrice4y * 3.25;
@@ -839,15 +848,20 @@
             if (score !== null && !isNaN(score)) {
                 trendScoreSpan.innerText = score;
                 trendSourceSpan.innerText = "Google Trends (SerpAPI)";
+                const trendScoreValue = scoreSearchTrend(score);
+                trendScoreValSpan.innerText = `(score: ${Math.round(trendScoreValue)})`;
                 localStorage.setItem("searchTrendScore", score);
             } else {
                 const cached = localStorage.getItem("searchTrendScore");
                 if (cached !== null) {
-                    trendScoreSpan.innerText = Math.round(parseFloat(cached));
+                    const scoreVal = parseInt(cached);
+                    trendScoreSpan.innerText = scoreVal;
                     trendSourceSpan.innerText = "cached";
+                    trendScoreValSpan.innerText = `(score: ${Math.round(scoreSearchTrend(scoreVal))})`;
                 } else {
                     trendScoreSpan.innerText = "--";
                     trendSourceSpan.innerText = "offline";
+                    trendScoreValSpan.innerText = "(score: --)";
                 }
             }
         }
@@ -932,6 +946,15 @@
                     rainbowSourceSpan.innerText = "Calculated from CSV";
                     localStorage.setItem("rainbowClassification", rainbow);
                 }
+
+                // Update scores
+                wmaScoreSpan.innerText = `(score: ${Math.round(score200WMA(btcPrice, sma200W))})`;
+                y2maScoreSpan.innerText = `(score: ${Math.round(score2YMA(btcPrice, sma2Y, sma2Yx5))})`;
+                piBottomScoreSpan.innerText = `(score: ${Math.round(scorePiCycleBottom(piSMA, piEMA))})`;
+                piTopScoreSpan.innerText = `(score: ${Math.round(scorePiCycleTop(piSMA111, piSMA350x2))})`;
+                drawdownScoreSpan.innerText = `(score: ${Math.round(scoreDrawdown(btcPrice, ath, minPrice4y))})`;
+                const rainbowScore = scoreRainbow(rainbow);
+                rainbowScoreSpan.innerText = `(score: ${Math.round(rainbowScore)})`;
             } else {
                 // Static fallback
                 try {
@@ -957,8 +980,8 @@
                 const DEFAULT_2Y_MA_X5 = DEFAULT_2Y_MA * 5;
                 const DEFAULT_PI_SMA111 = btcPrice ? btcPrice * 0.9 : 64000;
                 const DEFAULT_PI_SMA350x2 = btcPrice ? btcPrice * 2.2 : 150000;
-                const DEFAULT_ATH = 124752.53; // approximate from CSV
-                const DEFAULT_MIN_4Y = btcPrice ? btcPrice * 0.5 : 35000; // rough
+                const DEFAULT_ATH = 124752.53;
+                const DEFAULT_MIN_4Y = btcPrice ? btcPrice * 0.5 : 35000;
 
                 piSMA471Span.innerText = formatUSDNoDecimals(DEFAULT_PI_SMA);
                 piEMA150Span.innerText = formatUSDNoDecimals(DEFAULT_PI_EMA);
@@ -970,18 +993,22 @@
                 athDrawdownSpan.innerText = btcPrice ? ((btcPrice - DEFAULT_ATH)/DEFAULT_ATH*100).toFixed(2) + "%" : "N/A";
                 dataSource = "static approximations";
 
+                wmaScoreSpan.innerText = `(score: ${Math.round(score200WMA(btcPrice, DEFAULT_200W_MA))})`;
+                y2maScoreSpan.innerText = `(score: ${Math.round(score2YMA(btcPrice, DEFAULT_2Y_MA, DEFAULT_2Y_MA_X5))})`;
+                piBottomScoreSpan.innerText = `(score: ${Math.round(scorePiCycleBottom(DEFAULT_PI_SMA, DEFAULT_PI_EMA))})`;
+                piTopScoreSpan.innerText = `(score: ${Math.round(scorePiCycleTop(DEFAULT_PI_SMA111, DEFAULT_PI_SMA350x2))})`;
+                drawdownScoreSpan.innerText = `(score: ${Math.round(scoreDrawdown(btcPrice, DEFAULT_ATH, DEFAULT_MIN_4Y))})`;
+
                 const cachedRainbow = localStorage.getItem("rainbowClassification");
                 if (cachedRainbow) {
                     rainbowClassificationSpan.innerText = cachedRainbow;
                     rainbowSourceSpan.innerText = "cached";
-                    rainbow = cachedRainbow;
+                    rainbowScoreSpan.innerText = `(score: ${Math.round(scoreRainbow(cachedRainbow))})`;
                 } else {
                     rainbowClassificationSpan.innerText = "N/A";
                     rainbowSourceSpan.innerText = "offline";
+                    rainbowScoreSpan.innerText = "(score: --)";
                 }
-                // For fallback, set minPrice4y to default
-                minPrice4y = DEFAULT_MIN_4Y;
-                ath = DEFAULT_ATH;
             }
             dataSourceTextSpan.innerText = dataSource;
 
@@ -998,6 +1025,8 @@
                 let parsed = parseRSS(xmlText);
                 if (parsed) {
                     updateCoinbaseUI(parsed);
+                    const score = scoreCoinbase(parsed.financeRank);
+                    coinbaseScoreSpan.innerText = `(score: ${Math.round(score)})`;
                     return parsed.financeRank;
                 }
                 throw new Error("Parsing failed");
@@ -1009,6 +1038,8 @@
                         const parsed = parseRSS(xmlText);
                         if (parsed) {
                             updateCoinbaseUI(parsed);
+                            const score = scoreCoinbase(parsed.financeRank);
+                            coinbaseScoreSpan.innerText = `(score: ${Math.round(score)})`;
                             return parsed.financeRank;
                         }
                     } catch (proxyErr) {
@@ -1022,11 +1053,14 @@
                     coinbaseAllRankSpan.innerText = cachedAll;
                     coinbaseFinanceRankSpan.innerText = cachedFinance;
                     coinbaseRankTimeSpan.innerText = cachedTime || "cached";
+                    const score = scoreCoinbase(parseInt(cachedFinance));
+                    coinbaseScoreSpan.innerText = `(score: ${Math.round(score)})`;
                     return parseInt(cachedFinance);
                 } else {
                     coinbaseAllRankSpan.innerText = "N/A";
                     coinbaseFinanceRankSpan.innerText = "N/A";
                     coinbaseRankTimeSpan.innerText = "offline";
+                    coinbaseScoreSpan.innerText = "(score: --)";
                     return null;
                 }
             }
@@ -1076,6 +1110,8 @@
                 if (dominance) {
                     btcDominanceSpan.innerText = dominance.toFixed(1) + "%";
                     dominanceSourceSpan.innerText = "CoinGecko (live)";
+                    const score = scoreDominance(dominance);
+                    dominanceScoreSpan.innerText = `(score: ${Math.round(score)})`;
                     localStorage.setItem("btcDominance", dominance.toFixed(1));
                     return dominance;
                 }
@@ -1090,6 +1126,8 @@
                         if (dominance) {
                             btcDominanceSpan.innerText = dominance.toFixed(1) + "%";
                             dominanceSourceSpan.innerText = "CoinGecko (live via proxy)";
+                            const score = scoreDominance(dominance);
+                            dominanceScoreSpan.innerText = `(score: ${Math.round(score)})`;
                             localStorage.setItem("btcDominance", dominance.toFixed(1));
                             return dominance;
                         }
@@ -1099,12 +1137,16 @@
                 }
                 const cached = localStorage.getItem("btcDominance");
                 if (cached) {
+                    const dominanceVal = parseFloat(cached);
                     btcDominanceSpan.innerText = cached + "%";
                     dominanceSourceSpan.innerText = "cached";
-                    return parseFloat(cached);
+                    const score = scoreDominance(dominanceVal);
+                    dominanceScoreSpan.innerText = `(score: ${Math.round(score)})`;
+                    return dominanceVal;
                 } else {
                     btcDominanceSpan.innerText = "N/A";
                     dominanceSourceSpan.innerText = "offline";
+                    dominanceScoreSpan.innerText = "(score: --)";
                     return null;
                 }
             }
@@ -1136,7 +1178,6 @@
                 return;
             }
 
-            // Weights (total = 115)
             const weights = {
                 fng: 10,
                 cbbi: 10,
