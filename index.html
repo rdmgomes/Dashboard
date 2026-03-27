@@ -6,55 +6,18 @@
     <title>3Amigos Bitcoin Cycle Dashboard</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <style>
+        /* (all styles from previous version – unchanged) */
         * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
         body { background: #000000; min-height: 100vh; display: flex; justify-content: center; align-items: center; padding: 24px; font-family: 'Courier New', 'VT323', 'IBM EGA', 'Fira Code', monospace; }
         .crt { max-width: 1400px; width: 100%; background: #1a0f06; border-radius: 28px 28px 32px 32px; padding: 24px 28px 32px 28px; box-shadow: 0 0 0 4px #b87c4f, 0 0 0 8px #5e3a1f, 0 10px 30px rgba(255,140,0,0.2); border-bottom: 6px solid #c47c3e; }
         .screen { background: #2a1a0c; border-radius: 16px; padding: 20px 18px 24px 18px; box-shadow: inset 0 0 40px rgba(180,100,20,0.4), 0 0 0 2px #d99444; position: relative; overflow: hidden; }
         .screen::before { content: ""; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: repeating-linear-gradient(0deg, rgba(255,140,0,0.05) 0px, rgba(255,140,0,0.05) 2px, transparent 2px, transparent 6px); pointer-events: none; z-index: 2; }
         .screen::after { content: ""; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: radial-gradient(circle at 30% 20%, rgba(100,50,0,0.3), #00000088); pointer-events: none; z-index: 1; }
-        .header-top {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            margin-bottom: 20px;
-        }
-        .logo-title-container {
-            display: flex;
-            align-items: center;
-            gap: 20px;
-            flex-wrap: wrap;
-            flex: 1;
-        }
-        .logo-img {
-            width: 180px;
-            height: 180px;
-            border-radius: 50%;
-            object-fit: cover;
-            object-position: center;
-            display: block;
-            flex-shrink: 0;
-        }
-        .dashboard-title {
-            font-size: 3rem;
-            font-weight: bold;
-            color: #ffaa66;
-            text-shadow: 0 0 4px #ff8844, 0 0 2px #dd7733;
-            letter-spacing: 3px;
-            margin: 0;
-            line-height: 1.2;
-            flex: 1;
-            text-align: center;
-        }
-        .sub {
-            display: flex;
-            justify-content: space-between;
-            align-items: baseline;
-            border-bottom: 1px dashed #b87c4f;
-            margin-bottom: 24px;
-            padding-bottom: 8px;
-            flex-wrap: wrap;
-            color: #ffaa66;
-        }
+        .header-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; }
+        .logo-title-container { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; flex: 1; }
+        .logo-img { width: 180px; height: 180px; border-radius: 50%; object-fit: cover; object-position: center; display: block; flex-shrink: 0; }
+        .dashboard-title { font-size: 3rem; font-weight: bold; color: #ffaa66; text-shadow: 0 0 4px #ff8844, 0 0 2px #dd7733; letter-spacing: 3px; margin: 0; line-height: 1.2; flex: 1; text-align: center; }
+        .sub { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 1px dashed #b87c4f; margin-bottom: 24px; padding-bottom: 8px; flex-wrap: wrap; color: #ffaa66; }
         .timestamp { font-size: 0.75rem; background: #331e0e; padding: 4px 10px; border-radius: 20px; font-family: monospace; color: #ffaa66; }
         .ticker-zone { margin: 18px 0 28px 0; background: #2e1c0c; border: 1px solid #c47c3e; border-radius: 12px; padding: 12px 0; box-shadow: inset 0 0 10px #5e3a1f; }
         .ticker-container { width: 100%; overflow: hidden; white-space: nowrap; position: relative; }
@@ -65,259 +28,57 @@
         .positive { color: #2eff7a; text-shadow: 0 0 2px #1eff6e; }
         .negative { color: #ff5a6e; text-shadow: 0 0 2px #ff3366; }
         @keyframes scrollTicker { 0% { transform: translateX(0%); } 100% { transform: translateX(-50%); } }
-        .indicators-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-            gap: 16px;
-            margin-top: 28px;
-        }
-        .summary-card {
-            grid-column: 1 / -1;
-            background: #2a1a0c;
-            border: 1px solid #c47c3e;
-            border-radius: 14px;
-            padding: 12px 18px;
-            box-shadow: 2px 2px 0px #5e3a1f;
-        }
-        .indicator-card {
-            background: #2a1a0c;
-            border: 1px solid #c47c3e;
-            border-radius: 14px;
-            padding: 12px 18px;
-            transition: all 0.1s ease;
-            box-shadow: 2px 2px 0px #5e3a1f;
-        }
-        .indicator-card label, .summary-card label {
-            font-size: 0.7rem;
-            text-transform: uppercase;
-            letter-spacing: 2px;
-            display: block;
-            margin-bottom: 8px;
-            color: #e69854;
-        }
-        .indicator-card span, .summary-card span {
-            font-size: 1.65rem;
-            font-weight: bold;
-            word-break: break-word;
-            line-height: 1.2;
-            color: #ffaa66;
-        }
-        .score-badge {
-            font-size: 0.8rem;
-            font-weight: normal;
-            color: #ffcc88;
-            margin-left: 8px;
-        }
-        .small-note {
-            font-size: 0.7rem;
-            color: #e6b87a;
-            margin-top: 8px;
-            border-top: 1px dotted #b87c4f;
-            padding-top: 6px;
-        }
-        .progress-container {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            margin-top: 8px;
-            position: relative;
-        }
-        .progress-label {
-            font-size: 0.7rem;
-            color: #e6b87a;
-            min-width: 45px;
-        }
-        .progress-track {
-            flex: 1;
-            height: 12px;
-            background: #2a1a0c;
-            border-radius: 10px;
-            position: relative;
-            display: flex;
-            border: 1px solid #b87c4f;
-        }
-        .track-half {
-            flex: 1;
-            height: 100%;
-            position: relative;
-        }
-        .track-half.left {
-            border-radius: 10px 0 0 10px;
-            overflow: hidden;
-        }
-        .track-half.right {
-            border-radius: 0 10px 10px 0;
-            overflow: hidden;
-        }
-        .fill-left {
-            background: #ffaa66;
-            height: 100%;
-            width: 0%;
-            margin-left: auto;
-            transition: width 0.3s ease;
-        }
-        .fill-right {
-            background: #ffaa66;
-            height: 100%;
-            width: 0%;
-            transition: width 0.3s ease;
-        }
-        .score-marker {
-            position: absolute;
-            top: -4px;
-            width: 10px;
-            height: 20px;
-            background: #ffaa66;
-            border-radius: 50%;
-            box-shadow: 0 0 6px #ffaa66;
-            transform: translateX(-50%);
-            z-index: 2;
-            pointer-events: none;
-            transition: left 0.3s ease;
-        }
-        .tick-marks {
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            pointer-events: none;
-            z-index: 1;
-        }
-        .tick {
-            position: absolute;
-            top: -2px;
-            width: 1px;
-            height: 16px;
-            background: #e6b87a;
-            transform: translateX(-50%);
-        }
-        .footer-area {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-top: 24px;
-        }
-        .glossary-btn {
-            background: #331e0e;
-            border: 1px solid #ffaa66;
-            color: #ffaa66;
-            font-size: 1.2rem;
-            width: 32px;
-            height: 32px;
-            border-radius: 50%;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: all 0.2s;
-        }
-        .glossary-btn:hover {
-            background: #5e3a1f;
-            text-shadow: 0 0 4px #ffaa66;
-            transform: scale(1.05);
-        }
-        .footer-note {
-            text-align: right;
-            font-size: 0.6rem;
-            color: #b87c4f;
-        }
+        .indicators-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-top: 28px; }
+        .summary-card { grid-column: 1 / -1; background: #2a1a0c; border: 1px solid #c47c3e; border-radius: 14px; padding: 12px 18px; box-shadow: 2px 2px 0px #5e3a1f; }
+        .indicator-card { background: #2a1a0c; border: 1px solid #c47c3e; border-radius: 14px; padding: 12px 18px; transition: all 0.1s ease; box-shadow: 2px 2px 0px #5e3a1f; }
+        .indicator-card label, .summary-card label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 2px; display: block; margin-bottom: 8px; color: #e69854; }
+        .indicator-card span, .summary-card span { font-size: 1.65rem; font-weight: bold; word-break: break-word; line-height: 1.2; color: #ffaa66; }
+        .score-badge { font-size: 0.8rem; font-weight: normal; color: #ffcc88; margin-left: 8px; }
+        .small-note { font-size: 0.7rem; color: #e6b87a; margin-top: 8px; border-top: 1px dotted #b87c4f; padding-top: 6px; }
+        .progress-container { display: flex; align-items: center; gap: 12px; margin-top: 8px; position: relative; }
+        .progress-label { font-size: 0.7rem; color: #e6b87a; min-width: 45px; }
+        .progress-track { flex: 1; height: 12px; background: #2a1a0c; border-radius: 10px; position: relative; display: flex; border: 1px solid #b87c4f; }
+        .track-half { flex: 1; height: 100%; position: relative; }
+        .track-half.left { border-radius: 10px 0 0 10px; overflow: hidden; }
+        .track-half.right { border-radius: 0 10px 10px 0; overflow: hidden; }
+        .fill-left { background: #ffaa66; height: 100%; width: 0%; margin-left: auto; transition: width 0.3s ease; }
+        .fill-right { background: #ffaa66; height: 100%; width: 0%; transition: width 0.3s ease; }
+        .score-marker { position: absolute; top: -4px; width: 10px; height: 20px; background: #ffaa66; border-radius: 50%; box-shadow: 0 0 6px #ffaa66; transform: translateX(-50%); z-index: 2; pointer-events: none; transition: left 0.3s ease; }
+        .tick-marks { position: absolute; top: 0; left: 0; right: 0; bottom: 0; pointer-events: none; z-index: 1; }
+        .tick { position: absolute; top: -2px; width: 1px; height: 16px; background: #e6b87a; transform: translateX(-50%); }
+        .footer-area { display: flex; justify-content: space-between; align-items: center; margin-top: 24px; }
+        .glossary-btn { background: #331e0e; border: 1px solid #ffaa66; color: #ffaa66; font-size: 1.2rem; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; }
+        .glossary-btn:hover { background: #5e3a1f; text-shadow: 0 0 4px #ffaa66; transform: scale(1.05); }
+        .footer-note { text-align: right; font-size: 0.6rem; color: #b87c4f; }
         .footer-note span { color: #e69854; }
         .refresh-btn { background: #331e0e; border: 1px solid #ffaa66; color: #ffaa66; font-family: monospace; font-size: 0.7rem; padding: 4px 12px; border-radius: 20px; cursor: pointer; transition: all 0.2s; }
         .refresh-btn:hover { background: #5e3a1f; text-shadow: 0 0 4px #ffaa66; }
         @keyframes subtle-flicker { 0% { opacity: 0.99; } 100% { opacity: 1; } }
         .screen { animation: subtle-flicker 0.2s infinite; }
-
-        /* Modal styles (desert/orange) */
-        .modal {
-            display: none;
-            position: fixed;
-            z-index: 1000;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
-            overflow: auto;
-            background-color: rgba(0,0,0,0.8);
-        }
-        .modal-content {
-            background-color: #2a1a0c;
-            margin: 5% auto;
-            padding: 20px;
-            border: 2px solid #c47c3e;
-            border-radius: 14px;
-            width: 90%;
-            max-width: 600px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
-            color: #ffaa66;
-            font-family: 'Courier New', monospace;
-        }
-        .close {
-            color: #ffaa66;
-            float: right;
-            font-size: 28px;
-            font-weight: bold;
-            cursor: pointer;
-        }
-        .close:hover {
-            color: #e6b87a;
-        }
-        .modal-content h2 {
-            color: #e69854;
-            margin-bottom: 15px;
-            text-align: center;
-            font-size: 1.5rem;
-        }
-        .modal-content ul {
-            list-style: none;
-            padding-left: 0;
-        }
-        .modal-content li {
-            margin-bottom: 12px;
-            border-bottom: 1px dotted #b87c4f;
-            padding-bottom: 8px;
-        }
-        .modal-content li strong {
-            color: #ffaa66;
-        }
-        .modal-content li p {
-            margin: 5px 0 0 20px;
-            font-size: 0.85rem;
-            color: #e6b87a;
-        }
-        .weights-section {
-            margin-top: 20px;
-            border-top: 1px solid #c47c3e;
-            padding-top: 15px;
-        }
-        .weights-section h3 {
-            color: #e69854;
-            font-size: 1.2rem;
-            margin-bottom: 10px;
-        }
-        .weights-list {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 8px 20px;
-            font-size: 0.85rem;
-        }
-        .weights-list span {
-            color: #ffcc88;
-        }
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.8); }
+        .modal-content { background-color: #2a1a0c; margin: 5% auto; padding: 20px; border: 2px solid #c47c3e; border-radius: 14px; width: 90%; max-width: 600px; box-shadow: 0 4px 20px rgba(0,0,0,0.5); color: #ffaa66; font-family: 'Courier New', monospace; }
+        .close { color: #ffaa66; float: right; font-size: 28px; font-weight: bold; cursor: pointer; }
+        .close:hover { color: #e6b87a; }
+        .modal-content h2 { color: #e69854; margin-bottom: 15px; text-align: center; font-size: 1.5rem; }
+        .modal-content ul { list-style: none; padding-left: 0; }
+        .modal-content li { margin-bottom: 12px; border-bottom: 1px dotted #b87c4f; padding-bottom: 8px; }
+        .modal-content li strong { color: #ffaa66; }
+        .modal-content li p { margin: 5px 0 0 20px; font-size: 0.85rem; color: #e6b87a; }
+        .weights-section { margin-top: 20px; border-top: 1px solid #c47c3e; padding-top: 15px; }
+        .weights-section h3 { color: #e69854; font-size: 1.2rem; margin-bottom: 10px; }
+        .weights-list { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 20px; font-size: 0.85rem; }
+        .weights-list span { color: #ffcc88; }
     </style>
 </head>
 <body>
 <div class="crt">
     <div class="screen">
-        <!-- Header with logo and title -->
         <div class="header-top">
             <div class="logo-title-container">
                 <img src="3amigos.png" alt="3 Amigos" class="logo-img">
                 <div class="dashboard-title">3Amigos Bitcoin Cycle Dashboard</div>
             </div>
         </div>
-
-        <!-- Sub header: live stream text + timestamp/refresh -->
         <div class="sub">
             <div>⟁ LIVE MARKET STREAM  |  TOP 10 (EXCL. STABLES)</div>
             <div style="display: flex; gap: 12px; align-items: center;">
@@ -325,7 +86,6 @@
                 <button class="refresh-btn" id="manualRefresh">⟳ REFRESH</button>
             </div>
         </div>
-
         <div class="ticker-zone">
             <div class="ticker-container">
                 <div class="ticker-track" id="tickerTrack">
@@ -334,9 +94,7 @@
                 </div>
             </div>
         </div>
-
         <div class="indicators-grid" id="indicatorsGrid">
-            <!-- Summary Card (full width) -->
             <div class="summary-card">
                 <label>📊 SUMMARY SCORE (0-100)</label>
                 <div><span id="summaryScore">--</span> <span style="font-size:1rem;">/ 100</span></div>
@@ -356,8 +114,6 @@
                 </div>
                 <div class="small-note">Weighted average of all indicators</div>
             </div>
-
-            <!-- Cards in specified order -->
             <div class="indicator-card"><label>😨 FEAR & GREED INDEX</label><span id="fngValue">--</span> <span id="fngScore" class="score-badge">(score: --)</span><div class="small-note" id="fngClassification">—</div><div class="small-note">Source: alternative.me</div></div>
             <div class="indicator-card"><label>🔍 BITCOIN SEARCH TREND</label><div><span id="trendScore">--</span> <span style="font-size:1rem;">/ 100</span> <span id="trendScoreVal" class="score-badge">(score: --)</span></div><div class="small-note" id="trendSource">—</div><div class="small-note">Source: Google Trends (SerpAPI)</div></div>
             <div class="indicator-card">
@@ -381,8 +137,6 @@
             <div class="indicator-card"><label>📊 BTC MARKET DOMINANCE</label><div><span id="btcDominance">--</span> <span style="font-size:1rem;">(of total crypto)</span> <span id="dominanceScore" class="score-badge">(score: --)</span></div><div class="small-note" id="dominanceSource">—</div><div class="small-note">Source: CoinGecko</div></div>
             <div class="indicator-card"><label>📉 ATH DRAWDOWN</label><div><span id="athDrawdown">--</span> <span style="font-size:1rem;">(%)</span> <span id="drawdownScore" class="score-badge">(score: --)</span></div><div class="small-note" id="athSource">From CSV (ATH)</div><div class="small-note">Source: CSV</div></div>
         </div>
-
-        <!-- Footer: glossary button left, auto-refresh message right -->
         <div class="footer-area">
             <div class="glossary-btn" id="glossaryBtn">ℹ️</div>
             <div class="footer-note" id="dataSourceFooter">
@@ -391,8 +145,6 @@
         </div>
     </div>
 </div>
-
-<!-- Modal for KPI Glossary -->
 <div id="glossaryModal" class="modal">
     <div class="modal-content">
         <span class="close">&times;</span>
@@ -409,10 +161,10 @@
             "usds"
         ]);
 
-        // --- SerpAPI configuration (your API key) ---
+        // --- SerpAPI configuration ---
         const SERPAPI_KEY = 'ce4b6816e4a12d169c44ddacca183171df991232e896db58c1d8253834e5519b';
 
-        // --- PROXIES (for other APIs) ---
+        // --- PROXIES ---
         const PROXIES = [
             "https://corsproxy.io/",
             "https://api.allorigins.win/raw?url=",
@@ -420,21 +172,65 @@
             "https://thingproxy.freeboard.io/fetch/"
         ];
 
+        // ==================== DOM ELEMENTS ====================
+        const updateTimestampSpan = document.getElementById("updateTimestamp");
+        const tickerPrimaryDiv = document.getElementById("tickerContentPrimary");
+        const tickerDuplicateDiv = document.getElementById("tickerContentDuplicate");
+        const tickerTrack = document.getElementById("tickerTrack");
+        const manualRefreshBtn = document.getElementById("manualRefresh");
+
+        const fngSpan = document.getElementById("fngValue");
+        const fngClassSpan = document.getElementById("fngClassification");
+        const fngScoreSpan = document.getElementById("fngScore");
+        const cbbiSpan = document.getElementById("cbbiValue");
+        const cbbiScoreSpan = document.getElementById("cbbiScore");
+        const btc200wmaSpan = document.getElementById("btc200wma");
+        const wmaScoreSpan = document.getElementById("wmaScore");
+        const twoYMASpan = document.getElementById("twoYMA");
+        const twoYMAX5Span = document.getElementById("twoYMAX5");
+        const y2maScoreSpan = document.getElementById("y2maScore");
+        const piSMA471Span = document.getElementById("piSMA471");
+        const piEMA150Span = document.getElementById("piEMA150");
+        const piBottomScoreSpan = document.getElementById("piBottomScore");
+        const piSMA111Span = document.getElementById("piSMA111");
+        const piSMA350x2Span = document.getElementById("piSMA350x2");
+        const piTopScoreSpan = document.getElementById("piTopScore");
+        const coinbaseAllRankSpan = document.getElementById("coinbaseAllRank");
+        const coinbaseFinanceRankSpan = document.getElementById("coinbaseFinanceRank");
+        const coinbaseRankTimeSpan = document.getElementById("coinbaseRankTime");
+        const coinbaseScoreSpan = document.getElementById("coinbaseScore");
+        const btcDominanceSpan = document.getElementById("btcDominance");
+        const dominanceSourceSpan = document.getElementById("dominanceSource");
+        const dominanceScoreSpan = document.getElementById("dominanceScore");
+        const rainbowClassificationSpan = document.getElementById("rainbowClassification");
+        const rainbowSourceSpan = document.getElementById("rainbowSource");
+        const rainbowScoreSpan = document.getElementById("rainbowScore");
+        const dataSourceTextSpan = document.getElementById("dataSourceText");
+        const trendScoreSpan = document.getElementById("trendScore");
+        const trendSourceSpan = document.getElementById("trendSource");
+        const trendScoreValSpan = document.getElementById("trendScoreVal");
+        const athDrawdownSpan = document.getElementById("athDrawdown");
+        const drawdownScoreSpan = document.getElementById("drawdownScore");
+
+        const summaryScoreSpan = document.getElementById("summaryScore");
+        const fillLeft = document.getElementById("fillLeft");
+        const fillRight = document.getElementById("fillRight");
+        const scoreMarker = document.getElementById("scoreMarker");
+        const tickMarks = document.getElementById("tickMarks");
+
+        // Modal
+        const modal = document.getElementById("glossaryModal");
+        const btn = document.getElementById("glossaryBtn");
+        const spanClose = document.getElementsByClassName("close")[0];
+        btn.onclick = function() { modal.style.display = "block"; }
+        spanClose.onclick = function() { modal.style.display = "none"; }
+        window.onclick = function(event) { if (event.target == modal) modal.style.display = "none"; }
+
         // ==================== CONFIGURATION ====================
-        // Default config (original values)
         const DEFAULT_CONFIG = {
             weights: {
-                fng: 10,
-                cbbi: 10,
-                wma: 15,
-                y2ma: 15,
-                piBottom: 15,
-                piTop: 15,
-                coinbase: 5,
-                trends: 5,
-                dominance: 5,
-                rainbow: 10,
-                drawdown: 10
+                fng: 10, cbbi: 10, wma: 15, y2ma: 15, piBottom: 15, piTop: 15,
+                coinbase: 5, trends: 5, dominance: 5, rainbow: 10, drawdown: 10
             },
             scoring: {
                 fng: { type: "raw" },
@@ -446,158 +242,78 @@
                 coinbase: { type: "inverse_linear", min: 1, max: 50 },
                 trends: { type: "linear", min: 20, max: 90 },
                 dominance: { type: "inverse_linear", min: 40, max: 66 },
-                rainbow: {
-                    type: "categorical",
-                    categories: [
-                        { name: "Basically a Fire Sale", score: 0 },
-                        { name: "BUY!", score: 14 },
-                        { name: "Accumulate", score: 28 },
-                        { name: "Still cheap", score: 42 },
-                        { name: "HODL!", score: 56 },
-                        { name: "Is this a bubble?", score: 70 },
-                        { name: "FOMO intensifies", score: 84 },
-                        { name: "Sell. Seriously, SELL!", score: 100 },
-                        { name: "Maximum Bubble Territory", score: 100 }
-                    ]
-                },
+                rainbow: { type: "categorical", categories: [
+                    { name: "Basically a Fire Sale", score: 0 },
+                    { name: "BUY!", score: 14 },
+                    { name: "Accumulate", score: 28 },
+                    { name: "Still cheap", score: 42 },
+                    { name: "HODL!", score: 56 },
+                    { name: "Is this a bubble?", score: 70 },
+                    { name: "FOMO intensifies", score: 84 },
+                    { name: "Sell. Seriously, SELL!", score: 100 },
+                    { name: "Maximum Bubble Territory", score: 100 }
+                ] },
                 drawdown: { type: "ratio", lower: 0.30, upper: 1.0 }
             }
         };
 
-        let config = { ...DEFAULT_CONFIG }; // will be updated when config loaded
-
-        // Scoring functions that use the config
-        function applyScoring(indicatorId, rawValue, extraParams = {}) {
-            const scoring = config.scoring[indicatorId];
-            if (!scoring) return 50; // fallback
-
-            switch (scoring.type) {
-                case "raw":
-                    return Math.min(100, Math.max(0, rawValue));
-                case "linear":
-                    return linearScore(rawValue, scoring.min, scoring.max);
-                case "ratio":
-                    return linearScore(rawValue, scoring.lower, scoring.upper);
-                case "inverse_linear":
-                    return inverseLinearScore(rawValue, scoring.min, scoring.max);
-                case "categorical":
-                    const category = extraParams.category || rawValue;
-                    const cat = scoring.categories.find(c => c.name === category);
-                    return cat ? cat.score : 50;
-                default:
-                    return 50;
-            }
-        }
+        let config = { ...DEFAULT_CONFIG };
 
         function linearScore(value, minVal, maxVal) {
             if (value <= minVal) return 0;
             if (value >= maxVal) return 100;
             return ((value - minVal) / (maxVal - minVal)) * 100;
         }
-
         function inverseLinearScore(value, minVal, maxVal) {
             if (value >= maxVal) return 0;
             if (value <= minVal) return 100;
             return ((maxVal - value) / (maxVal - minVal)) * 100;
         }
-
-        // Now redefine the scoring functions to use the config
-        function scoreFearGreed(value) {
-            return applyScoring("fng", value);
-        }
-        function scoreCBBI(value) {
-            return applyScoring("cbbi", value);
-        }
-        function score200WMA(btcPrice, wma200) {
-            if (!btcPrice || !wma200) return 50;
-            const ratio = btcPrice / wma200;
-            return applyScoring("wma", ratio);
-        }
-        function score2YMA(btcPrice, ma2y, ma2y5) {
-            if (!btcPrice || !ma2y) return 50;
-            const ratio = btcPrice / ma2y;
-            return applyScoring("y2ma", ratio);
-        }
-        function scorePiCycleBottom(sma471, ema150) {
-            if (!sma471 || !ema150) return 50;
-            const ratio = ema150 / sma471;
-            return applyScoring("piBottom", ratio);
-        }
-        function scorePiCycleTop(sma111, sma350x2) {
-            if (!sma111 || !sma350x2) return 50;
-            const ratio = sma111 / sma350x2;
-            return applyScoring("piTop", ratio);
-        }
-        function scoreCoinbase(financeRank) {
-            if (financeRank === undefined) return 50;
-            return applyScoring("coinbase", financeRank);
-        }
-        function scoreDominance(dominance) {
-            if (dominance === undefined) return 50;
-            return applyScoring("dominance", dominance);
-        }
-        function scoreRainbow(band) {
-            return applyScoring("rainbow", band, { category: band });
-        }
-        function scoreSearchTrend(trendValue) {
-            if (trendValue === undefined || isNaN(trendValue)) return 50;
-            return applyScoring("trends", trendValue);
-        }
-        function scoreDrawdown(btcPrice, ath) {
-            if (!btcPrice || !ath) return 50;
-            const ratio = btcPrice / ath;
-            return applyScoring("drawdown", ratio);
+        function applyScoring(indicatorId, rawValue, extraParams = {}) {
+            const sc = config.scoring[indicatorId];
+            if (!sc) return 50;
+            switch (sc.type) {
+                case "raw": return Math.min(100, Math.max(0, rawValue));
+                case "linear": return linearScore(rawValue, sc.min, sc.max);
+                case "ratio": return linearScore(rawValue, sc.lower, sc.upper);
+                case "inverse_linear": return inverseLinearScore(rawValue, sc.min, sc.max);
+                case "categorical":
+                    const cat = sc.categories.find(c => c.name === (extraParams.category || rawValue));
+                    return cat ? cat.score : 50;
+                default: return 50;
+            }
         }
 
-        // Function to load config from JSON object
+        function scoreFearGreed(v) { return applyScoring("fng", v); }
+        function scoreCBBI(v) { return applyScoring("cbbi", v); }
+        function score200WMA(price, ma) { if (!price || !ma) return 50; return applyScoring("wma", price / ma); }
+        function score2YMA(price, ma2y, ma2y5) { if (!price || !ma2y) return 50; return applyScoring("y2ma", price / ma2y); }
+        function scorePiCycleBottom(sma471, ema150) { if (!sma471 || !ema150) return 50; return applyScoring("piBottom", ema150 / sma471); }
+        function scorePiCycleTop(sma111, sma350x2) { if (!sma111 || !sma350x2) return 50; return applyScoring("piTop", sma111 / sma350x2); }
+        function scoreCoinbase(rank) { if (rank === undefined) return 50; return applyScoring("coinbase", rank); }
+        function scoreDominance(dom) { if (dom === undefined) return 50; return applyScoring("dominance", dom); }
+        function scoreRainbow(band) { return applyScoring("rainbow", band, { category: band }); }
+        function scoreSearchTrend(t) { if (t === undefined || isNaN(t)) return 50; return applyScoring("trends", t); }
+        function scoreDrawdown(price, ath) { if (!price || !ath) return 50; return applyScoring("drawdown", price / ath); }
+
         function loadConfig(cfg) {
-            if (cfg.weights && typeof cfg.weights === 'object') {
-                config.weights = { ...DEFAULT_CONFIG.weights, ...cfg.weights };
-            }
-            if (cfg.scoring && typeof cfg.scoring === 'object') {
-                config.scoring = { ...DEFAULT_CONFIG.scoring, ...cfg.scoring };
-                // Ensure each scoring object has required fields
-                for (let key in config.scoring) {
-                    if (!config.scoring[key].type) {
-                        config.scoring[key].type = "raw";
-                    }
-                }
-            }
+            if (cfg.weights) config.weights = { ...DEFAULT_CONFIG.weights, ...cfg.weights };
+            if (cfg.scoring) config.scoring = { ...DEFAULT_CONFIG.scoring, ...cfg.scoring };
+            for (let k in config.scoring) if (!config.scoring[k].type) config.scoring[k].type = "raw";
             localStorage.setItem("customConfig", JSON.stringify({ weights: config.weights, scoring: config.scoring }));
             updateGlossaryContent();
             console.log("Config loaded:", config);
         }
 
-        // Load from localStorage if exists, otherwise use default
-        function loadStoredConfig() {
-            const stored = localStorage.getItem("customConfig");
-            if (stored) {
-                try {
-                    const cfg = JSON.parse(stored);
-                    loadConfig(cfg);
-                } catch(e) { console.warn("Invalid stored config, using default"); loadConfig(DEFAULT_CONFIG); }
-            } else {
-                loadConfig(DEFAULT_CONFIG);
-            }
-        }
-
-        // Update the glossary modal content with current weights and scoring rules
         function updateGlossaryContent() {
             const container = document.getElementById("glossaryContent");
             if (!container) return;
             let html = `<h2>KPI Scoring Criteria & Weights</h2><ul>`;
             const indicatorNames = {
-                fng: "Fear & Greed Index",
-                cbbi: "CBBI Index",
-                wma: "BTC 200‑Week MA",
-                y2ma: "2‑Year MA Multiplier",
-                piBottom: "Pi Cycle Bottom",
-                piTop: "Pi Cycle Top",
-                coinbase: "Coinbase App Rank (Finance Apps)",
-                trends: "Bitcoin Search Trend",
-                dominance: "BTC Market Dominance",
-                rainbow: "Bitcoin Rainbow Chart",
-                drawdown: "ATH Drawdown"
+                fng: "Fear & Greed Index", cbbi: "CBBI Index", wma: "BTC 200‑Week MA",
+                y2ma: "2‑Year MA Multiplier", piBottom: "Pi Cycle Bottom", piTop: "Pi Cycle Top",
+                coinbase: "Coinbase App Rank", trends: "Bitcoin Search Trend",
+                dominance: "BTC Market Dominance", rainbow: "Bitcoin Rainbow Chart", drawdown: "ATH Drawdown"
             };
             for (let id in config.scoring) {
                 const name = indicatorNames[id] || id.toUpperCase();
@@ -608,7 +324,7 @@
                 else if (sc.type === "linear") html += `linear from ${sc.min} (score 0) to ${sc.max} (score 100).`;
                 else if (sc.type === "ratio") html += `linear from ratio ${sc.lower} (score 0) to ${sc.upper} (score 100).`;
                 else if (sc.type === "inverse_linear") html += `inverse linear from ${sc.max} (score 0) to ${sc.min} (score 100).`;
-                else if (sc.type === "categorical") html += `categorical mapping: ${sc.categories.map(c => `${c.name} → ${c.score}`).join(", ")}.`;
+                else if (sc.type === "categorical") html += `categorical: ${sc.categories.map(c => `${c.name} → ${c.score}`).join(", ")}.`;
                 html += `</p></li>`;
             }
             html += `</ul><div class="weights-section"><h3>📊 Summary Score Weights</h3><div class="weights-list">`;
@@ -625,18 +341,15 @@
             if (value >= 1) return "$" + value.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
             return "$" + value.toLocaleString(undefined, {minimumFractionDigits: 4, maximumFractionDigits: 6});
         }
-
         function formatUSDNoDecimals(value) {
             if (value === undefined || value === null) return "$---";
             return "$" + Math.round(value).toLocaleString();
         }
-
         function formatPercent(pct) {
             if (pct === undefined || pct === null) return "--%";
             let val = parseFloat(pct).toFixed(2);
             return (pct >= 0 ? `+${val}` : `${val}`) + "%";
         }
-
         async function fetchWithProxy(url, proxy) {
             const fullUrl = proxy + url;
             const response = await fetch(fullUrl);
@@ -644,7 +357,7 @@
             return await response.text();
         }
 
-        // --- TOP 10 CRYPTO (with images) ---
+        // --- TOP 10 CRYPTO ---
         async function fetchTop10Crypto() {
             const urls = [
                 "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=150&page=1&sparkline=false&price_change_percentage=24h",
@@ -717,7 +430,6 @@
             }
             return null;
         }
-
         function buildTickerItemsHTML(coinsList) {
             if (!coinsList || coinsList.length === 0) return `<span class="ticker-item">⚠️ NO DATA ⚠️</span>`;
             let html = "";
@@ -730,7 +442,6 @@
             }
             return html;
         }
-
         function updateTicker(top10Coins) {
             const itemsHtml = buildTickerItemsHTML(top10Coins);
             tickerPrimaryDiv.innerHTML = itemsHtml;
@@ -760,23 +471,19 @@
             }
         }
 
-        // --- CBBI: fetch from Confidence block in latest.json ---
+        // --- CBBI ---
         async function fetchCBBI() {
             const url = "https://colintalkscrypto.com/cbbi/data/latest.json";
             try {
                 const response = await fetch(url);
                 if (!response.ok) throw new Error(`HTTP ${response.status}`);
                 const data = await response.json();
-                // Look for Confidence block
                 let confidenceData = null;
-                if (data.Confidence && typeof data.Confidence === 'object') {
-                    confidenceData = data.Confidence;
-                } else if (data.confidence && typeof data.confidence === 'object') {
-                    confidenceData = data.confidence;
-                }
+                if (data.Confidence && typeof data.Confidence === 'object') confidenceData = data.Confidence;
+                else if (data.confidence && typeof data.confidence === 'object') confidenceData = data.confidence;
                 if (confidenceData) {
                     const timestamps = Object.keys(confidenceData).map(Number).filter(k => !isNaN(k));
-                    if (timestamps.length === 0) throw new Error("No numeric timestamps in Confidence block");
+                    if (timestamps.length === 0) throw new Error("No numeric timestamps");
                     const latestTimestamp = Math.max(...timestamps);
                     const latestValue = confidenceData[latestTimestamp];
                     if (typeof latestValue === 'number' && !isNaN(latestValue)) {
@@ -786,19 +493,17 @@
                         const scoreVal = scoreCBBI(cbbiScore);
                         cbbiScoreSpan.innerText = `(score: ${Math.round(scoreVal)})`;
                         localStorage.setItem("cbbiValue", cbbiScore);
-                        console.log(`CBBI: ${cbbiScore} (raw ${latestValue})`);
                         return;
                     }
                 }
-                throw new Error("No Confidence block found");
+                throw new Error("No Confidence block");
             } catch (err) {
                 console.warn("CBBI fetch failed:", err.message);
                 const cached = localStorage.getItem("cbbiValue");
                 const cachedNum = parseInt(cached, 10);
                 if (cached && !isNaN(cachedNum) && cachedNum >= 0 && cachedNum <= 100) {
                     cbbiSpan.innerText = cached;
-                    const scoreVal = scoreCBBI(cachedNum);
-                    cbbiScoreSpan.innerText = `(score: ${Math.round(scoreVal)})`;
+                    cbbiScoreSpan.innerText = `(score: ${Math.round(scoreCBBI(cachedNum))})`;
                 } else {
                     cbbiSpan.innerText = "50";
                     cbbiScoreSpan.innerText = "(score: 50)";
@@ -806,7 +511,7 @@
             }
         }
 
-        // --- Load CSV file and extract prices and latest date ---
+        // --- Load CSV ---
         async function loadPricesFromCSV() {
             const csvUrl = "btc_data.csv";
             try {
@@ -825,11 +530,8 @@
                             const prices = rows.map(row => row.price);
                             const lastDate = rows[rows.length-1]?.date;
                             const ath = Math.max(...prices);
-                            if (prices.length < 1400) {
-                                reject(new Error(`Only ${prices.length} rows, need at least 1400`));
-                            } else {
-                                resolve({ prices, lastDate, ath });
-                            }
+                            if (prices.length < 1400) reject(new Error(`Only ${prices.length} rows`));
+                            else resolve({ prices, lastDate, ath });
                         },
                         error: (err) => reject(err)
                     });
@@ -840,32 +542,24 @@
             }
         }
 
-        // --- SMA and EMA helpers ---
         function sma(prices, days) {
             if (prices.length < days) return null;
             const slice = prices.slice(-days);
             return slice.reduce((a, b) => a + b, 0) / days;
         }
-
         function ema(prices, days) {
             if (prices.length < days) return null;
             const k = 2 / (days + 1);
             const smaFirst = sma(prices.slice(0, days), days);
             let emaVal = smaFirst;
-            for (let i = days; i < prices.length; i++) {
-                emaVal = prices[i] * k + emaVal * (1 - k);
-            }
+            for (let i = days; i < prices.length; i++) emaVal = prices[i] * k + emaVal * (1 - k);
             return emaVal;
         }
-
-        // --- Rainbow Chart calculation from price history (log regression) ---
         function computeRainbowFromPrices(prices) {
             if (!prices || prices.length < 500) return null;
-
             const n = prices.length;
             const x = Array.from({ length: n }, (_, i) => i / 365.25);
             const y = prices.map(p => Math.log(p));
-            
             let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;
             for (let i = 0; i < n; i++) {
                 sumX += x[i];
@@ -875,19 +569,16 @@
             }
             const b = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
             const a = (sumY - b * sumX) / n;
-            
             const residuals = [];
             for (let i = 0; i < n; i++) {
                 const pred = a + b * x[i];
                 residuals.push(y[i] - pred);
             }
             const stdDev = Math.sqrt(residuals.reduce((sum, r) => sum + r * r, 0) / n);
-            
             const currentX = (n - 1) / 365.25;
             const predicted = a + b * currentX;
             const currentResidual = Math.log(prices[n-1]) - predicted;
             const zScore = currentResidual / stdDev;
-            
             if (zScore < -2) return "Basically a Fire Sale";
             if (zScore < -1) return "BUY!";
             if (zScore < -0.5) return "Accumulate";
@@ -899,13 +590,9 @@
             return "Maximum Bubble Territory";
         }
 
-        // --- Bitcoin indicators: CSV first, then CryptoCompare, then static ---
+        // --- Bitcoin indicators ---
         async function fetchBitcoinIndicators() {
-            let prices = null;
-            let dataSource = "";
-            let lastDate = "";
-            let ath = null;
-
+            let prices = null, dataSource = "", lastDate = "", ath = null;
             const csvData = await loadPricesFromCSV();
             if (csvData && csvData.prices && csvData.prices.length >= 1400) {
                 prices = csvData.prices;
@@ -914,7 +601,6 @@
                 dataSource = `CSV (${lastDate})`;
                 console.log(`Using CSV: ${prices.length} days, last date ${lastDate}, ATH: ${ath}`);
             } else {
-                // Fallback to CryptoCompare
                 try {
                     const url = "https://min-api.cryptocompare.com/data/v2/histoday?fsym=BTC&tsym=USD&limit=1400";
                     const response = await fetch(url);
@@ -925,17 +611,13 @@
                         ath = Math.max(...prices);
                         dataSource = "CryptoCompare (live)";
                         console.log(`Using CryptoCompare: ${prices.length} days`);
-                    } else {
-                        throw new Error("Invalid CryptoCompare response");
-                    }
+                    } else throw new Error("Invalid CryptoCompare response");
                 } catch (err) {
                     console.warn("CryptoCompare failed, using static approximations:", err);
                     dataSource = "static approximations";
                 }
             }
-
-            let btcPrice = null;
-            let sma200W = null, sma2Y = null, sma2Yx5 = null, piSMA = null, piEMA = null, rainbow = null;
+            let btcPrice = null, sma200W = null, sma2Y = null, sma2Yx5 = null, piSMA = null, piEMA = null, rainbow = null;
             let piSMA111 = null, piSMA350x2 = null;
             if (prices && prices.length >= 1400) {
                 const rawSMA471 = sma(prices, 471);
@@ -945,37 +627,24 @@
                 sma2Y = sma(prices, 730);
                 sma2Yx5 = sma2Y * 5;
                 btcPrice = prices[prices.length - 1];
-
-                // Pi Cycle Top
                 piSMA111 = sma(prices, 111);
                 const sma350 = sma(prices, 350);
                 piSMA350x2 = sma350 * 2;
-
-                // ATH Drawdown (display percentage)
                 let drawdown = ((btcPrice - ath) / ath) * 100;
                 athDrawdownSpan.innerText = drawdown.toFixed(2) + "%";
-
-                // Display Pi Cycle Top values
                 piSMA111Span.innerText = formatUSDNoDecimals(piSMA111);
                 piSMA350x2Span.innerText = formatUSDNoDecimals(piSMA350x2);
-
-                // Existing indicators
                 piSMA471Span.innerText = formatUSDNoDecimals(piSMA);
                 piEMA150Span.innerText = formatUSDNoDecimals(piEMA);
                 btc200wmaSpan.innerText = formatUSDNoDecimals(sma200W);
                 twoYMASpan.innerText = formatUSDNoDecimals(sma2Y);
                 twoYMAX5Span.innerText = formatUSDNoDecimals(sma2Yx5);
-                console.log("Indicators from historical data:", { piSMA, piEMA, sma200W, sma2Y, sma2Yx5, btcPrice, piSMA111, piSMA350x2, drawdown });
-
-                // Rainbow
                 rainbow = computeRainbowFromPrices(prices);
                 if (rainbow) {
                     rainbowClassificationSpan.innerText = rainbow;
                     rainbowSourceSpan.innerText = "Calculated from CSV";
                     localStorage.setItem("rainbowClassification", rainbow);
                 }
-
-                // Update scores
                 wmaScoreSpan.innerText = `(score: ${Math.round(score200WMA(btcPrice, sma200W))})`;
                 y2maScoreSpan.innerText = `(score: ${Math.round(score2YMA(btcPrice, sma2Y, sma2Yx5))})`;
                 piBottomScoreSpan.innerText = `(score: ${Math.round(scorePiCycleBottom(piSMA, piEMA))})`;
@@ -984,7 +653,6 @@
                 const rainbowScore = scoreRainbow(rainbow);
                 rainbowScoreSpan.innerText = `(score: ${Math.round(rainbowScore)})`;
             } else {
-                // Static fallback
                 try {
                     const priceRes = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd");
                     if (priceRes.ok) {
@@ -997,10 +665,7 @@
                             btcPrice = tickerData.quotes.USD.price;
                         }
                     }
-                } catch (err) {
-                    console.warn("Could not fetch Bitcoin price:", err);
-                }
-
+                } catch (err) { console.warn("Could not fetch Bitcoin price:", err); }
                 const DEFAULT_PI_SMA = 72400 * 0.745;
                 const DEFAULT_PI_EMA = 83000;
                 const DEFAULT_200W_MA = btcPrice ? btcPrice * 0.85 : 60700;
@@ -1009,7 +674,6 @@
                 const DEFAULT_PI_SMA111 = btcPrice ? btcPrice * 0.9 : 64000;
                 const DEFAULT_PI_SMA350x2 = btcPrice ? btcPrice * 2.2 : 150000;
                 const DEFAULT_ATH = 124752.53;
-
                 piSMA471Span.innerText = formatUSDNoDecimals(DEFAULT_PI_SMA);
                 piEMA150Span.innerText = formatUSDNoDecimals(DEFAULT_PI_EMA);
                 btc200wmaSpan.innerText = formatUSDNoDecimals(DEFAULT_200W_MA);
@@ -1019,19 +683,16 @@
                 piSMA350x2Span.innerText = formatUSDNoDecimals(DEFAULT_PI_SMA350x2);
                 athDrawdownSpan.innerText = btcPrice ? ((btcPrice - DEFAULT_ATH)/DEFAULT_ATH*100).toFixed(2) + "%" : "N/A";
                 dataSource = "static approximations";
-
                 wmaScoreSpan.innerText = `(score: ${Math.round(score200WMA(btcPrice, DEFAULT_200W_MA))})`;
                 y2maScoreSpan.innerText = `(score: ${Math.round(score2YMA(btcPrice, DEFAULT_2Y_MA, DEFAULT_2Y_MA_X5))})`;
                 piBottomScoreSpan.innerText = `(score: ${Math.round(scorePiCycleBottom(DEFAULT_PI_SMA, DEFAULT_PI_EMA))})`;
                 piTopScoreSpan.innerText = `(score: ${Math.round(scorePiCycleTop(DEFAULT_PI_SMA111, DEFAULT_PI_SMA350x2))})`;
                 drawdownScoreSpan.innerText = `(score: ${Math.round(scoreDrawdown(btcPrice, DEFAULT_ATH))})`;
-
                 const cachedRainbow = localStorage.getItem("rainbowClassification");
                 if (cachedRainbow) {
                     rainbowClassificationSpan.innerText = cachedRainbow;
                     rainbowSourceSpan.innerText = "cached";
-                    const rainbowScore = scoreRainbow(cachedRainbow);
-                    rainbowScoreSpan.innerText = `(score: ${Math.round(rainbowScore)})`;
+                    rainbowScoreSpan.innerText = `(score: ${Math.round(scoreRainbow(cachedRainbow))})`;
                 } else {
                     rainbowClassificationSpan.innerText = "N/A";
                     rainbowSourceSpan.innerText = "offline";
@@ -1039,11 +700,10 @@
                 }
             }
             dataSourceTextSpan.innerText = dataSource;
-
             return { btcPrice, sma200W, sma2Y, sma2Yx5, piSMA, piEMA, rainbow, piSMA111, piSMA350x2, ath };
         }
 
-        // --- Coinbase App Rank: fetch from your personal RSS feed ---
+        // --- Coinbase Rank ---
         async function fetchCoinbaseRank() {
             const feedUrl = "https://rss.app/feeds/XRpkIErFDjKyhSMo.xml";
             try {
@@ -1070,9 +730,7 @@
                             coinbaseScoreSpan.innerText = `(score: ${Math.round(score)})`;
                             return parsed.financeRank;
                         }
-                    } catch (proxyErr) {
-                        console.warn(`Proxy ${proxy} failed:`, proxyErr.message);
-                    }
+                    } catch (proxyErr) { console.warn(`Proxy ${proxy} failed:`, proxyErr.message); }
                 }
                 const cachedAll = localStorage.getItem("coinbaseAllRank");
                 const cachedFinance = localStorage.getItem("coinbaseFinanceRank");
@@ -1093,7 +751,6 @@
                 }
             }
         }
-
         function parseRSS(xmlText) {
             const parser = new DOMParser();
             const xmlDoc = parser.parseFromString(xmlText, "text/xml");
@@ -1115,7 +772,6 @@
             }
             return null;
         }
-
         function updateCoinbaseUI(parsed) {
             coinbaseAllRankSpan.innerText = parsed.allRank.toString();
             coinbaseFinanceRankSpan.innerText = parsed.financeRank.toString();
@@ -1124,10 +780,9 @@
             localStorage.setItem("coinbaseAllRank", parsed.allRank.toString());
             localStorage.setItem("coinbaseFinanceRank", parsed.financeRank.toString());
             localStorage.setItem("coinbaseRankTime", displayTime);
-            console.log("Coinbase ranks updated from RSS feed");
         }
 
-        // --- BTC Market Dominance via proxy ---
+        // --- BTC Dominance ---
         async function fetchBTCDominance() {
             const url = "https://api.coingecko.com/api/v3/global";
             try {
@@ -1159,9 +814,7 @@
                             localStorage.setItem("btcDominance", dominance.toFixed(1));
                             return dominance;
                         }
-                    } catch (proxyErr) {
-                        console.warn(`Proxy ${proxy} failed for dominance:`, proxyErr.message);
-                    }
+                    } catch (proxyErr) { console.warn(`Proxy ${proxy} failed for dominance:`, proxyErr.message); }
                 }
                 const cached = localStorage.getItem("btcDominance");
                 if (cached) {
@@ -1180,11 +833,10 @@
             }
         }
 
-        // --- Fetch Google Trends score using SerpAPI (via proxy to avoid CORS) ---
+        // --- Google Trends ---
         async function fetchGoogleTrends() {
             const apiUrl = `https://serpapi.com/search?engine=google_trends&q=bitcoin&data_type=TIMESERIES&date=today%205-y&api_key=${SERPAPI_KEY}`;
             let score = null;
-
             for (const proxy of PROXIES) {
                 try {
                     const text = await fetchWithProxy(apiUrl, proxy);
@@ -1197,11 +849,8 @@
                             if (!isNaN(score)) break;
                         }
                     }
-                } catch (err) {
-                    console.warn(`SerpAPI fetch via ${proxy} failed:`, err.message);
-                }
+                } catch (err) { console.warn(`SerpAPI fetch via ${proxy} failed:`, err.message); }
             }
-
             if (score !== null && !isNaN(score)) {
                 trendScoreSpan.innerText = score;
                 trendSourceSpan.innerText = "Google Trends (SerpAPI)";
@@ -1223,7 +872,7 @@
             }
         }
 
-        // --- Summary score calculation with weighted average ---
+        // --- Summary ---
         async function updateSummary() {
             let btcPrice = window._btcPrice;
             let wma200 = window._wma200;
@@ -1240,17 +889,14 @@
             let cbbi = parseFloat(cbbiSpan.innerText);
             let trend = parseFloat(trendScoreSpan.innerText);
             let ath = window._ath;
-
             if (btcPrice === undefined || wma200 === undefined || ma2y === undefined || ma2y5 === undefined ||
                 piSMA === undefined || piEMA === undefined || piSMA111 === undefined || piSMA350x2 === undefined ||
                 rainbow === undefined || dominance === undefined || financeRank === undefined || isNaN(trend) || ath === undefined) {
                 console.warn("Summary values not ready");
                 return;
             }
-
             const weights = config.weights;
             const totalWeight = Object.values(weights).reduce((a,b)=>a+b,0);
-
             const scores = {
                 fng: scoreFearGreed(fng),
                 cbbi: scoreCBBI(cbbi),
@@ -1264,7 +910,6 @@
                 rainbow: scoreRainbow(rainbow),
                 drawdown: scoreDrawdown(btcPrice, ath)
             };
-
             const weightedSum = 
                 scores.fng * weights.fng +
                 scores.cbbi * weights.cbbi +
@@ -1277,11 +922,9 @@
                 scores.dominance * weights.dominance +
                 scores.rainbow * weights.rainbow +
                 scores.drawdown * weights.drawdown;
-            
             const weightedAvg = weightedSum / totalWeight;
             const score = Math.round(weightedAvg);
             summaryScoreSpan.innerText = score;
-
             if (score <= 50) {
                 const leftPercent = ((50 - score) / 50) * 100;
                 fillLeft.style.width = leftPercent + "%";
@@ -1291,10 +934,8 @@
                 fillLeft.style.width = "100%";
                 fillRight.style.width = rightPercent + "%";
             }
-
             const markerLeft = (score / 100) * 100;
             scoreMarker.style.left = markerLeft + "%";
-
             tickMarks.innerHTML = "";
             for (let i = 10; i <= 90; i += 10) {
                 const tick = document.createElement("div");
@@ -1309,7 +950,6 @@
         async function refreshAllData() {
             const now = new Date();
             updateTimestampSpan.innerText = now.toUTCString().slice(0, -4) + " UTC";
-            
             const top10Coins = await fetchTop10Crypto();
             if (top10Coins && top10Coins.length > 0) {
                 currentTop10 = top10Coins;
@@ -1319,7 +959,6 @@
             } else {
                 updateTicker(currentTop10);
             }
-            
             const btcData = await fetchBitcoinIndicators();
             if (btcData) {
                 window._btcPrice = btcData.btcPrice;
@@ -1338,11 +977,9 @@
             await fetchFearGreed();
             await fetchCBBI();
             await fetchGoogleTrends();
-            
             await updateSummary();
         }
 
-        // --- Auto-refresh loop ---
         let refreshIntervalId = null;
         async function startAutoRefresh() {
             if (refreshIntervalId) clearInterval(refreshIntervalId);
@@ -1366,26 +1003,18 @@
             }
         });
 
-        // Load config first (from localStorage or default), then start dashboard
-        loadStoredConfig();
-
-        // Optionally, also try to load from external config.json file (overwrites localStorage)
+        // Load config from localStorage or default, then try external config.json
+        const stored = localStorage.getItem("customConfig");
+        if (stored) {
+            try { loadConfig(JSON.parse(stored)); } catch(e) { loadConfig(DEFAULT_CONFIG); }
+        } else {
+            loadConfig(DEFAULT_CONFIG);
+        }
         fetch('config.json')
-            .then(res => {
-                if (res.ok) return res.json();
-                throw new Error('No config file');
-            })
-            .then(cfg => {
-                loadConfig(cfg);
-                console.log('Loaded external config.json');
-            })
-            .catch(() => {
-                console.log('No external config.json, using stored/default');
-            })
-            .finally(() => {
-                // Start the dashboard after config is ready
-                startAutoRefresh().catch(e => console.error("Init error:", e));
-            });
+            .then(res => res.ok ? res.json() : Promise.reject())
+            .then(cfg => { loadConfig(cfg); console.log('Loaded external config.json'); })
+            .catch(() => console.log('No external config.json, using stored/default'))
+            .finally(() => startAutoRefresh().catch(e => console.error("Init error:", e)));
     })();
 </script>
 </body>
