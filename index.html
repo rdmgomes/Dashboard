@@ -52,7 +52,7 @@
         .score-badge { font-size: 0.7rem; font-weight: normal; color: #ffcc88; margin-left: 8px; }
         .small-note { font-size: 0.7rem; color: #e6b87a; margin-top: 8px; border-top: 1px dotted #b87c4f; padding-top: 6px; }
         .source-note { font-size: 0.7rem; color: #e6b87a; margin-top: 8px; border-top: 1px dotted #b87c4f; padding-top: 6px; }
-        .card-footer { margin-top: auto; }
+        .card-footer { margin-top: auto !important; }
         .multiplier-line { margin: 4px 0; display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px; }
         .multiplier-label { font-size: 1rem; color: #e6b87a; }
         /* Toggle UI via config */
@@ -466,19 +466,6 @@
         function formatUSDNoDecimals(v) { return v===undefined||v===null ? "$---" : "$"+Math.round(v).toLocaleString(); }
         function formatPercent(p) { return p===undefined||p===null ? "--%" : (p>=0?`+${p.toFixed(2)}`: `${p.toFixed(2)}`)+"%"; }
         async function fetchWithProxy(url, proxy) { const r = await fetch(proxy+url); if (!r.ok) throw new Error(`HTTP ${r.status}`); return await r.text(); }
-
-        // ==================== EQUALIZE CARD HEIGHTS ====================
-        function equalizeCardHeights() {
-            const cards = document.querySelectorAll('.indicator-card');
-            if (cards.length === 0) return;
-            cards.forEach(card => card.style.height = 'auto');
-            let maxHeight = 0;
-            cards.forEach(card => {
-                const height = card.offsetHeight;
-                if (height > maxHeight) maxHeight = height;
-            });
-            cards.forEach(card => card.style.height = maxHeight + 'px');
-        }
 
         // ==================== NEWS FETCHER ====================
         async function fetchAllRSS() {
@@ -958,7 +945,6 @@
             await fetchCBBI();
             await fetchGoogleTrends();
             await updateSummary();
-            setTimeout(equalizeCardHeights, 100);
         }
 
         let mainInterval;
@@ -983,7 +969,6 @@
 
         document.addEventListener("visibilitychange",()=>{ if(!document.hidden && elements.tickerTrack && currentTop10) { elements.tickerTrack.style.animation="none"; elements.tickerTrack.offsetHeight; elements.tickerTrack.style.animation="scrollTicker 38s linear infinite"; } });
         document.addEventListener("visibilitychange",()=>{ if(!document.hidden && elements.newsTrack && currentNewsItems.length) { elements.newsTrack.style.animation="none"; elements.newsTrack.offsetHeight; elements.newsTrack.style.animation="scrollTicker 100s linear infinite"; } });
-        window.addEventListener('resize', () => { equalizeCardHeights(); });
 
         // Load config
         let stored=localStorage.getItem("customConfig");
