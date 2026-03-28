@@ -471,15 +471,17 @@
         function equalizeCardHeights() {
             const cards = document.querySelectorAll('.indicator-card');
             if (cards.length === 0) return;
-            // Reset heights to auto to get natural heights
+            // Reset all heights to auto so we can measure natural heights
             cards.forEach(card => card.style.height = 'auto');
+            // Force a reflow to get accurate heights
+            void document.body.offsetHeight;
             // Find the maximum height among all cards
             let maxHeight = 0;
             cards.forEach(card => {
                 const height = card.offsetHeight;
                 if (height > maxHeight) maxHeight = height;
             });
-            // Apply that height to all cards
+            // Apply the same height to all cards
             cards.forEach(card => card.style.height = maxHeight + 'px');
         }
 
