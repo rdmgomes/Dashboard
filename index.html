@@ -51,7 +51,8 @@
         .summary-card span { font-size: 1.65rem; font-weight: bold; color: #ffaa66; }
         .score-badge { font-size: 0.7rem; font-weight: normal; color: #ffcc88; margin-left: 8px; }
         .small-note { font-size: 0.7rem; color: #e6b87a; margin-top: 8px; border-top: 1px dotted #b87c4f; padding-top: 6px; }
-        .source-note { font-size: 0.7rem; color: #e6b87a; margin-top: 8px; border-top: 1px dotted #b87c4f; padding-top: 6px; margin-top: auto; }
+        .source-note { font-size: 0.7rem; color: #e6b87a; margin-top: 8px; border-top: 1px dotted #b87c4f; padding-top: 6px; }
+        .card-footer { margin-top: auto; }
         .multiplier-line { margin: 4px 0; display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px; }
         .multiplier-label { font-size: 1rem; color: #e6b87a; }
         /* Toggle UI via config */
@@ -150,40 +151,52 @@
                 <span id="fngValue" class="kpi-value">--</span>
                 <span id="fngScore" class="score-badge">(score: --)</span>
                 <div class="small-note" id="fngClassification">—</div>
-                <div class="source-note">Source: alternative.me</div>
+                <div class="card-footer">
+                    <div class="source-note">Source: alternative.me</div>
+                </div>
             </div>
             <div class="indicator-card">
                 <label>🔍 BITCOIN SEARCH TREND</label>
                 <div><span id="trendScore" class="kpi-value">--</span> <span style="font-size:1rem;">/ 100</span> <span id="trendScoreVal" class="score-badge">(score: --)</span></div>
                 <div class="small-note" id="trendSource">—</div>
-                <div class="source-note">Source: Google Trends (SerpAPI)</div>
+                <div class="card-footer">
+                    <div class="source-note">Source: Google Trends (SerpAPI)</div>
+                </div>
             </div>
             <div class="indicator-card">
                 <label>📱 COINBASE APP RANK</label>
                 <div><span id="coinbaseAllRank" class="kpi-value">--</span> <span style="font-size:1rem;">(All Apps)</span></div>
                 <div><span id="coinbaseFinanceRank" class="kpi-value">--</span> <span style="font-size:1rem;">(Finance)</span> <span id="coinbaseScore" class="score-badge">(score: --)</span></div>
                 <div class="small-note" id="coinbaseRankTime">—</div>
-                <div class="source-note">Source: RSS feed</div>
+                <div class="card-footer">
+                    <div class="source-note">Source: RSS feed</div>
+                </div>
             </div>
             <div class="indicator-card">
                 <label>🌈 BITCOIN RAINBOW CHART</label>
                 <div><span id="rainbowClassification" class="kpi-value">--</span> <span id="rainbowScore" class="score-badge">(score: --)</span></div>
                 <div class="small-note" id="rainbowSource">—</div>
-                <div class="source-note">Source: CSV</div>
+                <div class="card-footer">
+                    <div class="source-note">Source: CSV</div>
+                </div>
             </div>
             <div class="indicator-card">
                 <label>📊 CBBI INDEX</label>
                 <span id="cbbiValue" class="kpi-value">--</span>
                 <span id="cbbiScore" class="score-badge">(score: --)</span>
                 <div class="small-note">Crypto Bitcoin Bull Run Index</div>
-                <div class="source-note">Source: colintalkscrypto.com</div>
+                <div class="card-footer">
+                    <div class="source-note">Source: colintalkscrypto.com</div>
+                </div>
             </div>
             <div class="indicator-card">
                 <label>⛓️ BTC 200W MA</label>
                 <span id="btc200wma" class="kpi-value">--</span>
                 <span id="wmaScore" class="score-badge">(score: --)</span>
                 <div class="small-note">200 Week Moving Average</div>
-                <div class="source-note">Source: CSV</div>
+                <div class="card-footer">
+                    <div class="source-note">Source: CSV</div>
+                </div>
             </div>
             <div class="indicator-card">
                 <label>📈 2Y MA MULTIPLIER</label>
@@ -197,7 +210,9 @@
                 </div>
                 <span id="y2maScore" class="score-badge">(score: --)</span>
                 <div class="small-note">2Y MA  |  2Y MA x5</div>
-                <div class="source-note">Source: CSV</div>
+                <div class="card-footer">
+                    <div class="source-note">Source: CSV</div>
+                </div>
             </div>
             <div class="indicator-card">
                 <label>🌀 PI CYCLE BOTTOM</label>
@@ -205,7 +220,9 @@
                 <div><span id="piEMA150" class="kpi-value">--</span> <span style="font-size:1rem;">(150d EMA)</span></div>
                 <span id="piBottomScore" class="score-badge">(score: --)</span>
                 <div class="small-note">Bitcoin bottom indicators</div>
-                <div class="source-note">Source: CSV</div>
+                <div class="card-footer">
+                    <div class="source-note">Source: CSV</div>
+                </div>
             </div>
             <div class="indicator-card">
                 <label>🔺 PI CYCLE TOP</label>
@@ -213,19 +230,25 @@
                 <div><span id="piSMA350x2" class="kpi-value">--</span> <span style="font-size:1rem;">(350d MA x 2)</span></div>
                 <span id="piTopScore" class="score-badge">(score: --)</span>
                 <div class="small-note">Bitcoin top indicators</div>
-                <div class="source-note">Source: CSV</div>
+                <div class="card-footer">
+                    <div class="source-note">Source: CSV</div>
+                </div>
             </div>
             <div class="indicator-card">
                 <label>📊 BTC MARKET DOMINANCE</label>
                 <div><span id="btcDominance" class="kpi-value">--</span> <span style="font-size:1rem;">(of total crypto)</span> <span id="dominanceScore" class="score-badge">(score: --)</span></div>
                 <div class="small-note" id="dominanceSource">—</div>
-                <div class="source-note">Source: CoinGecko</div>
+                <div class="card-footer">
+                    <div class="source-note">Source: CoinGecko</div>
+                </div>
             </div>
             <div class="indicator-card">
                 <label>📉 ATH DRAWDOWN</label>
                 <div><span id="athDrawdown" class="kpi-value">--</span> <span id="drawdownScore" class="score-badge">(score: --)</span></div>
                 <div class="small-note" id="athSource">From CSV (ATH)</div>
-                <div class="source-note">Source: CSV</div>
+                <div class="card-footer">
+                    <div class="source-note">Source: CSV</div>
+                </div>
             </div>
         </div>
         <div class="footer-area">
@@ -448,15 +471,12 @@
         function equalizeCardHeights() {
             const cards = document.querySelectorAll('.indicator-card');
             if (cards.length === 0) return;
-            // Reset heights
             cards.forEach(card => card.style.height = 'auto');
-            // Get max height
             let maxHeight = 0;
             cards.forEach(card => {
                 const height = card.offsetHeight;
                 if (height > maxHeight) maxHeight = height;
             });
-            // Apply max height
             cards.forEach(card => card.style.height = maxHeight + 'px');
         }
 
@@ -938,7 +958,6 @@
             await fetchCBBI();
             await fetchGoogleTrends();
             await updateSummary();
-            // Equalize card heights after content is updated
             setTimeout(equalizeCardHeights, 100);
         }
 
