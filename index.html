@@ -9,7 +9,7 @@
         * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
         body { background: #000000; min-height: 100vh; display: flex; justify-content: center; align-items: center; padding: 24px; font-family: 'Courier New', 'VT323', 'IBM EGA', 'Fira Code', monospace; }
         .crt { max-width: 1400px; width: 100%; background: #1a0f06; border-radius: 28px 28px 32px 32px; padding: 24px 28px 32px 28px; box-shadow: 0 0 0 4px #b87c4f, 0 0 0 8px #5e3a1f, 0 10px 30px rgba(255,140,0,0.2); border-bottom: 6px solid #c47c3e; }
-        .screen { background: #2a1a0c; border-radius: 16px; padding: 20px 18px 24px 18px; box-shadow: inset 0 0 40px rgba(180,100,20,0.4), 0 0 0 2px #d99444; position: relative; overflow: hidden; color: #ffaa66; } /* base color for all text */
+        .screen { background: #2a1a0c; border-radius: 16px; padding: 20px 18px 24px 18px; box-shadow: inset 0 0 40px rgba(180,100,20,0.4), 0 0 0 2px #d99444; position: relative; overflow: hidden; color: #ffaa66; }
         .screen::before { content: ""; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: repeating-linear-gradient(0deg, rgba(255,140,0,0.05) 0px, rgba(255,140,0,0.05) 2px, transparent 2px, transparent 6px); pointer-events: none; z-index: 2; }
         .screen::after { content: ""; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: radial-gradient(circle at 30% 20%, rgba(100,50,0,0.3), #00000088); pointer-events: none; z-index: 1; }
         .header-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; }
@@ -34,7 +34,7 @@
         #tickerTrack { animation: scrollTicker 38s linear infinite; }
         #tickerTrack:hover { animation-play-state: paused; }
         #newsTrack { animation: scrollTicker 100s linear infinite; }
-        .news-zone:hover #newsTrack, #newsTrack:hover, .news-zone .ticker-container:hover #newsTrack { animation-play-state: paused; }
+        .news-zone:hover .ticker-track, .news-zone .ticker-track:hover { animation-play-state: paused !important; }
         .indicators-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-top: 28px; }
         .summary-card { grid-column: 1 / -1; background: #2a1a0c; border: 1px solid #c47c3e; border-radius: 14px; padding: 12px 18px; box-shadow: 2px 2px 0px #5e3a1f; }
         .indicator-card { background: #2a1a0c; border: 1px solid #c47c3e; border-radius: 14px; padding: 12px 18px; transition: all 0.1s ease; box-shadow: 2px 2px 0px #5e3a1f; }
@@ -43,6 +43,10 @@
         .summary-card span { font-size: 1.65rem; font-weight: bold; color: #ffaa66; }
         .score-badge { font-size: 0.7rem; font-weight: normal; color: #ffcc88; margin-left: 8px; }
         .small-note { font-size: 0.7rem; color: #e6b87a; margin-top: 8px; border-top: 1px dotted #b87c4f; padding-top: 6px; }
+        .source-note { font-size: 0.7rem; color: #e6b87a; margin-top: 8px; border-top: 1px dotted #b87c4f; padding-top: 6px; }
+        /* Toggle UI via config */
+        .hide-scores .score-badge { display: none; }
+        .hide-sources .source-note { display: none; }
         .progress-container { display: flex; align-items: center; gap: 12px; margin-top: 8px; position: relative; }
         .progress-label { font-size: 0.7rem; color: #e6b87a; min-width: 45px; }
         .progress-track { flex: 1; height: 12px; background: #2a1a0c; border-radius: 10px; position: relative; display: flex; border: 1px solid #b87c4f; }
@@ -136,47 +140,47 @@
                 <span id="fngValue" class="kpi-value">--</span>
                 <span id="fngScore" class="score-badge">(score: --)</span>
                 <div class="small-note" id="fngClassification">—</div>
-                <div class="small-note">Source: alternative.me</div>
+                <div class="source-note">Source: alternative.me</div>
             </div>
             <div class="indicator-card">
                 <label>🔍 BITCOIN SEARCH TREND</label>
                 <div><span id="trendScore" class="kpi-value">--</span> <span style="font-size:1rem;">/ 100</span> <span id="trendScoreVal" class="score-badge">(score: --)</span></div>
                 <div class="small-note" id="trendSource">—</div>
-                <div class="small-note">Source: Google Trends (SerpAPI)</div>
+                <div class="source-note">Source: Google Trends (SerpAPI)</div>
             </div>
             <div class="indicator-card">
                 <label>📱 COINBASE APP RANK</label>
                 <div><span id="coinbaseAllRank">--</span> <span style="font-size:1rem;">(All Apps)</span></div>
                 <div><span id="coinbaseFinanceRank" class="kpi-value">--</span> <span style="font-size:1rem;">(Finance)</span> <span id="coinbaseScore" class="score-badge">(score: --)</span></div>
                 <div class="small-note" id="coinbaseRankTime">—</div>
-                <div class="small-note">Source: RSS feed</div>
+                <div class="source-note">Source: RSS feed</div>
             </div>
             <div class="indicator-card">
                 <label>🌈 BITCOIN RAINBOW CHART</label>
                 <div><span id="rainbowClassification" class="kpi-value">--</span> <span id="rainbowScore" class="score-badge">(score: --)</span></div>
                 <div class="small-note" id="rainbowSource">—</div>
-                <div class="small-note">Source: CSV</div>
+                <div class="source-note">Source: CSV</div>
             </div>
             <div class="indicator-card">
                 <label>📊 CBBI INDEX</label>
                 <span id="cbbiValue" class="kpi-value">--</span>
                 <span id="cbbiScore" class="score-badge">(score: --)</span>
                 <div class="small-note">Crypto Bitcoin Bull Run Index</div>
-                <div class="small-note">Source: colintalkscrypto.com</div>
+                <div class="source-note">Source: colintalkscrypto.com</div>
             </div>
             <div class="indicator-card">
                 <label>⛓️ BTC 200W MA</label>
                 <span id="btc200wma" class="kpi-value">--</span>
                 <span id="wmaScore" class="score-badge">(score: --)</span>
                 <div class="small-note">200 Week Moving Average</div>
-                <div class="small-note">Source: CSV</div>
+                <div class="source-note">Source: CSV</div>
             </div>
             <div class="indicator-card">
                 <label>📈 2Y MA MULTIPLIER</label>
                 <span id="twoYMA" class="kpi-value">--</span><span style="font-size:1rem;"> / </span><span id="twoYMAX5" class="kpi-value">--</span>
                 <span id="y2maScore" class="score-badge">(score: --)</span>
                 <div class="small-note">2Y MA  |  2Y MA x5</div>
-                <div class="small-note">Source: CSV</div>
+                <div class="source-note">Source: CSV</div>
             </div>
             <div class="indicator-card">
                 <label>🌀 PI CYCLE BOTTOM</label>
@@ -184,26 +188,26 @@
                 <span id="piEMA150" class="kpi-value">--</span><span style="font-size:1rem;"> (150d EMA) </span>
                 <span id="piBottomScore" class="score-badge">(score: --)</span>
                 <div class="small-note">Bitcoin bottom indicators</div>
-                <div class="small-note">Source: CSV</div>
+                <div class="source-note">Source: CSV</div>
             </div>
             <div class="indicator-card">
                 <label>🔺 PI CYCLE TOP</label>
                 <div><span id="piSMA111" class="kpi-value">--</span> <span style="font-size:1rem;">(111d SMA)</span></div>
                 <div><span id="piSMA350x2" class="kpi-value">--</span> <span style="font-size:1rem;">(350d MA x 2)</span> <span id="piTopScore" class="score-badge">(score: --)</span></div>
                 <div class="small-note">Bitcoin top indicators</div>
-                <div class="small-note">Source: CSV</div>
+                <div class="source-note">Source: CSV</div>
             </div>
             <div class="indicator-card">
                 <label>📊 BTC MARKET DOMINANCE</label>
                 <div><span id="btcDominance" class="kpi-value">--</span> <span style="font-size:1rem;">(of total crypto)</span> <span id="dominanceScore" class="score-badge">(score: --)</span></div>
                 <div class="small-note" id="dominanceSource">—</div>
-                <div class="small-note">Source: CoinGecko</div>
+                <div class="source-note">Source: CoinGecko</div>
             </div>
             <div class="indicator-card">
                 <label>📉 ATH DRAWDOWN</label>
                 <div><span id="athDrawdown" class="kpi-value">--</span> <span style="font-size:1rem;">(%)</span> <span id="drawdownScore" class="score-badge">(score: --)</span></div>
                 <div class="small-note" id="athSource">From CSV (ATH)</div>
-                <div class="small-note">Source: CSV</div>
+                <div class="source-note">Source: CSV</div>
             </div>
         </div>
         <div class="footer-area">
@@ -329,6 +333,10 @@
                     ]
                 },
                 drawdown: { type:"ratio", lower:0.30, upper:1.0 }
+            },
+            ui: {
+                showScores: true,
+                showSources: true
             }
         };
         let config = { ...DEFAULT_CONFIG };
@@ -367,8 +375,20 @@
         function loadConfig(cfg) {
             if (cfg.weights) config.weights = { ...DEFAULT_CONFIG.weights, ...cfg.weights };
             if (cfg.scoring) config.scoring = { ...DEFAULT_CONFIG.scoring, ...cfg.scoring };
+            if (cfg.ui) {
+                config.ui = { ...DEFAULT_CONFIG.ui, ...cfg.ui };
+                // Apply UI toggles
+                const body = document.body;
+                if (config.ui.showScores === false) body.classList.add('hide-scores');
+                else body.classList.remove('hide-scores');
+                if (config.ui.showSources === false) body.classList.add('hide-sources');
+                else body.classList.remove('hide-sources');
+            } else {
+                // Default to showing
+                document.body.classList.remove('hide-scores', 'hide-sources');
+            }
             for (let k in config.scoring) if (!config.scoring[k].type) config.scoring[k].type = "raw";
-            localStorage.setItem("customConfig", JSON.stringify({ weights: config.weights, scoring: config.scoring }));
+            localStorage.setItem("customConfig", JSON.stringify({ weights: config.weights, scoring: config.scoring, ui: config.ui }));
             updateGlossaryContent();
             if (elements.configStatus) elements.configStatus.innerText = "✓ Custom config loaded";
         }

@@ -37,5 +37,9 @@
       ]
     },
     "drawdown": { "type": "ratio", "lower": 0.30, "upper": 1.0 }
+  },
+  "ui": {
+    "showScores": true,
+    "showSources": true
   }
 }
