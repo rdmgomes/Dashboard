@@ -44,6 +44,8 @@
         .score-badge { font-size: 0.7rem; font-weight: normal; color: #ffcc88; margin-left: 8px; }
         .small-note { font-size: 0.7rem; color: #e6b87a; margin-top: 8px; border-top: 1px dotted #b87c4f; padding-top: 6px; }
         .source-note { font-size: 0.7rem; color: #e6b87a; margin-top: 8px; border-top: 1px dotted #b87c4f; padding-top: 6px; }
+        .multiplier-line { margin: 4px 0; display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px; }
+        .multiplier-label { font-size: 0.7rem; color: #e6b87a; }
         /* Toggle UI via config */
         .hide-scores .score-badge { display: none; }
         .hide-sources .source-note { display: none; }
@@ -150,7 +152,7 @@
             </div>
             <div class="indicator-card">
                 <label>📱 COINBASE APP RANK</label>
-                <div><span id="coinbaseAllRank">--</span> <span style="font-size:1rem;">(All Apps)</span></div>
+                <div><span id="coinbaseAllRank" class="kpi-value">--</span> <span style="font-size:1rem;">(All Apps)</span></div>
                 <div><span id="coinbaseFinanceRank" class="kpi-value">--</span> <span style="font-size:1rem;">(Finance)</span> <span id="coinbaseScore" class="score-badge">(score: --)</span></div>
                 <div class="small-note" id="coinbaseRankTime">—</div>
                 <div class="source-note">Source: RSS feed</div>
@@ -177,15 +179,21 @@
             </div>
             <div class="indicator-card">
                 <label>📈 2Y MA MULTIPLIER</label>
-                <span id="twoYMA" class="kpi-value">--</span><span style="font-size:1rem;"> / </span><span id="twoYMAX5" class="kpi-value">--</span>
+                <div class="multiplier-line">
+                    <span id="twoYMA" class="kpi-value">--</span>
+                    <span class="multiplier-label">2Y MA</span>
+                </div>
+                <div class="multiplier-line">
+                    <span id="twoYMAX5" class="kpi-value">--</span>
+                    <span class="multiplier-label">2Y MA x5</span>
+                </div>
                 <span id="y2maScore" class="score-badge">(score: --)</span>
-                <div class="small-note">2Y MA  |  2Y MA x5</div>
                 <div class="source-note">Source: CSV</div>
             </div>
             <div class="indicator-card">
                 <label>🌀 PI CYCLE BOTTOM</label>
-                <span id="piSMA471" class="kpi-value">--</span><span style="font-size:1rem;"> (471d SMA) </span><br/>
-                <span id="piEMA150" class="kpi-value">--</span><span style="font-size:1rem;"> (150d EMA) </span>
+                <div><span id="piSMA471" class="kpi-value">--</span> <span style="font-size:1rem;">(471d SMA)</span></div>
+                <div><span id="piEMA150" class="kpi-value">--</span> <span style="font-size:1rem;">(150d EMA)</span></div>
                 <span id="piBottomScore" class="score-badge">(score: --)</span>
                 <div class="small-note">Bitcoin bottom indicators</div>
                 <div class="source-note">Source: CSV</div>
@@ -193,7 +201,8 @@
             <div class="indicator-card">
                 <label>🔺 PI CYCLE TOP</label>
                 <div><span id="piSMA111" class="kpi-value">--</span> <span style="font-size:1rem;">(111d SMA)</span></div>
-                <div><span id="piSMA350x2" class="kpi-value">--</span> <span style="font-size:1rem;">(350d MA x 2)</span> <span id="piTopScore" class="score-badge">(score: --)</span></div>
+                <div><span id="piSMA350x2" class="kpi-value">--</span> <span style="font-size:1rem;">(350d MA x 2)</span></div>
+                <span id="piTopScore" class="score-badge">(score: --)</span>
                 <div class="small-note">Bitcoin top indicators</div>
                 <div class="source-note">Source: CSV</div>
             </div>
@@ -205,7 +214,7 @@
             </div>
             <div class="indicator-card">
                 <label>📉 ATH DRAWDOWN</label>
-                <div><span id="athDrawdown" class="kpi-value">--</span> <span style="font-size:1rem;">(%)</span> <span id="drawdownScore" class="score-badge">(score: --)</span></div>
+                <div><span id="athDrawdown" class="kpi-value">--</span> <span id="drawdownScore" class="score-badge">(score: --)</span></div>
                 <div class="small-note" id="athSource">From CSV (ATH)</div>
                 <div class="source-note">Source: CSV</div>
             </div>
@@ -377,14 +386,12 @@
             if (cfg.scoring) config.scoring = { ...DEFAULT_CONFIG.scoring, ...cfg.scoring };
             if (cfg.ui) {
                 config.ui = { ...DEFAULT_CONFIG.ui, ...cfg.ui };
-                // Apply UI toggles
                 const body = document.body;
                 if (config.ui.showScores === false) body.classList.add('hide-scores');
                 else body.classList.remove('hide-scores');
                 if (config.ui.showSources === false) body.classList.add('hide-sources');
                 else body.classList.remove('hide-sources');
             } else {
-                // Default to showing
                 document.body.classList.remove('hide-scores', 'hide-sources');
             }
             for (let k in config.scoring) if (!config.scoring[k].type) config.scoring[k].type = "raw";
@@ -405,8 +412,7 @@
             let html = `<h2>KPI Scoring Criteria & Weights</h2><ul>`;
             for (let id in config.scoring) {
                 const name = indicatorNames[id] || id.toUpperCase();
-                const weight = config.weights[id] || 0;
-                html += `<li><strong>${name}</strong> — weight: ${weight}<p>Scoring: `;
+                html += `<li><strong>${name}</strong><p>Scoring: `;
                 const sc = config.scoring[id];
                 if (sc.type === "raw") html += "raw value (0‑100).";
                 else if (sc.type === "linear") html += `linear from ${sc.min} (score 0) to ${sc.max} (score 100).`;
