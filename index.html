@@ -37,15 +37,24 @@
         .news-zone:hover .ticker-track, .news-zone .ticker-track:hover { animation-play-state: paused !important; }
         .indicators-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-top: 28px; }
         .summary-card { grid-column: 1 / -1; background: #2a1a0c; border: 1px solid #c47c3e; border-radius: 14px; padding: 12px 18px; box-shadow: 2px 2px 0px #5e3a1f; }
-        .indicator-card { background: #2a1a0c; border: 1px solid #c47c3e; border-radius: 14px; padding: 12px 18px; transition: all 0.1s ease; box-shadow: 2px 2px 0px #5e3a1f; }
+        .indicator-card { 
+            background: #2a1a0c; 
+            border: 1px solid #c47c3e; 
+            border-radius: 14px; 
+            padding: 12px 18px; 
+            box-shadow: 2px 2px 0px #5e3a1f;
+            display: flex;
+            flex-direction: column;
+            min-height: 240px;
+        }
         .indicator-card label, .summary-card label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 2px; display: block; margin-bottom: 8px; color: #e69854; }
         .kpi-value { font-size: 1.65rem; font-weight: bold; color: #ffaa66; }
         .summary-card span { font-size: 1.65rem; font-weight: bold; color: #ffaa66; }
         .score-badge { font-size: 0.7rem; font-weight: normal; color: #ffcc88; margin-left: 8px; }
         .small-note { font-size: 0.7rem; color: #e6b87a; margin-top: 8px; border-top: 1px dotted #b87c4f; padding-top: 6px; }
-        .source-note { font-size: 0.7rem; color: #e6b87a; margin-top: 8px; border-top: 1px dotted #b87c4f; padding-top: 6px; }
+        .source-note { font-size: 0.7rem; color: #e6b87a; margin-top: 8px; border-top: 1px dotted #b87c4f; padding-top: 6px; margin-top: auto; }
         .multiplier-line { margin: 4px 0; display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px; }
-        .multiplier-label { font-size: 0.7rem; color: #e6b87a; }
+        .multiplier-label { font-size: 1rem; color: #e6b87a; }
         /* Toggle UI via config */
         .hide-scores .score-badge { display: none; }
         .hide-sources .source-note { display: none; }
@@ -188,6 +197,7 @@
                     <span class="multiplier-label">2Y MA x5</span>
                 </div>
                 <span id="y2maScore" class="score-badge">(score: --)</span>
+                <div class="small-note">2Y MA  |  2Y MA x5</div>
                 <div class="source-note">Source: CSV</div>
             </div>
             <div class="indicator-card">
