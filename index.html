@@ -35,7 +35,7 @@
         #tickerTrack:hover { animation-play-state: paused; }
         #newsTrack { animation: scrollTicker 100s linear infinite; }
         .news-zone:hover .ticker-track, .news-zone .ticker-track:hover { animation-play-state: paused !important; }
-        .indicators-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-top: 28px; }
+        .indicators-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-top: 28px; align-items: stretch; }
         .summary-card { grid-column: 1 / -1; background: #2a1a0c; border: 1px solid #c47c3e; border-radius: 14px; padding: 12px 18px; box-shadow: 2px 2px 0px #5e3a1f; }
         .indicator-card { 
             background: #2a1a0c; 
@@ -466,38 +466,6 @@
         function formatUSDNoDecimals(v) { return v===undefined||v===null ? "$---" : "$"+Math.round(v).toLocaleString(); }
         function formatPercent(p) { return p===undefined||p===null ? "--%" : (p>=0?`+${p.toFixed(2)}`: `${p.toFixed(2)}`)+"%"; }
         async function fetchWithProxy(url, proxy) { const r = await fetch(proxy+url); if (!r.ok) throw new Error(`HTTP ${r.status}`); return await r.text(); }
-
-        // ==================== EQUALIZE CARD HEIGHTS ====================
-        function equalizeCardHeights() {
-            const cards = document.querySelectorAll('.indicator-card');
-            if (cards.length === 0) return;
-            // Reset heights to auto to get natural heights
-            cards.forEach(card => card.style.height = 'auto');
-            // Group cards by row (using getBoundingClientRect to detect rows)
-            const rows = [];
-            let currentRow = [];
-            let lastTop = null;
-            cards.forEach(card => {
-                const rect = card.getBoundingClientRect();
-                if (lastTop === null || Math.abs(rect.top - lastTop) > 5) {
-                    if (currentRow.length) rows.push(currentRow);
-                    currentRow = [card];
-                    lastTop = rect.top;
-                } else {
-                    currentRow.push(card);
-                }
-            });
-            if (currentRow.length) rows.push(currentRow);
-            // For each row, find max height and apply to all cards in that row
-            rows.forEach(row => {
-                let maxHeight = 0;
-                row.forEach(card => {
-                    const height = card.offsetHeight;
-                    if (height > maxHeight) maxHeight = height;
-                });
-                row.forEach(card => card.style.height = maxHeight + 'px');
-            });
-        }
 
         // ==================== NEWS FETCHER ====================
         async function fetchAllRSS() {
@@ -977,8 +945,6 @@
             await fetchCBBI();
             await fetchGoogleTrends();
             await updateSummary();
-            // Equalize card heights after content update
-            setTimeout(equalizeCardHeights, 100);
         }
 
         let mainInterval;
@@ -999,12 +965,11 @@
             await refreshNews();
             elements.manualRefresh.textContent="⟳ REFRESH";
             elements.manualRefresh.disabled=false;
-            setTimeout(equalizeCardHeights, 100);
         };
 
         document.addEventListener("visibilitychange",()=>{ if(!document.hidden && elements.tickerTrack && currentTop10) { elements.tickerTrack.style.animation="none"; elements.tickerTrack.offsetHeight; elements.tickerTrack.style.animation="scrollTicker 38s linear infinite"; } });
         document.addEventListener("visibilitychange",()=>{ if(!document.hidden && elements.newsTrack && currentNewsItems.length) { elements.newsTrack.style.animation="none"; elements.newsTrack.offsetHeight; elements.newsTrack.style.animation="scrollTicker 100s linear infinite"; } });
-        window.addEventListener('resize', () => { equalizeCardHeights(); });
+        window.addEventListener('resize', () => { /* no manual height adjustment needed */ });
 
         // Load config
         let stored=localStorage.getItem("customConfig");
