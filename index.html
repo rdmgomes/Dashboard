@@ -30,11 +30,25 @@
         .ticker-item img { width: 20px; height: 20px; vertical-align: middle; margin-right: 6px; border-radius: 50%; background: #fff; }
         .positive { color: #2eff7a; text-shadow: 0 0 2px #1eff6e; }
         .negative { color: #ff5a6e; text-shadow: 0 0 2px #ff3366; }
-        @keyframes scrollTicker { 0% { transform: translateX(0%); } 100% { transform: translateX(-50%); } }
-        #tickerTrack { animation: scrollTicker 38s linear infinite; }
-        #tickerTrack:hover { animation-play-state: paused; }
-        #newsTrack { animation: scrollTicker 100s linear infinite; }
-        .news-zone:hover .ticker-track, .news-zone .ticker-track:hover { animation-play-state: paused !important; }
+        @keyframes scrollTicker {
+            0% { transform: translateX(0%); }
+            100% { transform: translateX(-50%); }
+        }
+        /* Initially hide ticker content (set to off-screen right) */
+        #tickerTrack, #newsTrack {
+            transform: translateX(100%);
+            animation: none;
+        }
+        #tickerTrack.animate, #newsTrack.animate {
+            animation: scrollTicker 38s linear infinite;
+            transform: translateX(0%);
+        }
+        #newsTrack.animate {
+            animation: scrollTicker 100s linear infinite;
+        }
+        #tickerTrack:hover, #newsTrack:hover {
+            animation-play-state: paused;
+        }
         .indicators-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-top: 28px; align-items: stretch; }
         .summary-card { grid-column: 1 / -1; background: #2a1a0c; border: 1px solid #c47c3e; border-radius: 14px; padding: 8px 12px; box-shadow: 2px 2px 0px #5e3a1f; }
         .indicator-card { 
@@ -412,12 +426,6 @@
             if (elements.configStatus) elements.configStatus.innerText = "✓ Custom config loaded";
         }
 
-        // ==================== UTILITIES ====================
-        function formatUSD(v) { return v===undefined||v===null ? "$---" : (v>=1 ? "$"+v.toLocaleString(undefined,{minimumFractionDigits:2}) : "$"+v.toLocaleString(undefined,{minimumFractionDigits:4,maximumFractionDigits:6})); }
-        function formatUSDNoDecimals(v) { return v===undefined||v===null ? "$---" : "$"+Math.round(v).toLocaleString(); }
-        function formatPercent(p) { return p===undefined||p===null ? "--%" : (p>=0?`+${p.toFixed(2)}`: `${p.toFixed(2)}`)+"%"; }
-        async function fetchWithProxy(url, proxy) { const r = await fetch(proxy+url); if (!r.ok) throw new Error(`HTTP ${r.status}`); return await r.text(); }
-
         // ==================== RAINBOW REGRESSION ====================
         // Store regression parameters for glossary
         let _rainbowParams = null;
@@ -516,8 +524,7 @@
                             }
                             let range = '';
                             if (t.z === -Infinity) {
-                                range = `< ${formatUSD(lowerPrice)}`; // lowerPrice is price at z=-2.0? Actually we need lower bound. Let's adjust: first band is < -2.0, so lower bound is -Infinity, upper bound is price at z=-2.0.
-                                if (lowerPrice) range = `< ${formatUSD(lowerPrice)}`;
+                                if (upperPrice && upperPrice !== Infinity) range = `< ${formatUSD(upperPrice)}`;
                             } else if (upperPrice === Infinity) {
                                 if (lowerPrice) range = `> ${formatUSD(lowerPrice)}`;
                             } else {
@@ -538,6 +545,12 @@
             html += `</div><div class="small-note">Total weight = ${Object.values(config.weights).reduce((a,b)=>a+b,0)}</div></div>`;
             container.innerHTML = html;
         }
+
+        // ==================== UTILITIES ====================
+        function formatUSD(v) { return v===undefined||v===null ? "$---" : (v>=1 ? "$"+v.toLocaleString(undefined,{minimumFractionDigits:2}) : "$"+v.toLocaleString(undefined,{minimumFractionDigits:4,maximumFractionDigits:6})); }
+        function formatUSDNoDecimals(v) { return v===undefined||v===null ? "$---" : "$"+Math.round(v).toLocaleString(); }
+        function formatPercent(p) { return p===undefined||p===null ? "--%" : (p>=0?`+${p.toFixed(2)}`: `${p.toFixed(2)}`)+"%"; }
+        async function fetchWithProxy(url, proxy) { const r = await fetch(proxy+url); if (!r.ok) throw new Error(`HTTP ${r.status}`); return await r.text(); }
 
         // ==================== NEWS FETCHER ====================
         async function fetchAllRSS() {
@@ -595,9 +608,15 @@
                 elements.newsPrimary.innerHTML = html;
                 elements.newsDuplicate.innerHTML = html;
                 if (elements.newsTrack) {
-                    elements.newsTrack.style.animation = "none";
-                    elements.newsTrack.offsetHeight;
-                    elements.newsTrack.style.animation = "scrollTicker 100s linear infinite";
+                    // Reset animation and prepare for slide-in effect
+                    elements.newsTrack.classList.remove('animate');
+                    elements.newsTrack.style.transform = 'translateX(100%)';
+                    // Force reflow
+                    void elements.newsTrack.offsetHeight;
+                    setTimeout(() => {
+                        elements.newsTrack.classList.add('animate');
+                        elements.newsTrack.style.transform = '';
+                    }, 50);
                 }
             }
         }
@@ -665,9 +684,15 @@
             const html = buildTickerHTML(coins);
             elements.tickerPrimary.innerHTML = html;
             elements.tickerDuplicate.innerHTML = html;
-            elements.tickerTrack.style.animation = "none";
-            elements.tickerTrack.offsetHeight;
-            elements.tickerTrack.style.animation = "scrollTicker 38s linear infinite";
+            // Reset animation and prepare for slide-in effect
+            elements.tickerTrack.classList.remove('animate');
+            elements.tickerTrack.style.transform = 'translateX(100%)';
+            // Force reflow
+            void elements.tickerTrack.offsetHeight;
+            setTimeout(() => {
+                elements.tickerTrack.classList.add('animate');
+                elements.tickerTrack.style.transform = '';
+            }, 50);
         }
 
         async function fetchFearGreed() {
@@ -1022,12 +1047,16 @@
 
         document.addEventListener("visibilitychange",()=>{ if(!document.hidden && elements.tickerTrack && currentTop10) { elements.tickerTrack.style.animation="none"; elements.tickerTrack.offsetHeight; elements.tickerTrack.style.animation="scrollTicker 38s linear infinite"; } });
         document.addEventListener("visibilitychange",()=>{ if(!document.hidden && elements.newsTrack && currentNewsItems.length) { elements.newsTrack.style.animation="none"; elements.newsTrack.offsetHeight; elements.newsTrack.style.animation="scrollTicker 100s linear infinite"; } });
+        window.addEventListener('resize', () => { /* no manual height adjustment needed */ });
 
-        // Load config
+        // Load config and start the ticker animation after a short delay
         let stored=localStorage.getItem("customConfig");
         if(stored) try { loadConfig(JSON.parse(stored)); } catch(e){ loadConfig(DEFAULT_CONFIG); }
         else loadConfig(DEFAULT_CONFIG);
-        fetch('config.json').then(r=>r.ok?r.json():Promise.reject()).then(cfg=>{ loadConfig(cfg); if(elements.configStatus) elements.configStatus.innerText="✓ Custom config loaded from file"; }).catch(()=>{ if(elements.configStatus) elements.configStatus.innerText="Default config (no config.json)"; }).finally(()=>startAutoRefresh());
+        fetch('config.json').then(r=>r.ok?r.json():Promise.reject()).then(cfg=>{ loadConfig(cfg); if(elements.configStatus) elements.configStatus.innerText="✓ Custom config loaded from file"; }).catch(()=>{ if(elements.configStatus) elements.configStatus.innerText="Default config (no config.json)"; }).finally(()=>{
+            // Start auto-refresh after config loaded
+            startAutoRefresh().catch(e => console.error("Init error:", e));
+        });
     })();
 </script>
 </body>
