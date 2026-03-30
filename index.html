@@ -20,7 +20,7 @@
         .timestamp { font-size: 0.75rem; background: #331e0e; padding: 4px 10px; border-radius: 20px; font-family: monospace; color: #ffaa66; }
         .ticker-zone, .news-zone { margin: 18px 0 28px 0; background: #2e1c0c; border: 1px solid #c47c3e; border-radius: 12px; padding: 12px 0; box-shadow: inset 0 0 10px #5e3a1f; }
         .ticker-container { width: 100%; overflow: hidden; white-space: nowrap; position: relative; }
-        .ticker-track { display: inline-block; white-space: nowrap; will-change: transform; transition: transform 0.2s ease; }
+        .ticker-track { display: inline-block; white-space: nowrap; will-change: transform; }
         .ticker-content { display: inline-block; white-space: nowrap; }
         .ticker-item { display: inline-block; font-size: 1.35rem; font-weight: bold; font-family: 'Courier New', monospace; margin-right: 48px; letter-spacing: 1px; background: #2a180a; padding: 4px 14px; border-radius: 40px; box-shadow: inset 0 0 4px #b87c4f, 0 0 2px #ffaa66; color: #ffaa66; }
         .news-item { display: inline-block; font-size: 1rem; font-family: 'Courier New', monospace; margin-right: 48px; background: #2a180a; padding: 6px 16px; border-radius: 40px; box-shadow: inset 0 0 4px #b87c4f, 0 0 2px #ffaa66; color: #ffaa66; }
@@ -30,17 +30,17 @@
         .ticker-item img { width: 20px; height: 20px; vertical-align: middle; margin-right: 6px; border-radius: 50%; background: #fff; }
         .positive { color: #2eff7a; text-shadow: 0 0 2px #1eff6e; }
         .negative { color: #ff5a6e; text-shadow: 0 0 2px #ff3366; }
-        /* Base hidden state */
+        /* Hide initially, we'll set transform via JS */
         #tickerTrack, #newsTrack {
-            transform: translateX(100%);
+            transition: none;
         }
-        /* Slide-in animation (shared) */
+        /* Slide-in animation */
         @keyframes slideIn {
             0% { transform: translateX(100%); }
             100% { transform: translateX(0%); }
         }
         .ticker-slide {
-            animation: slideIn 0.8s ease-out forwards;
+            animation: slideIn 0.8s ease-out forwards !important;
         }
         /* Infinite scroll animations */
         @keyframes scrollTickerPrice {
@@ -52,10 +52,10 @@
             100% { transform: translateX(-50%); }
         }
         .price-scroll {
-            animation: scrollTickerPrice 38s linear infinite;
+            animation: scrollTickerPrice 38s linear infinite !important;
         }
         .news-scroll {
-            animation: scrollTickerNews 100s linear infinite;
+            animation: scrollTickerNews 100s linear infinite !important;
         }
         /* Only news ticker pauses on hover */
         .news-scroll:hover {
@@ -505,19 +505,35 @@
                 else if (sc.type === "ratio") html += `linear from ratio ${sc.lower} (score 0) to ${sc.upper} (score 100).`;
                 else if (sc.type === "inverse_linear") html += `inverse linear from ${sc.max} (score 0) to ${sc.min} (score 100).`;
                 else if (sc.type === "categorical") {
-                    html += `categorical mapping: ${sc.categories.map(c => `${c.name} → ${c.score}`).join(", ")}.`;
+                    // Define rainbow colours for each band
+                    const rainbowColors = [
+                        "#ff0000", // Fire Sale – red
+                        "#ff6600", // BUY! – orange
+                        "#ffcc00", // Accumulate – yellow
+                        "#99ff33", // Still cheap – light green
+                        "#33ff33", // HODL! – green
+                        "#33ffcc", // Is this a bubble? – turquoise
+                        "#3399ff", // FOMO intensifies – blue
+                        "#9933ff", // Sell – purple
+                        "#ff33cc"  // Maximum Bubble – pink
+                    ];
+                    html += `categorical mapping:<br>`;
+                    sc.categories.forEach((cat, idx) => {
+                        const color = rainbowColors[idx % rainbowColors.length];
+                        html += `<span style="color:${color};">${cat.name}</span> → ${cat.score}<br>`;
+                    });
                     if (id === "rainbow" && _rainbowParams) {
                         html += `<br><span style="font-size:0.7rem;">Current USD intervals (based on regression):</span><br>`;
                         const thresholds = [
-                            { z: -Infinity, label: "Basically a Fire Sale", display: "< -2.0" },
-                            { z: -2.0, label: "BUY!", display: "-2.0 to -1.0" },
-                            { z: -1.0, label: "Accumulate", display: "-1.0 to -0.5" },
-                            { z: -0.5, label: "Still cheap", display: "-0.5 to 0.0" },
-                            { z: 0.0, label: "HODL!", display: "0.0 to 0.5" },
-                            { z: 0.5, label: "Is this a bubble?", display: "0.5 to 1.0" },
-                            { z: 1.0, label: "FOMO intensifies", display: "1.0 to 2.0" },
-                            { z: 2.0, label: "Sell. Seriously, SELL!", display: "2.0 to 3.0" },
-                            { z: 3.0, label: "Maximum Bubble Territory", display: "> 3.0" }
+                            { z: -Infinity, label: "Basically a Fire Sale", idx: 0 },
+                            { z: -2.0, label: "BUY!", idx: 1 },
+                            { z: -1.0, label: "Accumulate", idx: 2 },
+                            { z: -0.5, label: "Still cheap", idx: 3 },
+                            { z: 0.0, label: "HODL!", idx: 4 },
+                            { z: 0.5, label: "Is this a bubble?", idx: 5 },
+                            { z: 1.0, label: "FOMO intensifies", idx: 6 },
+                            { z: 2.0, label: "Sell. Seriously, SELL!", idx: 7 },
+                            { z: 3.0, label: "Maximum Bubble Territory", idx: 8 }
                         ];
                         for (let i = 0; i < thresholds.length; i++) {
                             const t = thresholds[i];
@@ -538,8 +554,9 @@
                             } else {
                                 if (lowerPrice && upperPrice) range = `${formatUSD(lowerPrice)} – ${formatUSD(upperPrice)}`;
                             }
+                            const color = rainbowColors[t.idx % rainbowColors.length];
                             if (range) {
-                                html += `<br>${t.label}: ${range}`;
+                                html += `<br><span style="color:${color};">${t.label}</span>: ${range}`;
                             }
                         }
                     }
@@ -555,31 +572,29 @@
         }
 
         // ==================== TICKER ANIMATION ====================
-        function startTicker(trackElement, scrollClass, slideIn = true) {
+        function startTicker(trackElement, scrollClass) {
             if (!trackElement) return;
-            // Remove existing classes
+            // Remove all classes that affect transform/animation
             trackElement.classList.remove('ticker-slide', 'price-scroll', 'news-scroll');
             // Force reflow
             void trackElement.offsetWidth;
-            if (slideIn) {
-                // Start slide-in animation
-                trackElement.classList.add('ticker-slide');
-                const onSlideEnd = () => {
-                    trackElement.classList.remove('ticker-slide');
-                    trackElement.classList.add(scrollClass);
-                    trackElement.removeEventListener('animationend', onSlideEnd);
-                };
-                trackElement.addEventListener('animationend', onSlideEnd, { once: true });
-                // Fallback timeout
-                setTimeout(() => {
-                    if (trackElement.classList.contains('ticker-slide')) {
-                        onSlideEnd();
-                    }
-                }, 900);
-            } else {
-                // Direct scroll (no slide-in)
+            // Set explicit transform to 100% (off-screen right)
+            trackElement.style.transform = 'translateX(100%)';
+            // Start slide-in
+            trackElement.classList.add('ticker-slide');
+            const onSlideEnd = () => {
+                trackElement.classList.remove('ticker-slide');
                 trackElement.classList.add(scrollClass);
-            }
+                trackElement.style.transform = ''; // Let animation control transform
+                trackElement.removeEventListener('animationend', onSlideEnd);
+            };
+            trackElement.addEventListener('animationend', onSlideEnd, { once: true });
+            // Fallback timeout in case animationend doesn't fire
+            setTimeout(() => {
+                if (trackElement.classList.contains('ticker-slide')) {
+                    onSlideEnd();
+                }
+            }, 900);
         }
 
         // ==================== UTILITIES ====================
@@ -643,7 +658,7 @@
             if (elements.newsPrimary && elements.newsDuplicate) {
                 elements.newsPrimary.innerHTML = html;
                 elements.newsDuplicate.innerHTML = html;
-                startTicker(elements.newsTrack, 'news-scroll', true);
+                startTicker(elements.newsTrack, 'news-scroll');
             }
         }
 
@@ -710,7 +725,7 @@
             const html = buildTickerHTML(coins);
             elements.tickerPrimary.innerHTML = html;
             elements.tickerDuplicate.innerHTML = html;
-            startTicker(elements.tickerTrack, 'price-scroll', true);
+            startTicker(elements.tickerTrack, 'price-scroll');
         }
 
         async function fetchFearGreed() {
