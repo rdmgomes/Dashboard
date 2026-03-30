@@ -30,23 +30,35 @@
         .ticker-item img { width: 20px; height: 20px; vertical-align: middle; margin-right: 6px; border-radius: 50%; background: #fff; }
         .positive { color: #2eff7a; text-shadow: 0 0 2px #1eff6e; }
         .negative { color: #ff5a6e; text-shadow: 0 0 2px #ff3366; }
+        /* Standard infinite scroll animation */
         @keyframes scrollTicker {
             0% { transform: translateX(0%); }
             100% { transform: translateX(-50%); }
         }
-        /* Initially hide ticker content (set to off-screen right) */
+        /* One-time entry animation (from right to left edge) */
+        @keyframes slideInFromRight {
+            0% { transform: translateX(100%); }
+            100% { transform: translateX(0%); }
+        }
+        /* Default hidden off‑screen */
         #tickerTrack, #newsTrack {
             transform: translateX(100%);
             animation: none;
         }
-        #tickerTrack.animate, #newsTrack.animate {
-            animation: scrollTicker 38s linear infinite;
-            transform: translateX(0%);
+        /* Class for the entry animation (used once) */
+        .ticker-entry {
+            animation: slideInFromRight 0.8s ease-out forwards !important;
         }
-        #newsTrack.animate {
-            animation: scrollTicker 100s linear infinite;
+        /* Class for the continuous infinite scroll (applied after entry) */
+        .ticker-scroll {
+            animation: scrollTicker 38s linear infinite !important;
+            transform: translateX(0%) !important;
         }
-        #tickerTrack:hover, #newsTrack:hover {
+        #newsTrack.ticker-scroll {
+            animation: scrollTicker 100s linear infinite !important;
+        }
+        /* Hover pause works on the scroll class */
+        .ticker-scroll:hover {
             animation-play-state: paused;
         }
         .indicators-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-top: 28px; align-items: stretch; }
@@ -427,7 +439,6 @@
         }
 
         // ==================== RAINBOW REGRESSION ====================
-        // Store regression parameters for glossary
         let _rainbowParams = null;
 
         function computeRainbowWithParams(prices) {
@@ -464,12 +475,10 @@
             else if (zScore < 2) band = "FOMO intensifies";
             else if (zScore < 3) band = "Sell. Seriously, SELL!";
             else band = "Maximum Bubble Territory";
-            // Store parameters for glossary
             _rainbowParams = { a, b, stdDev, currentX };
             return { band, a, b, stdDev, currentX };
         }
 
-        // Helper to compute price for a given z-score
         function priceForZ(z) {
             if (!_rainbowParams) return null;
             const { a, b, stdDev, currentX } = _rainbowParams;
@@ -477,7 +486,6 @@
             return Math.exp(predicted + z * stdDev);
         }
 
-        // Update glossary with dynamic rainbow intervals
         function updateGlossaryContent() {
             const container = document.getElementById("glossaryContent");
             if (!container) return;
@@ -546,6 +554,31 @@
             container.innerHTML = html;
         }
 
+        // ==================== TICKER ANIMATION ====================
+        // Starts the "slide‑in from right" animation, then switches to infinite scroll.
+        function startTickerAnimation(trackElement, isNews = false) {
+            if (!trackElement) return;
+            // Remove any existing classes
+            trackElement.classList.remove('ticker-entry', 'ticker-scroll');
+            // Force reflow
+            void trackElement.offsetWidth;
+            // Start with entry animation
+            trackElement.classList.add('ticker-entry');
+            // After entry animation ends, switch to infinite scroll
+            const onAnimationEnd = () => {
+                trackElement.classList.remove('ticker-entry');
+                trackElement.classList.add('ticker-scroll');
+                trackElement.removeEventListener('animationend', onAnimationEnd);
+            };
+            trackElement.addEventListener('animationend', onAnimationEnd, { once: true });
+            // Fallback timeout in case animationend doesn't fire
+            setTimeout(() => {
+                if (trackElement.classList.contains('ticker-entry')) {
+                    onAnimationEnd();
+                }
+            }, 1000);
+        }
+
         // ==================== UTILITIES ====================
         function formatUSD(v) { return v===undefined||v===null ? "$---" : (v>=1 ? "$"+v.toLocaleString(undefined,{minimumFractionDigits:2}) : "$"+v.toLocaleString(undefined,{minimumFractionDigits:4,maximumFractionDigits:6})); }
         function formatUSDNoDecimals(v) { return v===undefined||v===null ? "$---" : "$"+Math.round(v).toLocaleString(); }
@@ -607,17 +640,8 @@
             if (elements.newsPrimary && elements.newsDuplicate) {
                 elements.newsPrimary.innerHTML = html;
                 elements.newsDuplicate.innerHTML = html;
-                if (elements.newsTrack) {
-                    // Reset animation and prepare for slide-in effect
-                    elements.newsTrack.classList.remove('animate');
-                    elements.newsTrack.style.transform = 'translateX(100%)';
-                    // Force reflow
-                    void elements.newsTrack.offsetHeight;
-                    setTimeout(() => {
-                        elements.newsTrack.classList.add('animate');
-                        elements.newsTrack.style.transform = '';
-                    }, 50);
-                }
+                // Start the ticker animation from scratch
+                startTickerAnimation(elements.newsTrack, true);
             }
         }
 
@@ -684,15 +708,8 @@
             const html = buildTickerHTML(coins);
             elements.tickerPrimary.innerHTML = html;
             elements.tickerDuplicate.innerHTML = html;
-            // Reset animation and prepare for slide-in effect
-            elements.tickerTrack.classList.remove('animate');
-            elements.tickerTrack.style.transform = 'translateX(100%)';
-            // Force reflow
-            void elements.tickerTrack.offsetHeight;
-            setTimeout(() => {
-                elements.tickerTrack.classList.add('animate');
-                elements.tickerTrack.style.transform = '';
-            }, 50);
+            // Start the ticker animation from scratch
+            startTickerAnimation(elements.tickerTrack, false);
         }
 
         async function fetchFearGreed() {
@@ -1021,7 +1038,6 @@
             await fetchCBBI();
             await fetchGoogleTrends();
             await updateSummary();
-            // Update glossary with new rainbow parameters
             updateGlossaryContent();
         }
 
@@ -1045,16 +1061,14 @@
             elements.manualRefresh.disabled=false;
         };
 
-        document.addEventListener("visibilitychange",()=>{ if(!document.hidden && elements.tickerTrack && currentTop10) { elements.tickerTrack.style.animation="none"; elements.tickerTrack.offsetHeight; elements.tickerTrack.style.animation="scrollTicker 38s linear infinite"; } });
-        document.addEventListener("visibilitychange",()=>{ if(!document.hidden && elements.newsTrack && currentNewsItems.length) { elements.newsTrack.style.animation="none"; elements.newsTrack.offsetHeight; elements.newsTrack.style.animation="scrollTicker 100s linear infinite"; } });
-        window.addEventListener('resize', () => { /* no manual height adjustment needed */ });
+        document.addEventListener("visibilitychange",()=>{ if(!document.hidden && elements.tickerTrack && currentTop10) { /* animation already continues */ } });
+        document.addEventListener("visibilitychange",()=>{ if(!document.hidden && elements.newsTrack && currentNewsItems.length) { /* animation already continues */ } });
 
-        // Load config and start the ticker animation after a short delay
+        // Load config and start
         let stored=localStorage.getItem("customConfig");
         if(stored) try { loadConfig(JSON.parse(stored)); } catch(e){ loadConfig(DEFAULT_CONFIG); }
         else loadConfig(DEFAULT_CONFIG);
         fetch('config.json').then(r=>r.ok?r.json():Promise.reject()).then(cfg=>{ loadConfig(cfg); if(elements.configStatus) elements.configStatus.innerText="✓ Custom config loaded from file"; }).catch(()=>{ if(elements.configStatus) elements.configStatus.innerText="Default config (no config.json)"; }).finally(()=>{
-            // Start auto-refresh after config loaded
             startAutoRefresh().catch(e => console.error("Init error:", e));
         });
     })();
