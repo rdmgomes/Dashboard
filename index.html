@@ -34,7 +34,7 @@
         #tickerTrack, #newsTrack {
             transform: translateX(100%);
         }
-        /* Slide‑in animation – now 1.5 seconds */
+        /* Slide‑in animation – 1.5 seconds */
         @keyframes slideIn {
             0% { transform: translateX(100%); }
             100% { transform: translateX(0%); }
@@ -57,8 +57,8 @@
         .news-scroll {
             animation: scrollTickerNews 100s linear infinite !important;
         }
-        /* Only news ticker pauses on hover */
-        .news-scroll:hover {
+        /* Hover over news zone pauses the news ticker */
+        .news-zone:hover .news-scroll {
             animation-play-state: paused;
         }
         .indicators-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-top: 28px; align-items: stretch; }
