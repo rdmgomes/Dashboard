@@ -412,6 +412,64 @@
             if (elements.configStatus) elements.configStatus.innerText = "✓ Custom config loaded";
         }
 
+        // ==================== UTILITIES ====================
+        function formatUSD(v) { return v===undefined||v===null ? "$---" : (v>=1 ? "$"+v.toLocaleString(undefined,{minimumFractionDigits:2}) : "$"+v.toLocaleString(undefined,{minimumFractionDigits:4,maximumFractionDigits:6})); }
+        function formatUSDNoDecimals(v) { return v===undefined||v===null ? "$---" : "$"+Math.round(v).toLocaleString(); }
+        function formatPercent(p) { return p===undefined||p===null ? "--%" : (p>=0?`+${p.toFixed(2)}`: `${p.toFixed(2)}`)+"%"; }
+        async function fetchWithProxy(url, proxy) { const r = await fetch(proxy+url); if (!r.ok) throw new Error(`HTTP ${r.status}`); return await r.text(); }
+
+        // ==================== RAINBOW REGRESSION ====================
+        // Store regression parameters for glossary
+        let _rainbowParams = null;
+
+        function computeRainbowWithParams(prices) {
+            if (!prices || prices.length < 500) return { band: null, a: null, b: null, stdDev: null, currentX: null };
+            const n = prices.length;
+            const x = Array.from({ length: n }, (_, i) => i / 365.25);
+            const y = prices.map(p => Math.log(p));
+            let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;
+            for (let i = 0; i < n; i++) {
+                sumX += x[i];
+                sumY += y[i];
+                sumXY += x[i] * y[i];
+                sumX2 += x[i] * x[i];
+            }
+            const b = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
+            const a = (sumY - b * sumX) / n;
+            const residuals = [];
+            for (let i = 0; i < n; i++) {
+                const pred = a + b * x[i];
+                residuals.push(y[i] - pred);
+            }
+            const stdDev = Math.sqrt(residuals.reduce((sum, r) => sum + r * r, 0) / n);
+            const currentX = (n - 1) / 365.25;
+            const predicted = a + b * currentX;
+            const currentResidual = Math.log(prices[n - 1]) - predicted;
+            const zScore = currentResidual / stdDev;
+            let band;
+            if (zScore < -2) band = "Basically a Fire Sale";
+            else if (zScore < -1) band = "BUY!";
+            else if (zScore < -0.5) band = "Accumulate";
+            else if (zScore < 0) band = "Still cheap";
+            else if (zScore < 0.5) band = "HODL!";
+            else if (zScore < 1) band = "Is this a bubble?";
+            else if (zScore < 2) band = "FOMO intensifies";
+            else if (zScore < 3) band = "Sell. Seriously, SELL!";
+            else band = "Maximum Bubble Territory";
+            // Store parameters for glossary
+            _rainbowParams = { a, b, stdDev, currentX };
+            return { band, a, b, stdDev, currentX };
+        }
+
+        // Helper to compute price for a given z-score
+        function priceForZ(z) {
+            if (!_rainbowParams) return null;
+            const { a, b, stdDev, currentX } = _rainbowParams;
+            const predicted = a + b * currentX;
+            return Math.exp(predicted + z * stdDev);
+        }
+
+        // Update glossary with dynamic rainbow intervals
         function updateGlossaryContent() {
             const container = document.getElementById("glossaryContent");
             if (!container) return;
@@ -432,9 +490,43 @@
                 else if (sc.type === "inverse_linear") html += `inverse linear from ${sc.max} (score 0) to ${sc.min} (score 100).`;
                 else if (sc.type === "categorical") {
                     html += `categorical mapping: ${sc.categories.map(c => `${c.name} → ${c.score}`).join(", ")}.`;
-                    if (id === "rainbow") {
-                        html += `<br><span style="font-size:0.7rem;">Z‑score intervals:</span> `;
-                        html += `&lt; -2 (Fire Sale), -2 to -1 (BUY!), -1 to -0.5 (Accumulate), -0.5 to 0 (Still cheap), 0 to 0.5 (HODL!), 0.5 to 1 (Is this a bubble?), 1 to 2 (FOMO intensifies), 2 to 3 (Sell!), &gt; 3 (Maximum Bubble).`;
+                    if (id === "rainbow" && _rainbowParams) {
+                        html += `<br><span style="font-size:0.7rem;">Current USD intervals (based on regression):</span><br>`;
+                        const thresholds = [
+                            { z: -Infinity, label: "Basically a Fire Sale", display: "< -2.0" },
+                            { z: -2.0, label: "BUY!", display: "-2.0 to -1.0" },
+                            { z: -1.0, label: "Accumulate", display: "-1.0 to -0.5" },
+                            { z: -0.5, label: "Still cheap", display: "-0.5 to 0.0" },
+                            { z: 0.0, label: "HODL!", display: "0.0 to 0.5" },
+                            { z: 0.5, label: "Is this a bubble?", display: "0.5 to 1.0" },
+                            { z: 1.0, label: "FOMO intensifies", display: "1.0 to 2.0" },
+                            { z: 2.0, label: "Sell. Seriously, SELL!", display: "2.0 to 3.0" },
+                            { z: 3.0, label: "Maximum Bubble Territory", display: "> 3.0" }
+                        ];
+                        for (let i = 0; i < thresholds.length; i++) {
+                            const t = thresholds[i];
+                            let lowerPrice = null, upperPrice = null;
+                            if (t.z !== -Infinity) {
+                                lowerPrice = priceForZ(t.z);
+                            }
+                            if (i < thresholds.length - 1 && thresholds[i+1].z !== undefined) {
+                                upperPrice = priceForZ(thresholds[i+1].z);
+                            } else if (i === thresholds.length - 1) {
+                                upperPrice = Infinity;
+                            }
+                            let range = '';
+                            if (t.z === -Infinity) {
+                                range = `< ${formatUSD(lowerPrice)}`; // lowerPrice is price at z=-2.0? Actually we need lower bound. Let's adjust: first band is < -2.0, so lower bound is -Infinity, upper bound is price at z=-2.0.
+                                if (lowerPrice) range = `< ${formatUSD(lowerPrice)}`;
+                            } else if (upperPrice === Infinity) {
+                                if (lowerPrice) range = `> ${formatUSD(lowerPrice)}`;
+                            } else {
+                                if (lowerPrice && upperPrice) range = `${formatUSD(lowerPrice)} – ${formatUSD(upperPrice)}`;
+                            }
+                            if (range) {
+                                html += `<br>${t.label}: ${range}`;
+                            }
+                        }
                     }
                 }
                 html += `</p></li>`;
@@ -446,12 +538,6 @@
             html += `</div><div class="small-note">Total weight = ${Object.values(config.weights).reduce((a,b)=>a+b,0)}</div></div>`;
             container.innerHTML = html;
         }
-
-        // ==================== UTILITIES ====================
-        function formatUSD(v) { return v===undefined||v===null ? "$---" : (v>=1 ? "$"+v.toLocaleString(undefined,{minimumFractionDigits:2}) : "$"+v.toLocaleString(undefined,{minimumFractionDigits:4,maximumFractionDigits:6})); }
-        function formatUSDNoDecimals(v) { return v===undefined||v===null ? "$---" : "$"+Math.round(v).toLocaleString(); }
-        function formatPercent(p) { return p===undefined||p===null ? "--%" : (p>=0?`+${p.toFixed(2)}`: `${p.toFixed(2)}`)+"%"; }
-        async function fetchWithProxy(url, proxy) { const r = await fetch(proxy+url); if (!r.ok) throw new Error(`HTTP ${r.status}`); return await r.text(); }
 
         // ==================== NEWS FETCHER ====================
         async function fetchAllRSS() {
@@ -655,29 +741,6 @@
 
         function sma(arr, days) { if(arr.length<days) return null; const slice=arr.slice(-days); return slice.reduce((a,b)=>a+b,0)/days; }
         function ema(arr, days) { if(arr.length<days) return null; const k=2/(days+1); let emaVal = sma(arr.slice(0,days),days); for(let i=days;i<arr.length;i++) emaVal = arr[i]*k + emaVal*(1-k); return emaVal; }
-        function computeRainbow(prices) {
-            if (!prices || prices.length<500) return null;
-            const n=prices.length;
-            const x=Array.from({length:n},(_,i)=>i/365.25);
-            const y=prices.map(p=>Math.log(p));
-            let sumX=0,sumY=0,sumXY=0,sumX2=0;
-            for(let i=0;i<n;i++) { sumX+=x[i]; sumY+=y[i]; sumXY+=x[i]*y[i]; sumX2+=x[i]*x[i]; }
-            const b=(n*sumXY-sumX*sumY)/(n*sumX2-sumX*sumX);
-            const a=(sumY-b*sumX)/n;
-            const residuals=[];
-            for(let i=0;i<n;i++) residuals.push(y[i]-(a+b*x[i]));
-            const stdDev=Math.sqrt(residuals.reduce((s,r)=>s+r*r,0)/n);
-            const z=(Math.log(prices[n-1])-(a+b*((n-1)/365.25)))/stdDev;
-            if(z<-2) return "Basically a Fire Sale";
-            if(z<-1) return "BUY!";
-            if(z<-0.5) return "Accumulate";
-            if(z<0) return "Still cheap";
-            if(z<0.5) return "HODL!";
-            if(z<1) return "Is this a bubble?";
-            if(z<2) return "FOMO intensifies";
-            if(z<3) return "Sell. Seriously, SELL!";
-            return "Maximum Bubble Territory";
-        }
 
         async function fetchBitcoinIndicators() {
             let prices=null, dataSource="", ath=null;
@@ -710,14 +773,16 @@
                 elements.btc200wma.innerText = formatUSDNoDecimals(sma200W);
                 elements.twoYMA.innerText = formatUSDNoDecimals(sma2Y);
                 elements.twoYMAX5.innerText = formatUSDNoDecimals(sma2Yx5);
-                rainbow = computeRainbow(prices);
+                const rainbowResult = computeRainbowWithParams(prices);
+                rainbow = rainbowResult.band;
                 if(rainbow) { elements.rainbowClassification.innerText=rainbow; elements.rainbowSource.innerText="Calculated from CSV"; localStorage.setItem("rainbowClassification",rainbow); }
                 elements.wmaScore.innerText = `(score: ${Math.round(score200WMA(btcPrice,sma200W))})`;
                 elements.y2maScore.innerText = `(score: ${Math.round(score2YMA(btcPrice,sma2Y))})`;
                 elements.piBottomScore.innerText = `(score: ${Math.round(scorePiCycleBottom(piSMA,piEMA))})`;
                 elements.piTopScore.innerText = `(score: ${Math.round(scorePiCycleTop(piSMA111,piSMA350x2))})`;
                 elements.drawdownScore.innerText = `(score: ${Math.round(scoreDrawdown(btcPrice,ath))})`;
-                elements.rainbowScore.innerText = `(score: ${Math.round(scoreRainbow(rainbow))})`;
+                const rainbowScore = scoreRainbow(rainbow);
+                elements.rainbowScore.innerText = `(score: ${Math.round(rainbowScore)})`;
             } else {
                 try { let r=await fetch("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd"); if(r.ok) btcPrice=(await r.json()).bitcoin.usd; }
                 catch(e) { try { let r2=await fetch("https://api.coinpaprika.com/v1/tickers/btc-bitcoin"); if(r2.ok) btcPrice=(await r2.json()).quotes.USD.price; } catch(e2){} }
@@ -931,6 +996,8 @@
             await fetchCBBI();
             await fetchGoogleTrends();
             await updateSummary();
+            // Update glossary with new rainbow parameters
+            updateGlossaryContent();
         }
 
         let mainInterval;
