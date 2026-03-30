@@ -30,11 +30,11 @@
         .ticker-item img { width: 20px; height: 20px; vertical-align: middle; margin-right: 6px; border-radius: 50%; background: #fff; }
         .positive { color: #2eff7a; text-shadow: 0 0 2px #1eff6e; }
         .negative { color: #ff5a6e; text-shadow: 0 0 2px #ff3366; }
-        /* Hide initially */
+        /* Base hidden state */
         #tickerTrack, #newsTrack {
             transform: translateX(100%);
         }
-        /* Slide-in animation (from right to left edge) */
+        /* Slide-in animation (shared) */
         @keyframes slideIn {
             0% { transform: translateX(100%); }
             100% { transform: translateX(0%); }
@@ -42,18 +42,23 @@
         .ticker-slide {
             animation: slideIn 0.8s ease-out forwards;
         }
-        /* Infinite scroll animation */
-        @keyframes scrollTicker {
+        /* Infinite scroll animations */
+        @keyframes scrollTickerPrice {
             0% { transform: translateX(0%); }
             100% { transform: translateX(-50%); }
         }
-        .ticker-scroll {
-            animation: scrollTicker 38s linear infinite;
+        @keyframes scrollTickerNews {
+            0% { transform: translateX(0%); }
+            100% { transform: translateX(-50%); }
         }
-        #newsTrack.ticker-scroll {
-            animation: scrollTicker 100s linear infinite;
+        .price-scroll {
+            animation: scrollTickerPrice 38s linear infinite;
         }
-        .ticker-scroll:hover {
+        .news-scroll {
+            animation: scrollTickerNews 100s linear infinite;
+        }
+        /* Only news ticker pauses on hover */
+        .news-scroll:hover {
             animation-play-state: paused;
         }
         .indicators-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-top: 28px; align-items: stretch; }
@@ -550,27 +555,31 @@
         }
 
         // ==================== TICKER ANIMATION ====================
-        function startTicker(trackElement, speedClass = 'ticker-scroll') {
+        function startTicker(trackElement, scrollClass, slideIn = true) {
             if (!trackElement) return;
-            // Remove any existing classes
-            trackElement.classList.remove('ticker-slide', 'ticker-scroll');
+            // Remove existing classes
+            trackElement.classList.remove('ticker-slide', 'price-scroll', 'news-scroll');
             // Force reflow
             void trackElement.offsetWidth;
-            // Start the slide-in animation
-            trackElement.classList.add('ticker-slide');
-            // After slide-in ends, switch to infinite scroll
-            const onAnimationEnd = () => {
-                trackElement.classList.remove('ticker-slide');
-                trackElement.classList.add(speedClass);
-                trackElement.removeEventListener('animationend', onAnimationEnd);
-            };
-            trackElement.addEventListener('animationend', onAnimationEnd, { once: true });
-            // Fallback timeout (in case animationend fails)
-            setTimeout(() => {
-                if (trackElement.classList.contains('ticker-slide')) {
-                    onAnimationEnd();
-                }
-            }, 900);
+            if (slideIn) {
+                // Start slide-in animation
+                trackElement.classList.add('ticker-slide');
+                const onSlideEnd = () => {
+                    trackElement.classList.remove('ticker-slide');
+                    trackElement.classList.add(scrollClass);
+                    trackElement.removeEventListener('animationend', onSlideEnd);
+                };
+                trackElement.addEventListener('animationend', onSlideEnd, { once: true });
+                // Fallback timeout
+                setTimeout(() => {
+                    if (trackElement.classList.contains('ticker-slide')) {
+                        onSlideEnd();
+                    }
+                }, 900);
+            } else {
+                // Direct scroll (no slide-in)
+                trackElement.classList.add(scrollClass);
+            }
         }
 
         // ==================== UTILITIES ====================
@@ -634,7 +643,7 @@
             if (elements.newsPrimary && elements.newsDuplicate) {
                 elements.newsPrimary.innerHTML = html;
                 elements.newsDuplicate.innerHTML = html;
-                startTicker(elements.newsTrack, 'ticker-scroll');
+                startTicker(elements.newsTrack, 'news-scroll', true);
             }
         }
 
@@ -701,7 +710,7 @@
             const html = buildTickerHTML(coins);
             elements.tickerPrimary.innerHTML = html;
             elements.tickerDuplicate.innerHTML = html;
-            startTicker(elements.tickerTrack, 'ticker-scroll');
+            startTicker(elements.tickerTrack, 'price-scroll', true);
         }
 
         async function fetchFearGreed() {
