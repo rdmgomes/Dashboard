@@ -58,8 +58,9 @@
             animation: scrollTickerNews 100s linear infinite !important;
         }
         /* Hover over news zone pauses the news ticker */
-        .news-zone:hover .news-scroll {
-            animation-play-state: paused;
+        .news-zone:hover .news-scroll,
+        .news-zone:hover #newsTrack {
+            animation-play-state: paused !important;
         }
         .indicators-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-top: 28px; align-items: stretch; }
         .summary-card { grid-column: 1 / -1; background: #2a1a0c; border: 1px solid #c47c3e; border-radius: 14px; padding: 8px 12px; box-shadow: 2px 2px 0px #5e3a1f; }
