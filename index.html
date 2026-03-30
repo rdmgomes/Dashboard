@@ -34,13 +34,13 @@
         #tickerTrack, #newsTrack {
             transform: translateX(100%);
         }
-        /* Slide‑in animation */
+        /* Slide‑in animation – now 5 seconds */
         @keyframes slideIn {
             0% { transform: translateX(100%); }
             100% { transform: translateX(0%); }
         }
         .ticker-slide {
-            animation: slideIn 0.8s ease-out forwards !important;
+            animation: slideIn 5s ease-out forwards !important;
         }
         /* Infinite scroll animations */
         @keyframes scrollTickerPrice {
@@ -495,7 +495,7 @@
                 coinbase:"Coinbase App Rank", trends:"Bitcoin Search Trend",
                 dominance:"BTC Market Dominance", rainbow:"Bitcoin Rainbow Chart", drawdown:"ATH Drawdown"
             };
-            // Updated rainbow colours (Basically a Fire Sale now Blue)
+            // Rainbow colours – only used for band names
             const rainbowColors = [
                 "#0000FF", // Basically a Fire Sale – Blue
                 "#00CCCC", // BUY! – Deep Aqua
@@ -520,6 +520,7 @@
                     html += `categorical mapping:<br>`;
                     sc.categories.forEach((cat, idx) => {
                         const color = rainbowColors[idx % rainbowColors.length];
+                        // Only colour the band name, not the score
                         html += `<span style="color:${color};">${cat.name}</span> → ${cat.score}<br>`;
                     });
                     if (id === "rainbow" && _rainbowParams) {
@@ -556,6 +557,7 @@
                             }
                             const color = rainbowColors[t.idx % rainbowColors.length];
                             if (range) {
+                                // Only colour the label, not the range numbers
                                 html += `<br><span style="color:${color};">${t.label}</span>: ${range}`;
                             }
                         }
@@ -589,12 +591,12 @@
                 trackElement.removeEventListener('animationend', onSlideEnd);
             };
             trackElement.addEventListener('animationend', onSlideEnd, { once: true });
-            // Fallback timeout (in case animationend fails)
+            // Fallback timeout – increased to 5.5 seconds to match the 5s animation
             setTimeout(() => {
                 if (trackElement.classList.contains('ticker-slide')) {
                     onSlideEnd();
                 }
-            }, 900);
+            }, 5500);
         }
 
         // ==================== UTILITIES ====================
