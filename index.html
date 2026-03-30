@@ -20,7 +20,7 @@
         .timestamp { font-size: 0.75rem; background: #331e0e; padding: 4px 10px; border-radius: 20px; font-family: monospace; color: #ffaa66; }
         .ticker-zone, .news-zone { margin: 18px 0 28px 0; background: #2e1c0c; border: 1px solid #c47c3e; border-radius: 12px; padding: 12px 0; box-shadow: inset 0 0 10px #5e3a1f; }
         .ticker-container { width: 100%; overflow: hidden; white-space: nowrap; position: relative; }
-        .ticker-track { display: inline-block; white-space: nowrap; will-change: transform; }
+        .ticker-track { display: inline-block; white-space: nowrap; will-change: transform; transition: none; }
         .ticker-content { display: inline-block; white-space: nowrap; }
         .ticker-item { display: inline-block; font-size: 1.35rem; font-weight: bold; font-family: 'Courier New', monospace; margin-right: 48px; letter-spacing: 1px; background: #2a180a; padding: 4px 14px; border-radius: 40px; box-shadow: inset 0 0 4px #b87c4f, 0 0 2px #ffaa66; color: #ffaa66; }
         .news-item { display: inline-block; font-size: 1rem; font-family: 'Courier New', monospace; margin-right: 48px; background: #2a180a; padding: 6px 16px; border-radius: 40px; box-shadow: inset 0 0 4px #b87c4f, 0 0 2px #ffaa66; color: #ffaa66; }
@@ -30,11 +30,11 @@
         .ticker-item img { width: 20px; height: 20px; vertical-align: middle; margin-right: 6px; border-radius: 50%; background: #fff; }
         .positive { color: #2eff7a; text-shadow: 0 0 2px #1eff6e; }
         .negative { color: #ff5a6e; text-shadow: 0 0 2px #ff3366; }
-        /* Hide initially, we'll set transform via JS */
+        /* Initial state: hidden off‑screen */
         #tickerTrack, #newsTrack {
-            transition: none;
+            transform: translateX(100%);
         }
-        /* Slide-in animation */
+        /* Slide‑in animation */
         @keyframes slideIn {
             0% { transform: translateX(100%); }
             100% { transform: translateX(0%); }
@@ -495,6 +495,18 @@
                 coinbase:"Coinbase App Rank", trends:"Bitcoin Search Trend",
                 dominance:"BTC Market Dominance", rainbow:"Bitcoin Rainbow Chart", drawdown:"ATH Drawdown"
             };
+            // Custom rainbow colours (exact as requested)
+            const rainbowColors = [
+                "#00008B", // Basically a Fire Sale – Dark Blue
+                "#00CCCC", // BUY! – Deep Aqua
+                "#00AA00", // Accumulate – Green
+                "#88FF88", // Still cheap – Light Green
+                "#FFFF00", // HODL! – Yellow
+                "#FFAA66", // Is this a bubble? – Light Orange
+                "#FF6600", // FOMO intensifies – Orange
+                "#FF0000", // Sell. Seriously, SELL! – Red
+                "#AA0000"  // Maximum Bubble Territory – Dark Red
+            ];
             let html = `<h2>KPI Scoring Criteria & Weights</h2><ul>`;
             for (let id in config.scoring) {
                 const name = indicatorNames[id] || id.toUpperCase();
@@ -505,18 +517,6 @@
                 else if (sc.type === "ratio") html += `linear from ratio ${sc.lower} (score 0) to ${sc.upper} (score 100).`;
                 else if (sc.type === "inverse_linear") html += `inverse linear from ${sc.max} (score 0) to ${sc.min} (score 100).`;
                 else if (sc.type === "categorical") {
-                    // Define rainbow colours for each band
-                    const rainbowColors = [
-                        "#ff0000", // Fire Sale – red
-                        "#ff6600", // BUY! – orange
-                        "#ffcc00", // Accumulate – yellow
-                        "#99ff33", // Still cheap – light green
-                        "#33ff33", // HODL! – green
-                        "#33ffcc", // Is this a bubble? – turquoise
-                        "#3399ff", // FOMO intensifies – blue
-                        "#9933ff", // Sell – purple
-                        "#ff33cc"  // Maximum Bubble – pink
-                    ];
                     html += `categorical mapping:<br>`;
                     sc.categories.forEach((cat, idx) => {
                         const color = rainbowColors[idx % rainbowColors.length];
@@ -574,22 +574,22 @@
         // ==================== TICKER ANIMATION ====================
         function startTicker(trackElement, scrollClass) {
             if (!trackElement) return;
-            // Remove all classes that affect transform/animation
+            // Remove all animation classes and inline transforms
             trackElement.classList.remove('ticker-slide', 'price-scroll', 'news-scroll');
+            // Force a clean state: ensure it's hidden off‑screen
+            trackElement.style.transform = 'translateX(100%)';
             // Force reflow
             void trackElement.offsetWidth;
-            // Set explicit transform to 100% (off-screen right)
-            trackElement.style.transform = 'translateX(100%)';
             // Start slide-in
             trackElement.classList.add('ticker-slide');
             const onSlideEnd = () => {
                 trackElement.classList.remove('ticker-slide');
                 trackElement.classList.add(scrollClass);
-                trackElement.style.transform = ''; // Let animation control transform
+                trackElement.style.transform = ''; // let animation control transform
                 trackElement.removeEventListener('animationend', onSlideEnd);
             };
             trackElement.addEventListener('animationend', onSlideEnd, { once: true });
-            // Fallback timeout in case animationend doesn't fire
+            // Fallback timeout (in case animationend fails)
             setTimeout(() => {
                 if (trackElement.classList.contains('ticker-slide')) {
                     onSlideEnd();
