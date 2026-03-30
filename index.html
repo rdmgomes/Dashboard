@@ -34,13 +34,13 @@
         #tickerTrack, #newsTrack {
             transform: translateX(100%);
         }
-        /* Slide‑in animation – now 5 seconds */
+        /* Slide‑in animation – now 1.5 seconds */
         @keyframes slideIn {
             0% { transform: translateX(100%); }
             100% { transform: translateX(0%); }
         }
         .ticker-slide {
-            animation: slideIn 5s ease-out forwards !important;
+            animation: slideIn 1.5s ease-out forwards !important;
         }
         /* Infinite scroll animations */
         @keyframes scrollTickerPrice {
@@ -495,7 +495,7 @@
                 coinbase:"Coinbase App Rank", trends:"Bitcoin Search Trend",
                 dominance:"BTC Market Dominance", rainbow:"Bitcoin Rainbow Chart", drawdown:"ATH Drawdown"
             };
-            // Rainbow colours – only used for band names
+            // Rainbow colours (only used for USD intervals section)
             const rainbowColors = [
                 "#0000FF", // Basically a Fire Sale – Blue
                 "#00CCCC", // BUY! – Deep Aqua
@@ -517,11 +517,10 @@
                 else if (sc.type === "ratio") html += `linear from ratio ${sc.lower} (score 0) to ${sc.upper} (score 100).`;
                 else if (sc.type === "inverse_linear") html += `inverse linear from ${sc.max} (score 0) to ${sc.min} (score 100).`;
                 else if (sc.type === "categorical") {
+                    // Categorical mapping: band names in normal colour (no rainbow)
                     html += `categorical mapping:<br>`;
                     sc.categories.forEach((cat, idx) => {
-                        const color = rainbowColors[idx % rainbowColors.length];
-                        // Only colour the band name, not the score
-                        html += `<span style="color:${color};">${cat.name}</span> → ${cat.score}<br>`;
+                        html += `${cat.name} → ${cat.score}<br>`;
                     });
                     if (id === "rainbow" && _rainbowParams) {
                         html += `<br><span style="font-size:0.7rem;">Current USD intervals (based on regression):</span><br>`;
@@ -557,7 +556,7 @@
                             }
                             const color = rainbowColors[t.idx % rainbowColors.length];
                             if (range) {
-                                // Only colour the label, not the range numbers
+                                // Only the label gets colour, the range stays default
                                 html += `<br><span style="color:${color};">${t.label}</span>: ${range}`;
                             }
                         }
@@ -591,12 +590,12 @@
                 trackElement.removeEventListener('animationend', onSlideEnd);
             };
             trackElement.addEventListener('animationend', onSlideEnd, { once: true });
-            // Fallback timeout – increased to 5.5 seconds to match the 5s animation
+            // Fallback timeout – 1.8 seconds to accommodate 1.5s animation
             setTimeout(() => {
                 if (trackElement.classList.contains('ticker-slide')) {
                     onSlideEnd();
                 }
-            }, 5500);
+            }, 1800);
         }
 
         // ==================== UTILITIES ====================
