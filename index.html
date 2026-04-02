@@ -42,7 +42,7 @@
         .ticker-slide {
             animation: slideIn 1.5s ease-out forwards !important;
         }
-        /* Infinite scroll animations */
+        /* Infinite scroll animations – price ticker now 30s (20% faster than 38s) */
         @keyframes scrollTickerPrice {
             0% { transform: translateX(0%); }
             100% { transform: translateX(-50%); }
@@ -52,7 +52,7 @@
             100% { transform: translateX(-50%); }
         }
         .price-scroll {
-            animation: scrollTickerPrice 38s linear infinite !important;
+            animation: scrollTickerPrice 30s linear infinite !important;
         }
         .news-scroll {
             animation: scrollTickerNews 100s linear infinite !important;
@@ -131,7 +131,7 @@
             </div>
         </div>
         <div class="sub">
-            <div>⟁ LIVE MARKET STREAM  |  TOP 10 (EXCL. STABLES)</div>
+            <div>⟁ LIVE MARKET STREAM  |  TOP 20 (EXCL. STABLES)</div>
             <div style="display: flex; gap: 12px; align-items: center;">
                 <div class="timestamp" id="updateTimestamp">--:--:-- UTC</div>
                 <button class="refresh-btn" id="manualRefresh">⟳ REFRESH</button>
@@ -676,9 +676,10 @@
         }
 
         // ==================== DATA FETCHERS ====================
-        async function fetchTop10Crypto() {
+        // Fetch top 20 coins instead of top 10
+        async function fetchTop20Crypto() {
             const urls = [
-                "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=150&page=1&sparkline=false&price_change_percentage=24h",
+                "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=250&page=1&sparkline=false&price_change_percentage=24h",
                 "https://api.coinpaprika.com/v1/tickers?quotes=USD&limit=100"
             ];
             for (const url of urls) {
@@ -688,30 +689,59 @@
                     let data = await res.json();
                     if (url.includes("coingecko")) {
                         let filtered = data.filter(c => !STABLE_COINS.has(c.symbol.toLowerCase()));
-                        const top10 = filtered.slice(0,10);
-                        if (!top10.length) throw new Error("No coins");
-                        return top10.map(c => ({ symbol:c.symbol.toUpperCase(), price:c.current_price, change24h:c.price_change_percentage_24h, image:c.image }));
-                    } else {
-                        let filtered = data.filter(c => !STABLE_COINS.has(c.symbol.toLowerCase()) && c.quotes?.USD?.price);
-                        const top10 = filtered.slice(0,10);
-                        if (!top10.length) throw new Error("No coins");
-                        return top10.map(c => ({ symbol:c.symbol.toUpperCase(), price:c.quotes.USD.price, change24h:c.quotes.USD.percent_change_24h, image:"https://www.coinpaprika.com/coin/"+c.id+"/logo.png" }));
+                        const top20 = filtered.slice(0, 20);
+                        if (top20.length === 0) throw new Error("No coins after filter");
+                        return top20.map(c => ({
+                            symbol: c.symbol.toUpperCase(),
+                            price: c.current_price,
+                            change24h: c.price_change_percentage_24h,
+                            image: c.image
+                        }));
+                    } else if (url.includes("coinpaprika")) {
+                        let filtered = data.filter(c => {
+                            const sym = c.symbol.toLowerCase();
+                            return !STABLE_COINS.has(sym) && c.quotes?.USD?.price;
+                        });
+                        const top20 = filtered.slice(0, 20);
+                        if (top20.length === 0) throw new Error("No coins from CoinPaprika");
+                        return top20.map(c => ({
+                            symbol: c.symbol.toUpperCase(),
+                            price: c.quotes.USD.price,
+                            change24h: c.quotes.USD.percent_change_24h,
+                            image: "https://www.coinpaprika.com/coin/" + c.id + "/logo.png"
+                        }));
                     }
                 } catch (err) {
+                    console.warn(`Direct fetch for ${url} failed, trying proxy:`, err.message);
                     for (const proxy of PROXIES) {
                         try {
                             const text = await fetchWithProxy(url, proxy);
                             const data = JSON.parse(text);
                             if (url.includes("coingecko")) {
                                 let filtered = data.filter(c => !STABLE_COINS.has(c.symbol.toLowerCase()));
-                                const top10 = filtered.slice(0,10);
-                                if (top10.length) return top10.map(c => ({ symbol:c.symbol.toUpperCase(), price:c.current_price, change24h:c.price_change_percentage_24h, image:c.image }));
-                            } else {
-                                let filtered = data.filter(c => !STABLE_COINS.has(c.symbol.toLowerCase()) && c.quotes?.USD?.price);
-                                const top10 = filtered.slice(0,10);
-                                if (top10.length) return top10.map(c => ({ symbol:c.symbol.toUpperCase(), price:c.quotes.USD.price, change24h:c.quotes.USD.percent_change_24h, image:"https://www.coinpaprika.com/coin/"+c.id+"/logo.png" }));
+                                const top20 = filtered.slice(0, 20);
+                                if (top20.length) return top20.map(c => ({
+                                    symbol: c.symbol.toUpperCase(),
+                                    price: c.current_price,
+                                    change24h: c.price_change_percentage_24h,
+                                    image: c.image
+                                }));
+                            } else if (url.includes("coinpaprika")) {
+                                let filtered = data.filter(c => {
+                                    const sym = c.symbol.toLowerCase();
+                                    return !STABLE_COINS.has(sym) && c.quotes?.USD?.price;
+                                });
+                                const top20 = filtered.slice(0, 20);
+                                if (top20.length) return top20.map(c => ({
+                                    symbol: c.symbol.toUpperCase(),
+                                    price: c.quotes.USD.price,
+                                    change24h: c.quotes.USD.percent_change_24h,
+                                    image: "https://www.coinpaprika.com/coin/" + c.id + "/logo.png"
+                                }));
                             }
-                        } catch(e) {}
+                        } catch (proxyErr) {
+                            console.warn(`Proxy ${proxy} failed for ${url}:`, proxyErr.message);
+                        }
                     }
                 }
             }
@@ -1037,18 +1067,30 @@
         }
 
         // ==================== MAIN REFRESH ====================
-        let currentTop10=null;
+        let currentTop20 = null;
         async function refreshAll() {
             elements.updateTimestamp.innerText = new Date().toUTCString().slice(0,-4)+" UTC";
-            let top10=await fetchTop10Crypto();
-            if(top10 && top10.length) { currentTop10=top10; updateTicker(currentTop10); }
-            else if(!currentTop10) updateTicker(null);
-            else updateTicker(currentTop10);
-            let btcData=await fetchBitcoinIndicators();
-            if(btcData) Object.assign(window, {
-                _btcPrice:btcData.btcPrice, _wma200:btcData.sma200W, _ma2y:btcData.sma2Y, _ma2y5:btcData.sma2Yx5,
-                _piSMA:btcData.piSMA, _piEMA:btcData.piEMA, _piSMA111:btcData.piSMA111, _piSMA350x2:btcData.piSMA350x2,
-                _rainbow:btcData.rainbow, _ath:btcData.ath
+            let top20 = await fetchTop20Crypto();
+            if (top20 && top20.length > 0) {
+                currentTop20 = top20;
+                updateTicker(currentTop20);
+            } else if (!currentTop20) {
+                updateTicker(null);
+            } else {
+                updateTicker(currentTop20);
+            }
+            let btcData = await fetchBitcoinIndicators();
+            if (btcData) Object.assign(window, {
+                _btcPrice: btcData.btcPrice,
+                _wma200: btcData.sma200W,
+                _ma2y: btcData.sma2Y,
+                _ma2y5: btcData.sma2Yx5,
+                _piSMA: btcData.piSMA,
+                _piEMA: btcData.piEMA,
+                _piSMA111: btcData.piSMA111,
+                _piSMA350x2: btcData.piSMA350x2,
+                _rainbow: btcData.rainbow,
+                _ath: btcData.ath
             });
             window._financeRank = await fetchCoinbaseRank();
             window._dominance = await fetchBTCDominance();
@@ -1062,8 +1104,8 @@
         let mainInterval;
         let newsInterval;
         async function startAutoRefresh() {
-            if(mainInterval) clearInterval(mainInterval);
-            if(newsInterval) clearInterval(newsInterval);
+            if (mainInterval) clearInterval(mainInterval);
+            if (newsInterval) clearInterval(newsInterval);
             await refreshAll();
             await refreshNews();
             mainInterval = setInterval(refreshAll, REFRESH_INTERVAL_MS);
@@ -1071,22 +1113,30 @@
         }
 
         elements.manualRefresh.onclick = async () => {
-            elements.manualRefresh.disabled=true;
-            elements.manualRefresh.textContent="⟳ REFRESHING...";
+            elements.manualRefresh.disabled = true;
+            elements.manualRefresh.textContent = "⟳ REFRESHING...";
             await refreshAll();
             await refreshNews();
-            elements.manualRefresh.textContent="⟳ REFRESH";
-            elements.manualRefresh.disabled=false;
+            elements.manualRefresh.textContent = "⟳ REFRESH";
+            elements.manualRefresh.disabled = false;
         };
 
-        document.addEventListener("visibilitychange",()=>{ if(!document.hidden && elements.tickerTrack && currentTop10) { /* animation continues */ } });
-        document.addEventListener("visibilitychange",()=>{ if(!document.hidden && elements.newsTrack && currentNewsItems.length) { /* animation continues */ } });
+        document.addEventListener("visibilitychange", () => {
+            if (!document.hidden && elements.tickerTrack && currentTop20) {
+                /* animation continues */
+            }
+        });
+        document.addEventListener("visibilitychange", () => {
+            if (!document.hidden && elements.newsTrack && currentNewsItems.length) {
+                /* animation continues */
+            }
+        });
 
         // Load config and start
-        let stored=localStorage.getItem("customConfig");
-        if(stored) try { loadConfig(JSON.parse(stored)); } catch(e){ loadConfig(DEFAULT_CONFIG); }
+        let stored = localStorage.getItem("customConfig");
+        if (stored) try { loadConfig(JSON.parse(stored)); } catch(e){ loadConfig(DEFAULT_CONFIG); }
         else loadConfig(DEFAULT_CONFIG);
-        fetch('config.json').then(r=>r.ok?r.json():Promise.reject()).then(cfg=>{ loadConfig(cfg); if(elements.configStatus) elements.configStatus.innerText="✓ Custom config loaded from file"; }).catch(()=>{ if(elements.configStatus) elements.configStatus.innerText="Default config (no config.json)"; }).finally(()=>{
+        fetch('config.json').then(r => r.ok ? r.json() : Promise.reject()).then(cfg => { loadConfig(cfg); if (elements.configStatus) elements.configStatus.innerText = "✓ Custom config loaded from file"; }).catch(() => { if (elements.configStatus) elements.configStatus.innerText = "Default config (no config.json)"; }).finally(() => {
             startAutoRefresh().catch(e => console.error("Init error:", e));
         });
     })();
