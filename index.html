@@ -279,7 +279,12 @@
     (function() {
         const REFRESH_INTERVAL_MS = 15 * 60 * 1000;
         const NEWS_REFRESH_MS = 5 * 60 * 1000;
-        const STABLE_COINS = new Set(["usdt","usdc","dai","busd","tusd","ust","usdd","frax","eurs","paxg","gusd","usdp","pyusd","cdai","lusd","sUSD","mim","alUSD","usds"]);
+        // Updated stablecoins blacklist: added 'usde' and 'usd1'
+        const STABLE_COINS = new Set([
+            "usdt", "usdc", "dai", "busd", "tusd", "ust", "usdd", "frax", "eurs", 
+            "paxg", "gusd", "usdp", "pyusd", "cdai", "lusd", "sUSD", "mim", "alUSD",
+            "usds", "usde", "usd1"
+        ]);
         const SERPAPI_KEY = 'ce4b6816e4a12d169c44ddacca183171df991232e896db58c1d8253834e5519b';
         const PROXIES = ["https://corsproxy.io/","https://api.allorigins.win/raw?url=","https://cors-anywhere.herokuapp.com/","https://thingproxy.freeboard.io/fetch/"];
 
@@ -676,7 +681,7 @@
         }
 
         // ==================== DATA FETCHERS ====================
-        // Fetch top 20 coins instead of top 10
+        // Fetch top 20 coins, excluding stablecoins (including new ones)
         async function fetchTop20Crypto() {
             const urls = [
                 "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=250&page=1&sparkline=false&price_change_percentage=24h",
