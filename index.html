@@ -26,7 +26,7 @@
         .news-item { display: inline-block; font-size: 1rem; font-family: 'Courier New', monospace; margin-right: 48px; background: #2a180a; padding: 6px 16px; border-radius: 40px; box-shadow: inset 0 0 4px #b87c4f, 0 0 2px #ffaa66; color: #ffaa66; }
         .news-item a { color: #ffaa66; text-decoration: none; }
         .news-item a:hover { text-decoration: underline; text-shadow: 0 0 2px #ffaa66; }
-        .news-label { display: inline-block; background: #b87c4f; color: #1a0f06; font-weight: bold; padding: 2px 8px; border-radius: 20px; margin-right: 12px; font-size: 0.8rem; vertical-align: middle; }
+        .news-icon { display: inline-block; background: #b87c4f; color: #1a0f06; font-weight: bold; padding: 2px 8px; border-radius: 20px; margin-right: 12px; font-size: 0.8rem; vertical-align: middle; }
         .ticker-item img { width: 20px; height: 20px; vertical-align: middle; margin-right: 6px; border-radius: 50%; background: #fff; }
         .positive { color: #2eff7a; text-shadow: 0 0 2px #1eff6e; }
         .negative { color: #ff5a6e; text-shadow: 0 0 2px #ff3366; }
@@ -42,7 +42,7 @@
         .ticker-slide {
             animation: slideIn 1.5s ease-out forwards !important;
         }
-        /* Infinite scroll animations – price ticker now 36s (10% slower than 33s) */
+        /* Infinite scroll animations – price ticker now 40s (10% slower than 36s) */
         @keyframes scrollTickerPrice {
             0% { transform: translateX(0%); }
             100% { transform: translateX(-50%); }
@@ -52,7 +52,7 @@
             100% { transform: translateX(-50%); }
         }
         .price-scroll {
-            animation: scrollTickerPrice 36s linear infinite !important;
+            animation: scrollTickerPrice 40s linear infinite !important;
         }
         .news-scroll {
             animation: scrollTickerNews 100s linear infinite !important;
@@ -131,7 +131,7 @@
             </div>
         </div>
         <div class="sub">
-            <div>⟁ LIVE MARKET STREAM  |  TOP 20 (EXCL. STABLES & SHITCOINS)</div>
+            <div>⟁ LIVE MARKET STREAM  |  TOP 20</div>
             <div style="display: flex; gap: 12px; align-items: center;">
                 <div class="timestamp" id="updateTimestamp">--:--:-- UTC</div>
                 <button class="refresh-btn" id="manualRefresh">⟳ REFRESH</button>
@@ -292,15 +292,24 @@
         const SERPAPI_KEY = 'ce4b6816e4a12d169c44ddacca183171df991232e896db58c1d8253834e5519b';
         const PROXIES = ["https://corsproxy.io/","https://api.allorigins.win/raw?url=","https://cors-anywhere.herokuapp.com/","https://thingproxy.freeboard.io/fetch/"];
 
-        // RSS Feeds – added Coindesk feed at the end
+        // RSS Feeds
         const RSS_FEEDS = [
-            "https://cointelegraph.com/rss/tag/bitcoin",
-            "https://cointelegraph.com/rss/tag/ethereum",
-            "https://cointelegraph.com/rss/tag/blockchain",
-            "https://cointelegraph.com/rss/tag/regulation",
-            "https://cointelegraph.com/rss/category/weekly-overview",
-            "https://www.coindesk.com/arc/outboundfeeds/rss"
+            { url: "https://cointelegraph.com/rss/tag/bitcoin", name: "cointelegraph" },
+            { url: "https://cointelegraph.com/rss/tag/ethereum", name: "cointelegraph" },
+            { url: "https://cointelegraph.com/rss/tag/blockchain", name: "cointelegraph" },
+            { url: "https://cointelegraph.com/rss/tag/regulation", name: "cointelegraph" },
+            { url: "https://cointelegraph.com/rss/category/weekly-overview", name: "cointelegraph" },
+            { url: "https://www.coindesk.com/arc/outboundfeeds/rss", name: "coindesk" }
         ];
+
+        // Function to get icon based on feed name
+        function getFeedIcon(feedName) {
+            switch(feedName) {
+                case 'cointelegraph': return '📡';
+                case 'coindesk': return '💰';
+                default: return '📰';
+            }
+        }
 
         // DOM elements
         const elements = {
@@ -528,7 +537,6 @@
                 else if (sc.type === "ratio") html += `linear from ratio ${sc.lower} (score 0) to ${sc.upper} (score 100).`;
                 else if (sc.type === "inverse_linear") html += `inverse linear from ${sc.max} (score 0) to ${sc.min} (score 100).`;
                 else if (sc.type === "categorical") {
-                    // Categorical mapping: band names in normal colour (no rainbow)
                     html += `categorical mapping:<br>`;
                     sc.categories.forEach((cat, idx) => {
                         html += `${cat.name} → ${cat.score}<br>`;
@@ -567,7 +575,6 @@
                             }
                             const color = rainbowColors[t.idx % rainbowColors.length];
                             if (range) {
-                                // Only the label gets colour, the range stays default
                                 html += `<br><span style="color:${color};">${t.label}</span>: ${range}`;
                             }
                         }
@@ -586,26 +593,19 @@
         // ==================== TICKER ANIMATION ====================
         function startTicker(trackElement, scrollClass) {
             if (!trackElement) return;
-            // Remove all animation classes and inline transforms
             trackElement.classList.remove('ticker-slide', 'price-scroll', 'news-scroll');
-            // Force a clean state: ensure it's hidden off‑screen
             trackElement.style.transform = 'translateX(100%)';
-            // Force reflow
             void trackElement.offsetWidth;
-            // Start slide-in
             trackElement.classList.add('ticker-slide');
             const onSlideEnd = () => {
                 trackElement.classList.remove('ticker-slide');
                 trackElement.classList.add(scrollClass);
-                trackElement.style.transform = ''; // let animation control transform
+                trackElement.style.transform = '';
                 trackElement.removeEventListener('animationend', onSlideEnd);
             };
             trackElement.addEventListener('animationend', onSlideEnd, { once: true });
-            // Fallback timeout – 1.8 seconds to accommodate 1.5s animation
             setTimeout(() => {
-                if (trackElement.classList.contains('ticker-slide')) {
-                    onSlideEnd();
-                }
+                if (trackElement.classList.contains('ticker-slide')) onSlideEnd();
             }, 1800);
         }
 
@@ -618,13 +618,13 @@
         // ==================== NEWS FETCHER ====================
         async function fetchAllRSS() {
             const allItems = [];
-            for (const feedUrl of RSS_FEEDS) {
+            for (const feed of RSS_FEEDS) {
                 try {
                     let xml = null;
-                    try { const res = await fetch(feedUrl); if (res.ok) xml = await res.text(); } catch(e) {}
+                    try { const res = await fetch(feed.url); if (res.ok) xml = await res.text(); } catch(e) {}
                     if (!xml) {
                         for (const proxy of PROXIES) {
-                            try { xml = await fetchWithProxy(feedUrl, proxy); if (xml) break; } catch(e2) {}
+                            try { xml = await fetchWithProxy(feed.url, proxy); if (xml) break; } catch(e2) {}
                         }
                     }
                     if (xml) {
@@ -634,10 +634,16 @@
                         for (let i = 0; i < Math.min(items.length, 5); i++) {
                             const title = items[i].querySelector("title")?.textContent;
                             const link = items[i].querySelector("link")?.textContent;
-                            if (title && link) allItems.push({ title, link });
+                            if (title && link) {
+                                allItems.push({
+                                    title,
+                                    link,
+                                    feedName: feed.name
+                                });
+                            }
                         }
                     }
-                } catch(e) { console.warn("RSS fetch error", feedUrl, e); }
+                } catch(e) { console.warn("RSS fetch error", feed.url, e); }
             }
             const seen = new Set();
             return allItems.filter(item => {
@@ -660,7 +666,10 @@
 
         function buildNewsHTML(items) {
             if (!items.length) return `<div class="news-item">⚠️ No news available ⚠️</div>`;
-            return items.map(item => `<div class="news-item"><span class="news-label">📰</span> <a href="${item.link}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.title)}</a></div>`).join('');
+            return items.map(item => {
+                const icon = getFeedIcon(item.feedName);
+                return `<div class="news-item"><span class="news-icon">${icon}</span> <a href="${item.link}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.title)}</a></div>`;
+            }).join('');
         }
 
         let currentNewsItems = [];
@@ -678,15 +687,14 @@
             try {
                 const items = await fetchAllRSS();
                 if (items.length) updateNewsTicker(items);
-                else if (currentNewsItems.length === 0) updateNewsTicker([{ title: "Unable to load news", link: "#" }]);
+                else if (currentNewsItems.length === 0) updateNewsTicker([{ title: "Unable to load news", link: "#", feedName: "default" }]);
             } catch(e) {
                 console.warn("News refresh error", e);
-                if (currentNewsItems.length === 0) updateNewsTicker([{ title: "Error loading news", link: "#" }]);
+                if (currentNewsItems.length === 0) updateNewsTicker([{ title: "Error loading news", link: "#", feedName: "default" }]);
             }
         }
 
         // ==================== DATA FETCHERS ====================
-        // Fetch top 20 coins, excluding stablecoins and shitcoins
         async function fetchTop20Crypto() {
             const urls = [
                 "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=250&page=1&sparkline=false&price_change_percentage=24h",
@@ -1138,17 +1146,12 @@
         };
 
         document.addEventListener("visibilitychange", () => {
-            if (!document.hidden && elements.tickerTrack && currentTop20) {
-                /* animation continues */
-            }
+            if (!document.hidden && elements.tickerTrack && currentTop20) {}
         });
         document.addEventListener("visibilitychange", () => {
-            if (!document.hidden && elements.newsTrack && currentNewsItems.length) {
-                /* animation continues */
-            }
+            if (!document.hidden && elements.newsTrack && currentNewsItems.length) {}
         });
 
-        // Load config and start
         let stored = localStorage.getItem("customConfig");
         if (stored) try { loadConfig(JSON.parse(stored)); } catch(e){ loadConfig(DEFAULT_CONFIG); }
         else loadConfig(DEFAULT_CONFIG);
