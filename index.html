@@ -42,7 +42,7 @@
         .ticker-slide {
             animation: slideIn 1.5s ease-out forwards !important;
         }
-        /* Infinite scroll animations – price ticker now 33s (10% slower than 30s) */
+        /* Infinite scroll animations – price ticker now 36s (10% slower than 33s) */
         @keyframes scrollTickerPrice {
             0% { transform: translateX(0%); }
             100% { transform: translateX(-50%); }
@@ -52,7 +52,7 @@
             100% { transform: translateX(-50%); }
         }
         .price-scroll {
-            animation: scrollTickerPrice 33s linear infinite !important;
+            animation: scrollTickerPrice 36s linear infinite !important;
         }
         .news-scroll {
             animation: scrollTickerNews 100s linear infinite !important;
@@ -285,20 +285,21 @@
             "paxg", "gusd", "usdp", "pyusd", "cdai", "lusd", "sUSD", "mim", "alUSD",
             "usds", "usde", "usd1"
         ]);
-        // Shitcoins blacklist (add your unwanted coins here)
+        // Shitcoins blacklist
         const SHITCOINS = new Set([
             "figr_heloc", "wbt", "m"
         ]);
         const SERPAPI_KEY = 'ce4b6816e4a12d169c44ddacca183171df991232e896db58c1d8253834e5519b';
         const PROXIES = ["https://corsproxy.io/","https://api.allorigins.win/raw?url=","https://cors-anywhere.herokuapp.com/","https://thingproxy.freeboard.io/fetch/"];
 
-        // RSS Feeds
+        // RSS Feeds – added Coindesk feed at the end
         const RSS_FEEDS = [
             "https://cointelegraph.com/rss/tag/bitcoin",
             "https://cointelegraph.com/rss/tag/ethereum",
             "https://cointelegraph.com/rss/tag/blockchain",
             "https://cointelegraph.com/rss/tag/regulation",
-            "https://cointelegraph.com/rss/category/weekly-overview"
+            "https://cointelegraph.com/rss/category/weekly-overview",
+            "https://www.coindesk.com/arc/outboundfeeds/rss"
         ];
 
         // DOM elements
