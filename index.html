@@ -185,7 +185,7 @@
                 <label>🔍 BITCOIN SEARCH TREND</label>
                 <div class="value-line"><span id="trendScore" class="kpi-value">--</span> <span id="trendScoreVal" class="score-badge">(score: --)</span></div>
                 <div class="desc-note" id="trendSource">—</div>
-                <div class="source-note">Source: Google Trends (SerpAPI)</div>
+                <div class="source-note">Source: Google Trends (SerpAPI) – updated every 4 hours</div>
             </div>
             <!-- COINBASE APP RANK -->
             <div class="indicator-card">
@@ -279,6 +279,9 @@
     (function() {
         const REFRESH_INTERVAL_MS = 15 * 60 * 1000;
         const NEWS_REFRESH_MS = 5 * 60 * 1000;
+        // Google Trends refresh interval: 4 hours (respect rate limit)
+        const GOOGLE_TRENDS_REFRESH_MS = 4 * 60 * 60 * 1000;
+        
         // Stablecoins blacklist
         const STABLE_COINS = new Set([
             "usdt", "usdc", "dai", "busd", "tusd", "ust", "usdd", "frax", "eurs", 
@@ -302,7 +305,6 @@
             { url: "https://www.coindesk.com/arc/outboundfeeds/rss", name: "coindesk" }
         ];
 
-        // Function to get icon based on feed name
         function getFeedIcon(feedName) {
             switch(feedName) {
                 case 'cointelegraph': return '📡';
@@ -515,17 +517,8 @@
                 coinbase:"Coinbase App Rank", trends:"Bitcoin Search Trend",
                 dominance:"BTC Market Dominance", rainbow:"Bitcoin Rainbow Chart", drawdown:"ATH Drawdown"
             };
-            // Rainbow colours (only used for USD intervals section)
             const rainbowColors = [
-                "#0000FF", // Basically a Fire Sale – Blue
-                "#00CCCC", // BUY! – Deep Aqua
-                "#00AA00", // Accumulate – Green
-                "#88FF88", // Still cheap – Light Green
-                "#FFFF00", // HODL! – Yellow
-                "#FFAA66", // Is this a bubble? – Light Orange
-                "#FF6600", // FOMO intensifies – Orange
-                "#FF0000", // Sell. Seriously, SELL! – Red
-                "#AA0000"  // Maximum Bubble Territory – Dark Red
+                "#0000FF", "#00CCCC", "#00AA00", "#88FF88", "#FFFF00", "#FFAA66", "#FF6600", "#FF0000", "#AA0000"
             ];
             let html = `<h2>KPI Scoring Criteria & Weights</h2><ul>`;
             for (let id in config.scoring) {
@@ -557,26 +550,15 @@
                         for (let i = 0; i < thresholds.length; i++) {
                             const t = thresholds[i];
                             let lowerPrice = null, upperPrice = null;
-                            if (t.z !== -Infinity) {
-                                lowerPrice = priceForZ(t.z);
-                            }
-                            if (i < thresholds.length - 1 && thresholds[i+1].z !== undefined) {
-                                upperPrice = priceForZ(thresholds[i+1].z);
-                            } else if (i === thresholds.length - 1) {
-                                upperPrice = Infinity;
-                            }
+                            if (t.z !== -Infinity) lowerPrice = priceForZ(t.z);
+                            if (i < thresholds.length - 1) upperPrice = priceForZ(thresholds[i+1].z);
+                            else if (i === thresholds.length - 1) upperPrice = Infinity;
                             let range = '';
-                            if (t.z === -Infinity) {
-                                if (upperPrice && upperPrice !== Infinity) range = `< ${formatUSD(upperPrice)}`;
-                            } else if (upperPrice === Infinity) {
-                                if (lowerPrice) range = `> ${formatUSD(lowerPrice)}`;
-                            } else {
-                                if (lowerPrice && upperPrice) range = `${formatUSD(lowerPrice)} – ${formatUSD(upperPrice)}`;
-                            }
-                            const color = rainbowColors[t.idx % rainbowColors.length];
-                            if (range) {
-                                html += `<br><span style="color:${color};">${t.label}</span>: ${range}`;
-                            }
+                            if (t.z === -Infinity && upperPrice && upperPrice !== Infinity) range = `< ${formatUSD(upperPrice)}`;
+                            else if (upperPrice === Infinity && lowerPrice) range = `> ${formatUSD(lowerPrice)}`;
+                            else if (lowerPrice && upperPrice) range = `${formatUSD(lowerPrice)} – ${formatUSD(upperPrice)}`;
+                            const color = rainbowColors[t.idx];
+                            if (range) html += `<br><span style="color:${color};">${t.label}</span>: ${range}`;
                         }
                     }
                 }
@@ -615,6 +597,79 @@
         function formatPercent(p) { return p===undefined||p===null ? "--%" : (p>=0?`+${p.toFixed(2)}`: `${p.toFixed(2)}`)+"%"; }
         async function fetchWithProxy(url, proxy) { const r = await fetch(proxy+url); if (!r.ok) throw new Error(`HTTP ${r.status}`); return await r.text(); }
 
+        // ==================== GOOGLE TRENDS WITH RATE LIMITING ====================
+        let lastTrendsFetchTime = 0;
+        let cachedTrendScore = null;
+
+        async function fetchGoogleTrends(force = false) {
+            const now = Date.now();
+            if (!force && (now - lastTrendsFetchTime) < GOOGLE_TRENDS_REFRESH_MS) {
+                // Use cached value
+                if (cachedTrendScore !== null) {
+                    elements.trendScore.innerText = cachedTrendScore;
+                    elements.trendSource.innerText = `Google Trends (cached, next update in ${Math.round((GOOGLE_TRENDS_REFRESH_MS - (now - lastTrendsFetchTime))/60000)} min)`;
+                    const scoreVal = scoreSearchTrend(cachedTrendScore);
+                    elements.trendScoreVal.innerText = `(score: ${Math.round(scoreVal)})`;
+                    return;
+                }
+                // Try localStorage
+                const stored = localStorage.getItem("searchTrendScore");
+                const storedTime = localStorage.getItem("searchTrendScoreTime");
+                if (stored && storedTime && (now - parseInt(storedTime)) < GOOGLE_TRENDS_REFRESH_MS) {
+                    const val = parseInt(stored);
+                    cachedTrendScore = val;
+                    lastTrendsFetchTime = parseInt(storedTime);
+                    elements.trendScore.innerText = val;
+                    elements.trendSource.innerText = `Google Trends (cached from ${new Date(lastTrendsFetchTime).toLocaleTimeString()})`;
+                    const scoreVal = scoreSearchTrend(val);
+                    elements.trendScoreVal.innerText = `(score: ${Math.round(scoreVal)})`;
+                    return;
+                }
+            }
+            // Fetch new data
+            const apiUrl = `https://serpapi.com/search?engine=google_trends&q=bitcoin&data_type=TIMESERIES&date=today%205-y&api_key=${SERPAPI_KEY}`;
+            let score = null;
+            for (let proxy of PROXIES) {
+                try {
+                    const text = await fetchWithProxy(apiUrl, proxy);
+                    const data = JSON.parse(text);
+                    const timeline = data.interest_over_time?.timeline_data;
+                    if (timeline && timeline.length) {
+                        const last = timeline[timeline.length - 1];
+                        if (last?.values?.[0]?.value !== undefined) {
+                            score = parseInt(last.values[0].value);
+                            if (!isNaN(score)) break;
+                        }
+                    }
+                } catch(e) { console.warn(`SerpAPI fetch via ${proxy} failed:`, e.message); }
+            }
+            if (score !== null && !isNaN(score)) {
+                cachedTrendScore = score;
+                lastTrendsFetchTime = now;
+                localStorage.setItem("searchTrendScore", score);
+                localStorage.setItem("searchTrendScoreTime", now);
+                elements.trendScore.innerText = score;
+                elements.trendSource.innerText = "Google Trends (SerpAPI) – updated now";
+                const scoreVal = scoreSearchTrend(score);
+                elements.trendScoreVal.innerText = `(score: ${Math.round(scoreVal)})`;
+            } else {
+                // Fallback to last known
+                const stored = localStorage.getItem("searchTrendScore");
+                if (stored) {
+                    const val = parseInt(stored);
+                    cachedTrendScore = val;
+                    elements.trendScore.innerText = val;
+                    elements.trendSource.innerText = "Google Trends (cached – offline)";
+                    const scoreVal = scoreSearchTrend(val);
+                    elements.trendScoreVal.innerText = `(score: ${Math.round(scoreVal)})`;
+                } else {
+                    elements.trendScore.innerText = "--";
+                    elements.trendSource.innerText = "offline";
+                    elements.trendScoreVal.innerText = "(score: --)";
+                }
+            }
+        }
+
         // ==================== NEWS FETCHER ====================
         async function fetchAllRSS() {
             const allItems = [];
@@ -634,13 +689,7 @@
                         for (let i = 0; i < Math.min(items.length, 5); i++) {
                             const title = items[i].querySelector("title")?.textContent;
                             const link = items[i].querySelector("link")?.textContent;
-                            if (title && link) {
-                                allItems.push({
-                                    title,
-                                    link,
-                                    feedName: feed.name
-                                });
-                            }
+                            if (title && link) allItems.push({ title, link, feedName: feed.name });
                         }
                     }
                 } catch(e) { console.warn("RSS fetch error", feed.url, e); }
@@ -656,20 +705,12 @@
 
         function escapeHtml(str) {
             if (!str) return '';
-            return str.replace(/[&<>]/g, function(m) {
-                if (m === '&') return '&amp;';
-                if (m === '<') return '&lt;';
-                if (m === '>') return '&gt;';
-                return m;
-            });
+            return str.replace(/[&<>]/g, m => m === '&' ? '&amp;' : (m === '<' ? '&lt;' : '&gt;'));
         }
 
         function buildNewsHTML(items) {
             if (!items.length) return `<div class="news-item">⚠️ No news available ⚠️</div>`;
-            return items.map(item => {
-                const icon = getFeedIcon(item.feedName);
-                return `<div class="news-item"><span class="news-icon">${icon}</span> <a href="${item.link}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.title)}</a></div>`;
-            }).join('');
+            return items.map(item => `<div class="news-item"><span class="news-icon">${getFeedIcon(item.feedName)}</span> <a href="${item.link}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.title)}</a></div>`).join('');
         }
 
         let currentNewsItems = [];
@@ -706,66 +747,29 @@
                     if (!res.ok) throw new Error(`HTTP ${res.status}`);
                     let data = await res.json();
                     if (url.includes("coingecko")) {
-                        let filtered = data.filter(c => {
-                            const sym = c.symbol.toLowerCase();
-                            return !STABLE_COINS.has(sym) && !SHITCOINS.has(sym);
-                        });
+                        let filtered = data.filter(c => !STABLE_COINS.has(c.symbol.toLowerCase()) && !SHITCOINS.has(c.symbol.toLowerCase()));
                         const top20 = filtered.slice(0, 20);
-                        if (top20.length === 0) throw new Error("No coins after filter");
-                        return top20.map(c => ({
-                            symbol: c.symbol.toUpperCase(),
-                            price: c.current_price,
-                            change24h: c.price_change_percentage_24h,
-                            image: c.image
-                        }));
+                        if (top20.length) return top20.map(c => ({ symbol: c.symbol.toUpperCase(), price: c.current_price, change24h: c.price_change_percentage_24h, image: c.image }));
                     } else if (url.includes("coinpaprika")) {
-                        let filtered = data.filter(c => {
-                            const sym = c.symbol.toLowerCase();
-                            return !STABLE_COINS.has(sym) && !SHITCOINS.has(sym) && c.quotes?.USD?.price;
-                        });
+                        let filtered = data.filter(c => !STABLE_COINS.has(c.symbol.toLowerCase()) && !SHITCOINS.has(c.symbol.toLowerCase()) && c.quotes?.USD?.price);
                         const top20 = filtered.slice(0, 20);
-                        if (top20.length === 0) throw new Error("No coins from CoinPaprika");
-                        return top20.map(c => ({
-                            symbol: c.symbol.toUpperCase(),
-                            price: c.quotes.USD.price,
-                            change24h: c.quotes.USD.percent_change_24h,
-                            image: "https://www.coinpaprika.com/coin/" + c.id + "/logo.png"
-                        }));
+                        if (top20.length) return top20.map(c => ({ symbol: c.symbol.toUpperCase(), price: c.quotes.USD.price, change24h: c.quotes.USD.percent_change_24h, image: "https://www.coinpaprika.com/coin/"+c.id+"/logo.png" }));
                     }
-                } catch (err) {
-                    console.warn(`Direct fetch for ${url} failed, trying proxy:`, err.message);
+                } catch(err) {
                     for (const proxy of PROXIES) {
                         try {
                             const text = await fetchWithProxy(url, proxy);
                             const data = JSON.parse(text);
                             if (url.includes("coingecko")) {
-                                let filtered = data.filter(c => {
-                                    const sym = c.symbol.toLowerCase();
-                                    return !STABLE_COINS.has(sym) && !SHITCOINS.has(sym);
-                                });
-                                const top20 = filtered.slice(0, 20);
-                                if (top20.length) return top20.map(c => ({
-                                    symbol: c.symbol.toUpperCase(),
-                                    price: c.current_price,
-                                    change24h: c.price_change_percentage_24h,
-                                    image: c.image
-                                }));
+                                let filtered = data.filter(c => !STABLE_COINS.has(c.symbol.toLowerCase()) && !SHITCOINS.has(c.symbol.toLowerCase()));
+                                const top20 = filtered.slice(0,20);
+                                if (top20.length) return top20.map(c => ({ symbol: c.symbol.toUpperCase(), price: c.current_price, change24h: c.price_change_percentage_24h, image: c.image }));
                             } else if (url.includes("coinpaprika")) {
-                                let filtered = data.filter(c => {
-                                    const sym = c.symbol.toLowerCase();
-                                    return !STABLE_COINS.has(sym) && !SHITCOINS.has(sym) && c.quotes?.USD?.price;
-                                });
-                                const top20 = filtered.slice(0, 20);
-                                if (top20.length) return top20.map(c => ({
-                                    symbol: c.symbol.toUpperCase(),
-                                    price: c.quotes.USD.price,
-                                    change24h: c.quotes.USD.percent_change_24h,
-                                    image: "https://www.coinpaprika.com/coin/" + c.id + "/logo.png"
-                                }));
+                                let filtered = data.filter(c => !STABLE_COINS.has(c.symbol.toLowerCase()) && !SHITCOINS.has(c.symbol.toLowerCase()) && c.quotes?.USD?.price);
+                                const top20 = filtered.slice(0,20);
+                                if (top20.length) return top20.map(c => ({ symbol: c.symbol.toUpperCase(), price: c.quotes.USD.price, change24h: c.quotes.USD.percent_change_24h, image: "https://www.coinpaprika.com/coin/"+c.id+"/logo.png" }));
                             }
-                        } catch (proxyErr) {
-                            console.warn(`Proxy ${proxy} failed for ${url}:`, proxyErr.message);
-                        }
+                        } catch(e) {}
                     }
                 }
             }
@@ -1024,43 +1028,6 @@
             }
         }
 
-        async function fetchGoogleTrends() {
-            const apiUrl=`https://serpapi.com/search?engine=google_trends&q=bitcoin&data_type=TIMESERIES&date=today%205-y&api_key=${SERPAPI_KEY}`;
-            let score=null;
-            for(let proxy of PROXIES) {
-                try {
-                    let text=await fetchWithProxy(apiUrl,proxy);
-                    let data=JSON.parse(text);
-                    let timeline=data.interest_over_time?.timeline_data;
-                    if(timeline && timeline.length) {
-                        let last=timeline[timeline.length-1];
-                        if(last?.values?.[0]?.value!==undefined) {
-                            score=parseInt(last.values[0].value);
-                            if(!isNaN(score)) break;
-                        }
-                    }
-                } catch(e) {}
-            }
-            if(score!==null && !isNaN(score)) {
-                elements.trendScore.innerText=score;
-                elements.trendSource.innerText="Google Trends (SerpAPI)";
-                elements.trendScoreVal.innerText=`(score: ${Math.round(scoreSearchTrend(score))})`;
-                localStorage.setItem("searchTrendScore",score);
-            } else {
-                let cached=localStorage.getItem("searchTrendScore");
-                if(cached) {
-                    let sv=parseInt(cached);
-                    elements.trendScore.innerText=sv;
-                    elements.trendSource.innerText="cached";
-                    elements.trendScoreVal.innerText=`(score: ${Math.round(scoreSearchTrend(sv))})`;
-                } else {
-                    elements.trendScore.innerText="--";
-                    elements.trendSource.innerText="offline";
-                    elements.trendScoreVal.innerText="(score: --)";
-                }
-            }
-        }
-
         async function updateSummary() {
             let { _btcPrice, _wma200, _ma2y, _ma2y5, _piSMA, _piEMA, _piSMA111, _piSMA350x2, _rainbow, _dominance, _financeRank, _ath } = window;
             let fng=parseFloat(elements.fngValue.innerText);
@@ -1092,7 +1059,7 @@
 
         // ==================== MAIN REFRESH ====================
         let currentTop20 = null;
-        async function refreshAll() {
+        async function refreshAll(forceTrends = false) {
             elements.updateTimestamp.innerText = new Date().toUTCString().slice(0,-4)+" UTC";
             let top20 = await fetchTop20Crypto();
             if (top20 && top20.length > 0) {
@@ -1105,22 +1072,15 @@
             }
             let btcData = await fetchBitcoinIndicators();
             if (btcData) Object.assign(window, {
-                _btcPrice: btcData.btcPrice,
-                _wma200: btcData.sma200W,
-                _ma2y: btcData.sma2Y,
-                _ma2y5: btcData.sma2Yx5,
-                _piSMA: btcData.piSMA,
-                _piEMA: btcData.piEMA,
-                _piSMA111: btcData.piSMA111,
-                _piSMA350x2: btcData.piSMA350x2,
-                _rainbow: btcData.rainbow,
-                _ath: btcData.ath
+                _btcPrice: btcData.btcPrice, _wma200: btcData.sma200W, _ma2y: btcData.sma2Y, _ma2y5: btcData.sma2Yx5,
+                _piSMA: btcData.piSMA, _piEMA: btcData.piEMA, _piSMA111: btcData.piSMA111, _piSMA350x2: btcData.piSMA350x2,
+                _rainbow: btcData.rainbow, _ath: btcData.ath
             });
             window._financeRank = await fetchCoinbaseRank();
             window._dominance = await fetchBTCDominance();
             await fetchFearGreed();
             await fetchCBBI();
-            await fetchGoogleTrends();
+            await fetchGoogleTrends(forceTrends);
             await updateSummary();
             updateGlossaryContent();
         }
@@ -1130,27 +1090,25 @@
         async function startAutoRefresh() {
             if (mainInterval) clearInterval(mainInterval);
             if (newsInterval) clearInterval(newsInterval);
-            await refreshAll();
+            await refreshAll(false);
             await refreshNews();
-            mainInterval = setInterval(refreshAll, REFRESH_INTERVAL_MS);
+            mainInterval = setInterval(() => refreshAll(false), REFRESH_INTERVAL_MS);
             newsInterval = setInterval(refreshNews, NEWS_REFRESH_MS);
+            // Also set a separate timer to force Google Trends refresh every 4 hours
+            setInterval(() => fetchGoogleTrends(true), GOOGLE_TRENDS_REFRESH_MS);
         }
 
         elements.manualRefresh.onclick = async () => {
             elements.manualRefresh.disabled = true;
             elements.manualRefresh.textContent = "⟳ REFRESHING...";
-            await refreshAll();
+            await refreshAll(true);
             await refreshNews();
             elements.manualRefresh.textContent = "⟳ REFRESH";
             elements.manualRefresh.disabled = false;
         };
 
-        document.addEventListener("visibilitychange", () => {
-            if (!document.hidden && elements.tickerTrack && currentTop20) {}
-        });
-        document.addEventListener("visibilitychange", () => {
-            if (!document.hidden && elements.newsTrack && currentNewsItems.length) {}
-        });
+        document.addEventListener("visibilitychange", () => {});
+        document.addEventListener("visibilitychange", () => {});
 
         let stored = localStorage.getItem("customConfig");
         if (stored) try { loadConfig(JSON.parse(stored)); } catch(e){ loadConfig(DEFAULT_CONFIG); }
