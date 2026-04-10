@@ -66,11 +66,10 @@
         .footer-area { display: flex; justify-content: space-between; align-items: center; margin-top: 24px; flex-wrap: wrap; gap: 12px; }
         .glossary-btn { background: #331e0e; border: 1px solid #ffaa66; color: #ffaa66; font-size: 1.2rem; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; }
         .glossary-btn:hover { background: #5e3a1f; text-shadow: 0 0 4px #ffaa66; transform: scale(1.05); }
-        .footer-note { text-align: right; font-size: 0.6rem; color: #b87c4f; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+        .footer-note { text-align: right; font-size: 0.6rem; color: #b87c4f; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: flex-end; }
         .footer-note span { color: #e69854; }
         .refresh-btn, .export-csv-btn { background: #331e0e; border: 1px solid #ffaa66; color: #ffaa66; font-family: monospace; font-size: 0.7rem; padding: 4px 12px; border-radius: 20px; cursor: pointer; transition: all 0.2s; }
         .refresh-btn:hover, .export-csv-btn:hover { background: #5e3a1f; text-shadow: 0 0 4px #ffaa66; }
-        .daily-badge { background: #2a180a; padding: 2px 8px; border-radius: 16px; font-size: 0.6rem; border: 1px solid #b87c4f; margin-left: 6px; }
         @keyframes subtle-flicker { 0% { opacity: 0.99; } 100% { opacity: 1; } }
         .screen { animation: subtle-flicker 0.2s infinite; }
         .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.8); }
@@ -135,7 +134,7 @@
                     </div>
                     <span class="progress-label">Top</span>
                 </div>
-                <div class="desc-note">Weighted average of all indicators • <span id="dailyRecordBadge" class="daily-badge">📀 daily log: --</span></div>
+                <div class="desc-note">Weighted average of all indicators</div>
             </div>
             <div class="indicator-card"><label>😨 FEAR & GREED INDEX</label><div class="value-line"><span id="fngValue" class="kpi-value">--</span> <span id="fngScore" class="score-badge">(score: --)</span></div><div class="desc-note" id="fngClassification">—</div><div class="source-note">Source: alternative.me</div></div>
             <div class="indicator-card"><label>🔍 BITCOIN SEARCH TREND</label><div class="value-line"><span id="trendScore" class="kpi-value">--</span> <span id="trendScoreVal" class="score-badge">(score: --)</span></div><div class="desc-note" id="trendSource">—</div><div class="source-note">Source: Google Trends (SerpAPI)</div></div>
@@ -157,7 +156,6 @@
             <div class="footer-note">
                 ⟳ AUTO-REFRESH 15MIN  |  DATA: <span id="dataSourceText">—</span><br>
                 <span id="configStatus" style="font-size:0.6rem; color:#b87c4f;"></span>
-                <span id="csvRecordCount" style="font-size:0.6rem; background:#1f1408; padding:2px 6px; border-radius:12px;">📁 records: 0</span>
             </div>
         </div>
     </div>
@@ -166,9 +164,9 @@
 
 <script>
     (function(){
-        // ---------- DAILY CSV LOGGER (ONCE PER DAY, UTC) ----------
+        // ---------- DAILY CSV LOGGER (ONCE PER DAY, UTC, SILENT) ----------
         const STORAGE_KEY = "btc_daily_records";
-        let dailyRecords = [];     // array of { date, timestamp, btcPrice, summaryScore }
+        let dailyRecords = [];
 
         function loadDailyRecords() {
             const stored = localStorage.getItem(STORAGE_KEY);
@@ -180,24 +178,14 @@
             } else {
                 dailyRecords = [];
             }
-            updateCsvBadgeAndCounter();
         }
 
         function saveDailyRecords() {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(dailyRecords));
-            updateCsvBadgeAndCounter();
-        }
-
-        function updateCsvBadgeAndCounter() {
-            const badgeSpan = document.getElementById("dailyRecordBadge");
-            const counterSpan = document.getElementById("csvRecordCount");
-            if (badgeSpan) badgeSpan.innerText = `📀 logged: ${dailyRecords.length} days`;
-            if (counterSpan) counterSpan.innerText = `📁 records: ${dailyRecords.length}`;
         }
 
         function getUTCDateKey() {
-            const now = new Date();
-            return now.toISOString().split('T')[0]; // YYYY-MM-DD UTC
+            return new Date().toISOString().split('T')[0];
         }
 
         function recordDailySnapshot(btcPriceUsd, summaryScoreNum) {
@@ -206,14 +194,12 @@
             const today = getUTCDateKey();
             const alreadyExists = dailyRecords.some(rec => rec.date === today);
             if (alreadyExists) return false;
-            const record = {
+            dailyRecords.push({
                 date: today,
                 timestamp: new Date().toISOString(),
                 btcPrice: btcPriceUsd,
                 summaryScore: summaryScoreNum
-            };
-            dailyRecords.push(record);
-            // keep chronological order (oldest first)
+            });
             dailyRecords.sort((a,b) => new Date(a.date) - new Date(b.date));
             saveDailyRecords();
             console.log(`[DAILY LOG] ${today} → BTC $${btcPriceUsd} | Score ${summaryScoreNum}`);
@@ -226,12 +212,7 @@
                 return;
             }
             const headers = ["Date (UTC)", "ISO Timestamp", "BTC Price (USD)", "Summary Score (0-100)"];
-            const rows = dailyRecords.map(rec => [
-                rec.date,
-                rec.timestamp,
-                rec.btcPrice,
-                rec.summaryScore
-            ]);
+            const rows = dailyRecords.map(rec => [rec.date, rec.timestamp, rec.btcPrice, rec.summaryScore]);
             const csvContent = [headers, ...rows].map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(",")).join("\n");
             const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
             const link = document.createElement("a");
@@ -244,7 +225,7 @@
             URL.revokeObjectURL(url);
         }
 
-        // ---------- rest of dashboard (existing code, integrated with daily logger) ----------
+        // ---------- REST OF DASHBOARD (preserved, no UI badges) ----------
         const REFRESH_INTERVAL_MS = 15 * 60 * 1000;
         const NEWS_REFRESH_MS = 5 * 60 * 1000;
         const GOOGLE_TRENDS_REFRESH_MS = 4 * 60 * 60 * 1000;
@@ -292,15 +273,15 @@
         async function fetchWithProxy(url,proxy){ const r=await fetch(proxy+url); if(!r.ok) throw new Error(); return await r.text(); }
 
         let lastTrendsFetchTime=0, cachedTrendScore=null;
-        async function fetchGoogleTrends(force=false){ /* simplified but preserved */ const now=Date.now(); if(!force && (now-lastTrendsFetchTime)<GOOGLE_TRENDS_REFRESH_MS && cachedTrendScore!==null){ elements.trendScore.innerText=cachedTrendScore; elements.trendSource.innerText="Google Trends (cached)"; const sv=scoreSearchTrend(cachedTrendScore); elements.trendScoreVal.innerText=`(score: ${Math.round(sv)})`; return; } let score=null; const apiUrl=`https://serpapi.com/search?engine=google_trends&q=bitcoin&data_type=TIMESERIES&date=today%205-y&api_key=${SERPAPI_KEY}`; for(let proxy of PROXIES){ try{ const text=await fetchWithProxy(apiUrl,proxy); const data=JSON.parse(text); const timeline=data.interest_over_time?.timeline_data; if(timeline?.length){ const last=timeline[timeline.length-1]; if(last?.values?.[0]?.value!==undefined){ score=parseInt(last.values[0].value); if(!isNaN(score)) break; } } }catch(e){} } if(score!==null&&!isNaN(score)){ cachedTrendScore=score; lastTrendsFetchTime=now; localStorage.setItem("searchTrendScore",score); localStorage.setItem("searchTrendScoreTime",now); elements.trendScore.innerText=score; elements.trendSource.innerText="Google Trends (SerpAPI) – updated"; const sv=scoreSearchTrend(score); elements.trendScoreVal.innerText=`(score: ${Math.round(sv)})`; } else{ const stored=localStorage.getItem("searchTrendScore"); if(stored){ const val=parseInt(stored); cachedTrendScore=val; elements.trendScore.innerText=val; elements.trendSource.innerText="cached"; elements.trendScoreVal.innerText=`(score: ${Math.round(scoreSearchTrend(val))})`; }else{ elements.trendScore.innerText="--"; elements.trendScoreVal.innerText="(score: --)"; } } }
+        async function fetchGoogleTrends(force=false){ const now=Date.now(); if(!force && (now-lastTrendsFetchTime)<GOOGLE_TRENDS_REFRESH_MS && cachedTrendScore!==null){ elements.trendScore.innerText=cachedTrendScore; elements.trendSource.innerText="Google Trends (cached)"; const sv=scoreSearchTrend(cachedTrendScore); elements.trendScoreVal.innerText=`(score: ${Math.round(sv)})`; return; } let score=null; const apiUrl=`https://serpapi.com/search?engine=google_trends&q=bitcoin&data_type=TIMESERIES&date=today%205-y&api_key=${SERPAPI_KEY}`; for(let proxy of PROXIES){ try{ const text=await fetchWithProxy(apiUrl,proxy); const data=JSON.parse(text); const timeline=data.interest_over_time?.timeline_data; if(timeline?.length){ const last=timeline[timeline.length-1]; if(last?.values?.[0]?.value!==undefined){ score=parseInt(last.values[0].value); if(!isNaN(score)) break; } } }catch(e){} } if(score!==null&&!isNaN(score)){ cachedTrendScore=score; lastTrendsFetchTime=now; localStorage.setItem("searchTrendScore",score); localStorage.setItem("searchTrendScoreTime",now); elements.trendScore.innerText=score; elements.trendSource.innerText="Google Trends (SerpAPI) – updated"; const sv=scoreSearchTrend(score); elements.trendScoreVal.innerText=`(score: ${Math.round(sv)})`; } else{ const stored=localStorage.getItem("searchTrendScore"); if(stored){ const val=parseInt(stored); cachedTrendScore=val; elements.trendScore.innerText=val; elements.trendSource.innerText="cached"; elements.trendScoreVal.innerText=`(score: ${Math.round(scoreSearchTrend(val))})`; }else{ elements.trendScore.innerText="--"; elements.trendScoreVal.innerText="(score: --)"; } } }
 
-        async function fetchAllRSS(){ /* identical, but simplified for brevity, core functionality kept */ const items=[]; for(let feed of RSS_FEEDS){ try{ let xml=null; try{ const res=await fetch(feed.url); if(res.ok) xml=await res.text(); }catch(e){} if(!xml){ for(let proxy of PROXIES){ try{ xml=await fetchWithProxy(feed.url,proxy); if(xml) break; }catch(e2){} } } if(xml){ const parser=new DOMParser(); const doc=parser.parseFromString(xml,"text/xml"); const itemsNode=doc.querySelectorAll("item"); for(let i=0;i<Math.min(itemsNode.length,5);i++){ const title=itemsNode[i].querySelector("title")?.textContent; const link=itemsNode[i].querySelector("link")?.textContent; if(title&&link) items.push({title,link,feedName:feed.name}); } } }catch(e){} } const seen=new Set(); return items.filter(item=>{ const key=item.title.toLowerCase(); if(seen.has(key)) return false; seen.add(key); return true; }).slice(0,20); }
+        async function fetchAllRSS(){ const items=[]; for(let feed of RSS_FEEDS){ try{ let xml=null; try{ const res=await fetch(feed.url); if(res.ok) xml=await res.text(); }catch(e){} if(!xml){ for(let proxy of PROXIES){ try{ xml=await fetchWithProxy(feed.url,proxy); if(xml) break; }catch(e2){} } } if(xml){ const parser=new DOMParser(); const doc=parser.parseFromString(xml,"text/xml"); const itemsNode=doc.querySelectorAll("item"); for(let i=0;i<Math.min(itemsNode.length,5);i++){ const title=itemsNode[i].querySelector("title")?.textContent; const link=itemsNode[i].querySelector("link")?.textContent; if(title&&link) items.push({title,link,feedName:feed.name}); } } }catch(e){} } const seen=new Set(); return items.filter(item=>{ const key=item.title.toLowerCase(); if(seen.has(key)) return false; seen.add(key); return true; }).slice(0,20); }
         function escapeHtml(s){ if(!s) return ''; return s.replace(/[&<>]/g,m=>m==='&'?'&amp;':(m==='<'?'&lt;':'&gt;')); }
         function buildNewsHTML(items){ if(!items.length) return `<div class="news-item">⚠️ No news available ⚠️</div>`; return items.map(item=>`<div class="news-item"><span class="news-icon">${getFeedIcon(item.feedName)}</span> <a href="${item.link}" target="_blank">${escapeHtml(item.title)}</a></div>`).join(''); }
         let currentNewsItems=[]; function updateNewsTicker(items){ currentNewsItems=items; const html=buildNewsHTML(items); if(elements.newsPrimary&&elements.newsDuplicate){ elements.newsPrimary.innerHTML=html; elements.newsDuplicate.innerHTML=html; startTicker(elements.newsTrack,'news-scroll'); } }
         async function refreshNews(){ try{ const items=await fetchAllRSS(); if(items.length) updateNewsTicker(items); else if(currentNewsItems.length===0) updateNewsTicker([{title:"Unable to load news",link:"#",feedName:"default"}]); }catch(e){ if(currentNewsItems.length===0) updateNewsTicker([{title:"Error loading news",link:"#",feedName:"default"}]); } }
 
-        async function fetchTop20Crypto(){ /* full function preserved but for brevity returning mock? but original works */ let top20=null; try{ const res=await fetch("https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=250&page=1&sparkline=false&price_change_percentage=24h"); if(res.ok){ const data=await res.json(); let filtered=data.filter(c=>!STABLE_COINS.has(c.symbol.toLowerCase())&&!SHITCOINS.has(c.symbol.toLowerCase())); top20=filtered.slice(0,20).map(c=>({symbol:c.symbol.toUpperCase(),price:c.current_price,change24h:c.price_change_percentage_24h,image:c.image})); } }catch(e){} return top20; }
+        async function fetchTop20Crypto(){ try{ const res=await fetch("https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=250&page=1&sparkline=false&price_change_percentage=24h"); if(res.ok){ const data=await res.json(); let filtered=data.filter(c=>!STABLE_COINS.has(c.symbol.toLowerCase())&&!SHITCOINS.has(c.symbol.toLowerCase())); return filtered.slice(0,20).map(c=>({symbol:c.symbol.toUpperCase(),price:c.current_price,change24h:c.price_change_percentage_24h,image:c.image})); } }catch(e){} return null; }
         function buildTickerHTML(coins){ if(!coins?.length) return `<span class="ticker-item">⚠️ NO DATA ⚠️</span>`; return coins.map(c=>`<div class="ticker-item"><img src="${c.image}" alt="${c.symbol}"><span>${c.symbol}</span> ${formatUSD(c.price)} <span class="${c.change24h>=0?'positive':'negative'}">${c.change24h?.toFixed(2)||0}%</span></div>`).join(''); }
         function updateTicker(coins){ const html=buildTickerHTML(coins); elements.tickerPrimary.innerHTML=html; elements.tickerDuplicate.innerHTML=html; startTicker(elements.tickerTrack,'price-scroll'); }
 
@@ -313,11 +294,10 @@
 
         async function fetchBitcoinIndicators(){ let prices=null,dataSource="",ath=null; const csv=await loadPricesFromCSV(); if(csv&&csv.prices.length>=1400){ prices=csv.prices; ath=csv.ath; dataSource=`CSV (${csv.lastDate})`; }else{ try{ const url="https://min-api.cryptocompare.com/data/v2/histoday?fsym=BTC&tsym=USD&limit=1400"; const res=await fetch(url); const data=await res.json(); if(data.Data?.Data){ prices=data.Data.Data.map(d=>d.close); ath=Math.max(...prices); dataSource="CryptoCompare (live)"; } }catch(e){ dataSource="static approximations"; } } if(prices&&prices.length>=1400){ const rawSMA471=sma(prices,471); const piSMA=rawSMA471*0.745; const piEMA=ema(prices,150); const sma200W=sma(prices,1400); const sma2Y=sma(prices,730); const sma2Yx5=sma2Y*5; const btcPrice=prices[prices.length-1]; const piSMA111=sma(prices,111); const piSMA350x2=sma(prices,350)*2; const rainbowResult=computeRainbowWithParams(prices); const rainbow=rainbowResult.band; elements.athDrawdown.innerText=((btcPrice-ath)/ath*100).toFixed(2)+"%"; elements.piSMA111.innerText=formatUSDNoDecimals(piSMA111); elements.piSMA350x2.innerText=formatUSDNoDecimals(piSMA350x2); elements.piSMA471.innerText=formatUSDNoDecimals(piSMA); elements.piEMA150.innerText=formatUSDNoDecimals(piEMA); elements.btc200wma.innerText=formatUSDNoDecimals(sma200W); elements.twoYMA.innerText=formatUSDNoDecimals(sma2Y); elements.twoYMAX5.innerText=formatUSDNoDecimals(sma2Yx5); if(rainbow){ elements.rainbowClassification.innerText=rainbow; elements.rainbowSource.innerText="Calculated from CSV"; localStorage.setItem("rainbowClassification",rainbow); } elements.wmaScore.innerText=`(score: ${Math.round(score200WMA(btcPrice,sma200W))})`; elements.y2maScore.innerText=`(score: ${Math.round(score2YMA(btcPrice,sma2Y))})`; elements.piBottomScore.innerText=`(score: ${Math.round(scorePiCycleBottom(piSMA,piEMA))})`; elements.piTopScore.innerText=`(score: ${Math.round(scorePiCycleTop(piSMA111,piSMA350x2))})`; elements.drawdownScore.innerText=`(score: ${Math.round(scoreDrawdown(btcPrice,ath))})`; const rainbowScore=scoreRainbow(rainbow); elements.rainbowScore.innerText=`(score: ${Math.round(rainbowScore)})`; elements.dataSourceText.innerText=dataSource; return {btcPrice,sma200W,sma2Y,sma2Yx5,piSMA,piEMA,rainbow,piSMA111,piSMA350x2,ath}; } else return null; }
 
-        async function fetchCoinbaseRank(){ /* minimal fallback */ try{ const url="https://rss.app/feeds/XRpkIErFDjKyhSMo.xml"; const res=await fetch(url); if(res.ok){ const xml=await res.text(); const doc=new DOMParser().parseFromString(xml,"text/xml"); const item=doc.querySelector("item"); if(item){ const desc=item.querySelector("description")?.textContent||""; const allMatch=desc.match(/All Apps[^\d]*(\d+)/i); const finMatch=desc.match(/Finance Apps[^\d]*(\d+)/i); if(allMatch&&finMatch){ const fin=parseInt(finMatch[1]); elements.coinbaseAllRank.innerText=allMatch[1]; elements.coinbaseFinanceRank.innerText=fin; elements.coinbaseScore.innerText=`(score: ${Math.round(scoreCoinbase(fin))})`; return fin; } } } }catch(e){} const cached=localStorage.getItem("coinbaseFinanceRank"); if(cached){ elements.coinbaseFinanceRank.innerText=cached; elements.coinbaseScore.innerText=`(score: ${Math.round(scoreCoinbase(parseInt(cached)))})`; return parseInt(cached); } return null; }
+        async function fetchCoinbaseRank(){ try{ const url="https://rss.app/feeds/XRpkIErFDjKyhSMo.xml"; const res=await fetch(url); if(res.ok){ const xml=await res.text(); const doc=new DOMParser().parseFromString(xml,"text/xml"); const item=doc.querySelector("item"); if(item){ const desc=item.querySelector("description")?.textContent||""; const allMatch=desc.match(/All Apps[^\d]*(\d+)/i); const finMatch=desc.match(/Finance Apps[^\d]*(\d+)/i); if(allMatch&&finMatch){ const fin=parseInt(finMatch[1]); elements.coinbaseAllRank.innerText=allMatch[1]; elements.coinbaseFinanceRank.innerText=fin; elements.coinbaseScore.innerText=`(score: ${Math.round(scoreCoinbase(fin))})`; return fin; } } } }catch(e){} const cached=localStorage.getItem("coinbaseFinanceRank"); if(cached){ elements.coinbaseFinanceRank.innerText=cached; elements.coinbaseScore.innerText=`(score: ${Math.round(scoreCoinbase(parseInt(cached)))})`; return parseInt(cached); } return null; }
         async function fetchBTCDominance(){ try{ const res=await fetch("https://api.coingecko.com/api/v3/global"); if(res.ok){ const data=await res.json(); const dom=data.data.market_cap_percentage.btc; if(dom){ elements.btcDominance.innerText=dom.toFixed(1)+"%"; elements.dominanceScore.innerText=`(score: ${Math.round(scoreDominance(dom))})`; return dom; } } }catch(e){} const cached=localStorage.getItem("btcDominance"); if(cached){ const dom=parseFloat(cached); elements.btcDominance.innerText=cached+"%"; elements.dominanceScore.innerText=`(score: ${Math.round(scoreDominance(dom))})`; return dom; } return null; }
 
         async function updateSummary(){ let {_btcPrice,_wma200,_ma2y,_piSMA,_piEMA,_piSMA111,_piSMA350x2,_rainbow,_dominance,_financeRank,_ath}=window; let fng=parseFloat(elements.fngValue.innerText); let cbbi=parseFloat(elements.cbbiValue.innerText); let trend=parseFloat(elements.trendScore.innerText); if(!_btcPrice||!_wma200||!_ma2y||!_piSMA||!_piEMA||!_piSMA111||!_piSMA350x2||!_rainbow||_dominance===undefined||_financeRank===undefined||isNaN(trend)||!_ath) return; const w=config.weights; const total=Object.values(w).reduce((a,b)=>a+b,0); const scores={ fng:scoreFearGreed(fng), cbbi:scoreCBBI(cbbi), wma:score200WMA(_btcPrice,_wma200), y2ma:score2YMA(_btcPrice,_ma2y), piBottom:scorePiCycleBottom(_piSMA,_piEMA), piTop:scorePiCycleTop(_piSMA111,_piSMA350x2), coinbase:scoreCoinbase(_financeRank), trends:scoreSearchTrend(trend), dominance:scoreDominance(_dominance), rainbow:scoreRainbow(_rainbow), drawdown:scoreDrawdown(_btcPrice,_ath) }; let weightedSum = scores.fng*w.fng + scores.cbbi*w.cbbi + scores.wma*w.wma + scores.y2ma*w.y2ma + scores.piBottom*w.piBottom + scores.piTop*w.piTop + scores.coinbase*w.coinbase + scores.trends*w.trends + scores.dominance*w.dominance + scores.rainbow*w.rainbow + scores.drawdown*w.drawdown; let finalScore=Math.round(weightedSum/total); elements.summaryScore.innerText=finalScore; if(finalScore<=50){ elements.fillLeft.style.width=((50-finalScore)/50*100)+"%"; elements.fillRight.style.width="0%"; }else{ elements.fillLeft.style.width="100%"; elements.fillRight.style.width=((finalScore-50)/50*100)+"%"; } elements.scoreMarker.style.left=finalScore+"%"; elements.tickMarks.innerHTML=""; for(let i=10;i<=90;i+=10){ let t=document.createElement("div"); t.className="tick"; t.style.left=i+"%"; elements.tickMarks.appendChild(t); }
-            // DAILY SNAPSHOT: record if today not yet logged
             if(_btcPrice && !isNaN(finalScore)) recordDailySnapshot(_btcPrice, finalScore);
         }
 
