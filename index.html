@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>3Amigos Bitcoin Cycle Dashboard • Daily CSV Logger</title>
+    <title>3Amigos Bitcoin Cycle Dashboard • Full Daily Logger with Rainbow Bands</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
@@ -151,7 +151,7 @@
         <div class="footer-area">
             <div style="display: flex; gap: 8px;">
                 <div class="glossary-btn" id="glossaryBtn">ℹ️</div>
-                <button class="export-csv-btn" id="exportCsvBtn">📥 EXPORT DAILY CSV</button>
+                <button class="export-csv-btn" id="exportCsvBtn">📥 EXPORT FULL DAILY CSV</button>
             </div>
             <div class="footer-note">
                 ⟳ AUTO-REFRESH 15MIN  |  DATA: <span id="dataSourceText">—</span><br>
@@ -164,8 +164,8 @@
 
 <script>
     (function(){
-        // ---------- DAILY CSV LOGGER (ONCE PER DAY, UTC, SILENT) ----------
-        const STORAGE_KEY = "btc_daily_records";
+        // ---------- ENHANCED DAILY LOGGER WITH RAINBOW BAND THRESHOLDS ----------
+        const STORAGE_KEY = "btc_daily_records_full_v2";
         let dailyRecords = [];
 
         function loadDailyRecords() {
@@ -188,44 +188,184 @@
             return new Date().toISOString().split('T')[0];
         }
 
-        function recordDailySnapshot(btcPriceUsd, summaryScoreNum) {
-            if (btcPriceUsd === undefined || btcPriceUsd === null || isNaN(btcPriceUsd)) return false;
-            if (summaryScoreNum === undefined || isNaN(summaryScoreNum)) return false;
+        // Compute all rainbow band price thresholds (upper bounds) using current regression params
+        // Returns an object with keys like "fire_sale_upper", "buy_upper", ... "max_bubble_lower"
+        function computeRainbowThresholds() {
+            if (!_rainbowParams) return null;
+            const { a, b, stdDev, currentX } = _rainbowParams;
+            // Define band boundaries by z-score (lower bound, upper bound)
+            // Bands from lowest to highest:
+            // 1. Basically a Fire Sale: z < -2
+            // 2. BUY!: -2 <= z < -1
+            // 3. Accumulate: -1 <= z < -0.5
+            // 4. Still cheap: -0.5 <= z < 0
+            // 5. HODL!: 0 <= z < 0.5
+            // 6. Is this a bubble?: 0.5 <= z < 1
+            // 7. FOMO intensifies: 1 <= z < 2
+            // 8. Sell. Seriously, SELL!: 2 <= z < 3
+            // 9. Maximum Bubble Territory: z >= 3
+            const priceAtZ = (z) => Math.exp(a + b * currentX + z * stdDev);
+            return {
+                fire_sale_upper: priceAtZ(-2),           // upper bound for "Fire Sale"
+                buy_upper: priceAtZ(-1),                 // upper bound for "BUY!"
+                accumulate_upper: priceAtZ(-0.5),        // upper bound for "Accumulate"
+                still_cheap_upper: priceAtZ(0),          // upper bound for "Still cheap"
+                hodl_upper: priceAtZ(0.5),               // upper bound for "HODL!"
+                bubble_upper: priceAtZ(1),               // upper bound for "Is this a bubble?"
+                fomo_upper: priceAtZ(2),                 // upper bound for "FOMO intensifies"
+                sell_upper: priceAtZ(3),                 // upper bound for "Sell. Seriously, SELL!"
+                max_bubble_lower: priceAtZ(3)            // lower bound for "Maximum Bubble Territory"
+            };
+        }
+
+        // Gather all current metrics from DOM and global vars, including rainbow thresholds
+        function gatherCurrentMetrics() {
+            const metrics = {};
+            metrics.btcPrice = window._btcPrice !== undefined ? window._btcPrice : null;
+            metrics.summaryScore = parseInt(elements.summaryScore.innerText) || null;
+            metrics.fngValue = parseInt(elements.fngValue.innerText) || null;
+            metrics.fngScore = parseInt(elements.fngScore.innerText.match(/\d+/)?.[0]) || null;
+            metrics.fngClassification = elements.fngClassification.innerText || null;
+            metrics.trendValue = parseInt(elements.trendScore.innerText) || null;
+            metrics.trendScoreVal = parseInt(elements.trendScoreVal.innerText.match(/\d+/)?.[0]) || null;
+            metrics.coinbaseAllRank = parseInt(elements.coinbaseAllRank.innerText) || null;
+            metrics.coinbaseFinanceRank = parseInt(elements.coinbaseFinanceRank.innerText) || null;
+            metrics.coinbaseScore = parseInt(elements.coinbaseScore.innerText.match(/\d+/)?.[0]) || null;
+            metrics.rainbowBand = elements.rainbowClassification.innerText || null;
+            metrics.rainbowScore = parseInt(elements.rainbowScore.innerText.match(/\d+/)?.[0]) || null;
+            // Add rainbow thresholds if available
+            const thresholds = computeRainbowThresholds();
+            if (thresholds) {
+                metrics.rainbow_fire_sale_upper = thresholds.fire_sale_upper;
+                metrics.rainbow_buy_upper = thresholds.buy_upper;
+                metrics.rainbow_accumulate_upper = thresholds.accumulate_upper;
+                metrics.rainbow_still_cheap_upper = thresholds.still_cheap_upper;
+                metrics.rainbow_hodl_upper = thresholds.hodl_upper;
+                metrics.rainbow_bubble_upper = thresholds.bubble_upper;
+                metrics.rainbow_fomo_upper = thresholds.fomo_upper;
+                metrics.rainbow_sell_upper = thresholds.sell_upper;
+                metrics.rainbow_max_bubble_lower = thresholds.max_bubble_lower;
+            } else {
+                // Placeholders if regression not ready
+                for (let k of ['rainbow_fire_sale_upper','rainbow_buy_upper','rainbow_accumulate_upper','rainbow_still_cheap_upper','rainbow_hodl_upper','rainbow_bubble_upper','rainbow_fomo_upper','rainbow_sell_upper','rainbow_max_bubble_lower']) {
+                    metrics[k] = null;
+                }
+            }
+            metrics.cbbiValue = parseInt(elements.cbbiValue.innerText) || null;
+            metrics.cbbiScore = parseInt(elements.cbbiScore.innerText.match(/\d+/)?.[0]) || null;
+            let wmaText = elements.btc200wma.innerText;
+            metrics.btc200wma = wmaText ? parseFloat(wmaText.replace(/[$,]/g, '')) : null;
+            metrics.wmaScore = parseInt(elements.wmaScore.innerText.match(/\d+/)?.[0]) || null;
+            let twoYMAText = elements.twoYMA.innerText;
+            metrics.twoYMA = twoYMAText ? parseFloat(twoYMAText.replace(/[$,]/g, '')) : null;
+            let twoYMAX5Text = elements.twoYMAX5.innerText;
+            metrics.twoYMAX5 = twoYMAX5Text ? parseFloat(twoYMAX5Text.replace(/[$,]/g, '')) : null;
+            metrics.y2maScore = parseInt(elements.y2maScore.innerText.match(/\d+/)?.[0]) || null;
+            let piSMA471Text = elements.piSMA471.innerText;
+            metrics.piSMA471 = piSMA471Text ? parseFloat(piSMA471Text.replace(/[$,]/g, '')) : null;
+            let piEMA150Text = elements.piEMA150.innerText;
+            metrics.piEMA150 = piEMA150Text ? parseFloat(piEMA150Text.replace(/[$,]/g, '')) : null;
+            metrics.piBottomScore = parseInt(elements.piBottomScore.innerText.match(/\d+/)?.[0]) || null;
+            let piSMA111Text = elements.piSMA111.innerText;
+            metrics.piSMA111 = piSMA111Text ? parseFloat(piSMA111Text.replace(/[$,]/g, '')) : null;
+            let piSMA350x2Text = elements.piSMA350x2.innerText;
+            metrics.piSMA350x2 = piSMA350x2Text ? parseFloat(piSMA350x2Text.replace(/[$,]/g, '')) : null;
+            metrics.piTopScore = parseInt(elements.piTopScore.innerText.match(/\d+/)?.[0]) || null;
+            let domText = elements.btcDominance.innerText;
+            metrics.btcDominance = domText ? parseFloat(domText) : null;
+            metrics.dominanceScore = parseInt(elements.dominanceScore.innerText.match(/\d+/)?.[0]) || null;
+            let drawdownText = elements.athDrawdown.innerText;
+            metrics.athDrawdown = drawdownText ? parseFloat(drawdownText) : null;
+            metrics.drawdownScore = parseInt(elements.drawdownScore.innerText.match(/\d+/)?.[0]) || null;
+            return metrics;
+        }
+
+        function recordDailySnapshot(metrics) {
             const today = getUTCDateKey();
             const alreadyExists = dailyRecords.some(rec => rec.date === today);
             if (alreadyExists) return false;
-            dailyRecords.push({
+            const record = {
                 date: today,
                 timestamp: new Date().toISOString(),
-                btcPrice: btcPriceUsd,
-                summaryScore: summaryScoreNum
-            });
+                ...metrics
+            };
+            dailyRecords.push(record);
             dailyRecords.sort((a,b) => new Date(a.date) - new Date(b.date));
             saveDailyRecords();
-            console.log(`[DAILY LOG] ${today} → BTC $${btcPriceUsd} | Score ${summaryScoreNum}`);
+            console.log(`[DAILY LOG] ${today} → Full metrics with rainbow thresholds recorded`);
             return true;
         }
 
         function exportDailyCSV() {
             if (!dailyRecords.length) {
-                alert("No daily records yet. Data will be recorded once per day after summary updates.");
+                alert("No daily records yet. Data will be recorded once per day after first refresh.");
                 return;
             }
-            const headers = ["Date (UTC)", "ISO Timestamp", "BTC Price (USD)", "Summary Score (0-100)"];
-            const rows = dailyRecords.map(rec => [rec.date, rec.timestamp, rec.btcPrice, rec.summaryScore]);
+            // Define all columns in desired order
+            const columns = [
+                "date", "timestamp", "btcPrice", "summaryScore",
+                "fngValue", "fngScore", "fngClassification",
+                "trendValue", "trendScoreVal",
+                "coinbaseAllRank", "coinbaseFinanceRank", "coinbaseScore",
+                "rainbowBand", "rainbowScore",
+                "rainbow_fire_sale_upper", "rainbow_buy_upper", "rainbow_accumulate_upper",
+                "rainbow_still_cheap_upper", "rainbow_hodl_upper", "rainbow_bubble_upper",
+                "rainbow_fomo_upper", "rainbow_sell_upper", "rainbow_max_bubble_lower",
+                "cbbiValue", "cbbiScore",
+                "btc200wma", "wmaScore",
+                "twoYMA", "twoYMAX5", "y2maScore",
+                "piSMA471", "piEMA150", "piBottomScore",
+                "piSMA111", "piSMA350x2", "piTopScore",
+                "btcDominance", "dominanceScore",
+                "athDrawdown", "drawdownScore"
+            ];
+            const headers = columns.map(c => {
+                const map = {
+                    date: "Date (UTC)", timestamp: "ISO Timestamp", btcPrice: "BTC Price (USD)", summaryScore: "Summary Score (0-100)",
+                    fngValue: "Fear & Greed Value", fngScore: "Fear & Greed Score", fngClassification: "Fear & Greed Classification",
+                    trendValue: "Search Trend Value", trendScoreVal: "Search Trend Score",
+                    coinbaseAllRank: "Coinbase All Apps Rank", coinbaseFinanceRank: "Coinbase Finance Rank", coinbaseScore: "Coinbase Score",
+                    rainbowBand: "Rainbow Chart Band", rainbowScore: "Rainbow Score",
+                    rainbow_fire_sale_upper: "Rainbow Band: Fire Sale Upper Bound (USD)",
+                    rainbow_buy_upper: "Rainbow Band: BUY! Upper Bound (USD)",
+                    rainbow_accumulate_upper: "Rainbow Band: Accumulate Upper Bound (USD)",
+                    rainbow_still_cheap_upper: "Rainbow Band: Still cheap Upper Bound (USD)",
+                    rainbow_hodl_upper: "Rainbow Band: HODL! Upper Bound (USD)",
+                    rainbow_bubble_upper: "Rainbow Band: Is this a bubble? Upper Bound (USD)",
+                    rainbow_fomo_upper: "Rainbow Band: FOMO intensifies Upper Bound (USD)",
+                    rainbow_sell_upper: "Rainbow Band: Sell. Seriously, SELL! Upper Bound (USD)",
+                    rainbow_max_bubble_lower: "Rainbow Band: Maximum Bubble Territory Lower Bound (USD)",
+                    cbbiValue: "CBBI Value", cbbiScore: "CBBI Score",
+                    btc200wma: "BTC 200W MA (USD)", wmaScore: "200W MA Score",
+                    twoYMA: "2Y MA (USD)", twoYMAX5: "2Y MA x5 (USD)", y2maScore: "2Y MA Score",
+                    piSMA471: "Pi Cycle 471d SMA (USD)", piEMA150: "Pi Cycle 150d EMA (USD)", piBottomScore: "Pi Bottom Score",
+                    piSMA111: "Pi Top 111d SMA (USD)", piSMA350x2: "Pi Top 350d MA x2 (USD)", piTopScore: "Pi Top Score",
+                    btcDominance: "BTC Dominance (%)", dominanceScore: "Dominance Score",
+                    athDrawdown: "ATH Drawdown (%)", drawdownScore: "Drawdown Score"
+                };
+                return map[c] || c;
+            });
+            const rows = dailyRecords.map(rec => {
+                return columns.map(col => {
+                    let val = rec[col];
+                    if (val === undefined || val === null) return "";
+                    if (typeof val === "number") return val;
+                    return String(val);
+                });
+            });
             const csvContent = [headers, ...rows].map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(",")).join("\n");
             const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
             const link = document.createElement("a");
             const url = URL.createObjectURL(blob);
             link.href = url;
-            link.setAttribute("download", `bitcoin_daily_scores_${new Date().toISOString().slice(0,10)}.csv`);
+            link.setAttribute("download", `bitcoin_full_daily_${new Date().toISOString().slice(0,10)}.csv`);
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
             URL.revokeObjectURL(url);
         }
 
-        // ---------- REST OF DASHBOARD (fully restored with robust fetching) ----------
+        // ---------- REST OF DASHBOARD (original robust fetching) ----------
         const REFRESH_INTERVAL_MS = 15 * 60 * 1000;
         const NEWS_REFRESH_MS = 5 * 60 * 1000;
         const GOOGLE_TRENDS_REFRESH_MS = 4 * 60 * 60 * 1000;
@@ -281,7 +421,6 @@
         let currentNewsItems=[]; function updateNewsTicker(items){ currentNewsItems=items; const html=buildNewsHTML(items); if(elements.newsPrimary&&elements.newsDuplicate){ elements.newsPrimary.innerHTML=html; elements.newsDuplicate.innerHTML=html; startTicker(elements.newsTrack,'news-scroll'); } }
         async function refreshNews(){ try{ const items=await fetchAllRSS(); if(items.length) updateNewsTicker(items); else if(currentNewsItems.length===0) updateNewsTicker([{title:"Unable to load news",link:"#",feedName:"default"}]); }catch(e){ if(currentNewsItems.length===0) updateNewsTicker([{title:"Error loading news",link:"#",feedName:"default"}]); } }
 
-        // ----- ROBUST FETCH TOP 20 (with multiple sources & proxies) -----
         async function fetchTop20Crypto() {
             const urls = [
                 "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=250&page=1&sparkline=false&price_change_percentage=24h",
@@ -341,7 +480,6 @@
 
         async function fetchBitcoinIndicators(){ let prices=null,dataSource="",ath=null; const csv=await loadPricesFromCSV(); if(csv&&csv.prices.length>=1400){ prices=csv.prices; ath=csv.ath; dataSource=`CSV (${csv.lastDate})`; }else{ try{ const url="https://min-api.cryptocompare.com/data/v2/histoday?fsym=BTC&tsym=USD&limit=1400"; const res=await fetch(url); const data=await res.json(); if(data.Data?.Data){ prices=data.Data.Data.map(d=>d.close); ath=Math.max(...prices); dataSource="CryptoCompare (live)"; } }catch(e){ dataSource="static approximations"; } } if(prices&&prices.length>=1400){ const rawSMA471=sma(prices,471); const piSMA=rawSMA471*0.745; const piEMA=ema(prices,150); const sma200W=sma(prices,1400); const sma2Y=sma(prices,730); const sma2Yx5=sma2Y*5; const btcPrice=prices[prices.length-1]; const piSMA111=sma(prices,111); const piSMA350x2=sma(prices,350)*2; const rainbowResult=computeRainbowWithParams(prices); const rainbow=rainbowResult.band; elements.athDrawdown.innerText=((btcPrice-ath)/ath*100).toFixed(2)+"%"; elements.piSMA111.innerText=formatUSDNoDecimals(piSMA111); elements.piSMA350x2.innerText=formatUSDNoDecimals(piSMA350x2); elements.piSMA471.innerText=formatUSDNoDecimals(piSMA); elements.piEMA150.innerText=formatUSDNoDecimals(piEMA); elements.btc200wma.innerText=formatUSDNoDecimals(sma200W); elements.twoYMA.innerText=formatUSDNoDecimals(sma2Y); elements.twoYMAX5.innerText=formatUSDNoDecimals(sma2Yx5); if(rainbow){ elements.rainbowClassification.innerText=rainbow; elements.rainbowSource.innerText="Calculated from CSV"; localStorage.setItem("rainbowClassification",rainbow); } elements.wmaScore.innerText=`(score: ${Math.round(score200WMA(btcPrice,sma200W))})`; elements.y2maScore.innerText=`(score: ${Math.round(score2YMA(btcPrice,sma2Y))})`; elements.piBottomScore.innerText=`(score: ${Math.round(scorePiCycleBottom(piSMA,piEMA))})`; elements.piTopScore.innerText=`(score: ${Math.round(scorePiCycleTop(piSMA111,piSMA350x2))})`; elements.drawdownScore.innerText=`(score: ${Math.round(scoreDrawdown(btcPrice,ath))})`; const rainbowScore=scoreRainbow(rainbow); elements.rainbowScore.innerText=`(score: ${Math.round(rainbowScore)})`; elements.dataSourceText.innerText=dataSource; return {btcPrice,sma200W,sma2Y,sma2Yx5,piSMA,piEMA,rainbow,piSMA111,piSMA350x2,ath}; } else return null; }
 
-        // ----- UPDATED: Coinbase Rank from nitter.net RSS feed -----
         async function fetchCoinbaseRank() {
             const url = "https://nitter.net/COINAppRankBot/rss";
             const parseRSS = (xml) => {
@@ -349,12 +487,10 @@
                 const doc = parser.parseFromString(xml, "text/xml");
                 const items = doc.querySelectorAll("item");
                 if (!items.length) return null;
-                // The latest tweet usually contains both ranks
                 for (let item of items) {
                     const title = item.querySelector("title")?.textContent || "";
                     const desc = item.querySelector("description")?.textContent || "";
                     const combined = title + " " + desc;
-                    // Look for patterns like "All Apps: #42" or "All Apps #42" or "All Apps Rank: 42"
                     const allMatch = combined.match(/All Apps[:\s#]*(\d+)/i);
                     const finMatch = combined.match(/Finance[:\s#]*(\d+)/i);
                     if (allMatch && finMatch) {
@@ -377,7 +513,6 @@
                 }
                 throw new Error("No rank data found");
             } catch(e) {
-                // Try with proxies
                 for (let proxy of PROXIES) {
                     try {
                         let xml = await fetchWithProxy(url, proxy);
@@ -388,7 +523,6 @@
                         }
                     } catch(e2) {}
                 }
-                // Fallback to cached values
                 const cachedAll = localStorage.getItem("coinbaseAllRank");
                 const cachedFin = localStorage.getItem("coinbaseFinanceRank");
                 const cachedTime = localStorage.getItem("coinbaseRankTime");
@@ -421,7 +555,11 @@
         async function fetchBTCDominance(){ try{ const res=await fetch("https://api.coingecko.com/api/v3/global"); if(res.ok){ const data=await res.json(); const dom=data.data.market_cap_percentage.btc; if(dom){ elements.btcDominance.innerText=dom.toFixed(1)+"%"; elements.dominanceScore.innerText=`(score: ${Math.round(scoreDominance(dom))})`; return dom; } } }catch(e){} const cached=localStorage.getItem("btcDominance"); if(cached){ const dom=parseFloat(cached); elements.btcDominance.innerText=cached+"%"; elements.dominanceScore.innerText=`(score: ${Math.round(scoreDominance(dom))})`; return dom; } return null; }
 
         async function updateSummary(){ let {_btcPrice,_wma200,_ma2y,_piSMA,_piEMA,_piSMA111,_piSMA350x2,_rainbow,_dominance,_financeRank,_ath}=window; let fng=parseFloat(elements.fngValue.innerText); let cbbi=parseFloat(elements.cbbiValue.innerText); let trend=parseFloat(elements.trendScore.innerText); if(!_btcPrice||!_wma200||!_ma2y||!_piSMA||!_piEMA||!_piSMA111||!_piSMA350x2||!_rainbow||_dominance===undefined||_financeRank===undefined||isNaN(trend)||!_ath) return; const w=config.weights; const total=Object.values(w).reduce((a,b)=>a+b,0); const scores={ fng:scoreFearGreed(fng), cbbi:scoreCBBI(cbbi), wma:score200WMA(_btcPrice,_wma200), y2ma:score2YMA(_btcPrice,_ma2y), piBottom:scorePiCycleBottom(_piSMA,_piEMA), piTop:scorePiCycleTop(_piSMA111,_piSMA350x2), coinbase:scoreCoinbase(_financeRank), trends:scoreSearchTrend(trend), dominance:scoreDominance(_dominance), rainbow:scoreRainbow(_rainbow), drawdown:scoreDrawdown(_btcPrice,_ath) }; let weightedSum = scores.fng*w.fng + scores.cbbi*w.cbbi + scores.wma*w.wma + scores.y2ma*w.y2ma + scores.piBottom*w.piBottom + scores.piTop*w.piTop + scores.coinbase*w.coinbase + scores.trends*w.trends + scores.dominance*w.dominance + scores.rainbow*w.rainbow + scores.drawdown*w.drawdown; let finalScore=Math.round(weightedSum/total); elements.summaryScore.innerText=finalScore; if(finalScore<=50){ elements.fillLeft.style.width=((50-finalScore)/50*100)+"%"; elements.fillRight.style.width="0%"; }else{ elements.fillLeft.style.width="100%"; elements.fillRight.style.width=((finalScore-50)/50*100)+"%"; } elements.scoreMarker.style.left=finalScore+"%"; elements.tickMarks.innerHTML=""; for(let i=10;i<=90;i+=10){ let t=document.createElement("div"); t.className="tick"; t.style.left=i+"%"; elements.tickMarks.appendChild(t); }
-            if(_btcPrice && !isNaN(finalScore)) recordDailySnapshot(_btcPrice, finalScore);
+            // Record daily snapshot with all metrics (including rainbow thresholds)
+            const metrics = gatherCurrentMetrics();
+            if (metrics.btcPrice && metrics.summaryScore !== null) {
+                recordDailySnapshot(metrics);
+            }
         }
 
         let currentTop20 = null;
